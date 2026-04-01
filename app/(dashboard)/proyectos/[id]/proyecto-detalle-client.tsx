@@ -15,6 +15,7 @@ import { MonthNavigator } from '@/components/month-navigator'
 import { formatMoney, formatDate, safeDivide } from '@/lib/helpers'
 import { ProyectoOtAction } from '../proyecto-ot-action'
 import { ProyectoFormSheet } from '../proyecto-form-sheet'
+import { ServicioPill } from '@/components/servicio-pill'
 import type {
   Proyecto,
   ProyectoDepartamento,
@@ -28,16 +29,6 @@ import type {
   Empresa,
   EmpresaGrupo,
 } from '@/lib/supabase/types'
-
-const SERVICIO_COLORS: Record<string, string> = {
-  SEO: 'bg-emerald-100 text-emerald-700',
-  SEM: 'bg-blue-100 text-blue-700',
-  'Diseño Web': 'bg-purple-100 text-purple-700',
-  Contenidos: 'bg-amber-100 text-amber-700',
-  'Social Media': 'bg-pink-100 text-pink-700',
-  Analítica: 'bg-indigo-100 text-indigo-700',
-  Estrategia: 'bg-orange-100 text-orange-700',
-}
 
 type Props = {
   proyecto: Proyecto
@@ -372,7 +363,6 @@ export function ProyectoDetalleClient({
                     <tbody>
                       {ots.map((o) => {
                         const servicio = o.servicio_id ? servicioMap.get(o.servicio_id) : undefined
-                        const sColor = SERVICIO_COLORS[servicio?.nombre ?? ''] ?? 'bg-gray-100 text-gray-700'
                         const otAsignaciones = asignacionesPorOT.get(o.id) ?? []
                         const pctAsignado = otAsignaciones.reduce((sum, a) => sum + a.porcentaje_ppto_tm, 0)
 
@@ -381,7 +371,6 @@ export function ProyectoDetalleClient({
                             key={o.id}
                             ot={o}
                             servicio={servicio}
-                            sColor={sColor}
                             otAsignaciones={otAsignaciones}
                             pctAsignado={pctAsignado}
                             personaMap={personaMap}
@@ -432,7 +421,6 @@ export function ProyectoDetalleClient({
 function OTRowWithAsignaciones({
   ot,
   servicio,
-  sColor,
   otAsignaciones,
   pctAsignado,
   personaMap,
@@ -449,7 +437,6 @@ function OTRowWithAsignaciones({
 }: {
   ot: OrdenTrabajo
   servicio: CatalogoServicio | undefined
-  sColor: string
   otAsignaciones: Asignacion[]
   pctAsignado: number
   personaMap: Map<string, Persona>
@@ -471,9 +458,7 @@ function OTRowWithAsignaciones({
         <td className="py-2.5">
           <div className="flex items-center gap-1.5">
             {servicio ? (
-              <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${sColor}`}>
-                {servicio.nombre}
-              </span>
+              <ServicioPill name={servicio.nombre} />
             ) : (
               <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
                 ⚠ Sin servicio

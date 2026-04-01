@@ -34,6 +34,7 @@ import { GenerarOtsButton } from './generar-ots-button'
 import { confirmarOTsBulk } from './actions'
 import { AsignacionFormSheet } from '../asignaciones/asignacion-form-sheet'
 import { CheckCheck, X, Loader2, Users } from 'lucide-react'
+import { ServicioPill } from '@/components/servicio-pill'
 
 const ESTADO_OPTIONS = ['Todos', 'Facturado', 'Confirmado', 'Planificado', 'Propuesto']
 
@@ -148,16 +149,7 @@ export function OrdenesTrabajoClient({
     setIsConfirming(false)
   }
 
-  // Service pill colors
-  const servicioColors: Record<string, string> = {
-    SEO: 'bg-emerald-100 text-emerald-700',
-    SEM: 'bg-blue-100 text-blue-700',
-    'Diseño Web': 'bg-purple-100 text-purple-700',
-    Contenidos: 'bg-amber-100 text-amber-700',
-    'Social Media': 'bg-pink-100 text-pink-700',
-    Analítica: 'bg-indigo-100 text-indigo-700',
-    Estrategia: 'bg-orange-100 text-orange-700',
-  }
+  // Service pill colors — centralizado en components/servicio-pill.tsx
 
   return (
     <div>
@@ -233,7 +225,6 @@ export function OrdenesTrabajoClient({
             </TableHeader>
             <TableBody>
               {filtered.map((r) => {
-                const sColor = servicioColors[r.servicioNombre ?? ''] ?? 'bg-gray-100 text-gray-700'
                 const isSelected = selectedIds.includes(r.id)
                 return (
                   <TableRow key={r.id} className={isSelected ? 'bg-emerald-50' : undefined}>
@@ -254,9 +245,7 @@ export function OrdenesTrabajoClient({
                     <TableCell>
                       <div className="flex items-center gap-1.5">
                         {r.servicioNombre ? (
-                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${sColor}`}>
-                            {r.servicioNombre}
-                          </span>
+                          <ServicioPill name={r.servicioNombre} />
                         ) : (
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700">
                             ⚠ Sin servicio

@@ -15,6 +15,7 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table'
+import { ServicioPill } from '@/components/servicio-pill'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { FilterPills } from '@/components/filter-pills'
@@ -144,9 +145,7 @@ export function AsignacionesClient({
                     </Link>
                   </TableCell>
                   <TableCell>
-                    <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700">
-                      {r.servicioNombre}
-                    </span>
+                    <ServicioPill name={r.servicioNombre} />
                   </TableCell>
                   <TableCell>{r.personaNombre}</TableCell>
                   <TableCell className="text-muted-foreground">{r.cuotaNombre}</TableCell>

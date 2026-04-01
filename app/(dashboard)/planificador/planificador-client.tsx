@@ -19,6 +19,7 @@ import { KpiCard } from '@/components/kpi-card'
 import { MonthNavigator } from '@/components/month-navigator'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
+import { ServicioPill } from '@/components/servicio-pill'
 import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
 
@@ -37,37 +38,7 @@ type PlanificadorClientProps = {
   initialMonth?: string
 }
 
-// ── Service pill colors ──
-const servicioColorsByPrefix: [string, string][] = [
-  ['SEO', 'bg-emerald-100 text-emerald-700'],
-  ['PPC', 'bg-blue-100 text-blue-700'],
-  ['SM', 'bg-pink-100 text-pink-700'],
-  ['PM', 'bg-orange-100 text-orange-700'],
-  ['PR', 'bg-rose-100 text-rose-700'],
-  ['CRM', 'bg-cyan-100 text-cyan-700'],
-  ['AUT', 'bg-violet-100 text-violet-700'],
-  ['LOY', 'bg-teal-100 text-teal-700'],
-  ['PRO', 'bg-sky-100 text-sky-700'],
-  ['Web', 'bg-purple-100 text-purple-700'],
-  ['DIS', 'bg-purple-100 text-purple-700'],
-  ['Creas', 'bg-fuchsia-100 text-fuchsia-700'],
-  ['Branding', 'bg-amber-100 text-amber-700'],
-  ['DATA', 'bg-indigo-100 text-indigo-700'],
-  ['Redacción', 'bg-amber-100 text-amber-700'],
-]
-
-function getServicioColor(name: string): string {
-  const match = servicioColorsByPrefix.find(([prefix]) => name.startsWith(prefix))
-  return match?.[1] ?? 'bg-gray-100 text-gray-700'
-}
-
-function ServicioPill({ name }: { name: string }) {
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${getServicioColor(name)}`}>
-      {name}
-    </span>
-  )
-}
+// Service pill colors — centralizado en components/servicio-pill.tsx
 
 const deptColors: Record<string, string> = {
   'Paid Media': 'bg-blue-100 text-blue-700',
