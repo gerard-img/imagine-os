@@ -1,0 +1,93 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+
+export type ActionResult = { success: boolean; error?: string }
+
+const asignacionItemSchema = z.object({
+  id: z.string().optional(),
+  isNew: z.boolean().optional(),
+  persona_id: z.string().min(1, 'Persona requerida'),
+  cuota_planificacion_id: z.string().min(1, 'Cuota requerida'),
+  porcentaje_ppto_tm: z.number().min(0).max(100),
+})
+
+/**
+ * Persiste todos los cambios de asignaciones de una OT:
+ * - Inserta las nuevas (isNew: true)
+ * - Actualiza las existentes modificadas
+ * - Soft-elimina las que desaparecieron del listado local
+ */
+export async function guardarAsignacionesOT(
+  ordenId: string,
+  asignaciones: unknown[],
+  originalIds: string[],
+): Promise<ActionResult> {
+  const parsed = z.array(asignacionItemSchema).safeParse(asignaciones)
+  if (!parsed.success) {
+    return { success: false, error: 'Datos de asignación inválidos' }
+  }
+
+  const items = parsed.data
+
+  // Validar que la suma no supere 100%
+  const totalPct = items.reduce((sum, a) => sum + a.porcentaje_ppto_tm, 0)
+  if (totalPct > 100.001) {
+    return {
+      success: false,
+      error: `La suma de porcentajes es ${Math.round(totalPct)}%, no puede superar 100%`,
+    }
+  }
+
+  const supabase = await createClient()
+
+  // IDs que siguen presentes en el listado editado (no son nuevos)
+  const keepIds = new Set(items.filter((a) => !a.isNew && a.id).map((a) => a.id!))
+
+  // Soft-delete de los que se eliminaron del listado
+  const toDelete = originalIds.filter((id) => !keepIds.has(id))
+  if (toDelete.length > 0) {
+    const { error } = await supabase
+      .from('asignaciones')
+      .update({ deleted_at: new Date().toISOString() })
+      .in('id', toDelete)
+    if (error) return { success: false, error: `Error al eliminar: ${error.message}` }
+  }
+
+  // Insertar asignaciones nuevas
+  const toInsert = items.filter((a) => a.isNew)
+  for (const a of toInsert) {
+    const { error } = await supabase.from('asignaciones').insert({
+      orden_trabajo_id: ordenId,
+      persona_id: a.persona_id,
+      cuota_planificacion_id: a.cuota_planificacion_id,
+      porcentaje_ppto_tm: a.porcentaje_ppto_tm,
+    })
+    if (error) {
+      if (error.code === '23505') {
+        return { success: false, error: 'Una persona ya está asignada a esta OT' }
+      }
+      return { success: false, error: `Error al crear asignación: ${error.message}` }
+    }
+  }
+
+  // Actualizar asignaciones existentes
+  const toUpdate = items.filter((a) => !a.isNew && a.id)
+  for (const a of toUpdate) {
+    const { error } = await supabase
+      .from('asignaciones')
+      .update({
+        persona_id: a.persona_id,
+        cuota_planificacion_id: a.cuota_planificacion_id,
+        porcentaje_ppto_tm: a.porcentaje_ppto_tm,
+      })
+      .eq('id', a.id!)
+    if (error) return { success: false, error: `Error al actualizar: ${error.message}` }
+  }
+
+  revalidatePath('/planificador')
+  revalidatePath('/asignaciones')
+  return { success: true }
+}

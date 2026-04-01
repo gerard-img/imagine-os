@@ -24,6 +24,7 @@
 |---|---|---|
 | `id` | UUID PK | Auto |
 | `nombre` | text | Nombre interno |
+| `nombre_legal` | text, nullable | Razón social |
 | `codigo` | text, unique | Código interno |
 | `cif` | text | CIF |
 | `created_at` | timestamptz | Auto |
@@ -98,29 +99,31 @@
 
 ---
 
-### `divisiones` (lookup → empresas_grupo)
+### `divisiones` (lookup global)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
-| `empresa_grupo_id` | UUID FK | → empresas_grupo |
 | `nombre` | text | BDEV, TALE, CONS, OPER, ADMI, DIRE |
 | `descripcion` | text, nullable | |
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
+> Universales: las mismas divisiones aplican a todas las empresas del grupo.
+
 ---
 
-### `roles` (lookup → empresas_grupo)
+### `roles` (lookup global)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
-| `empresa_grupo_id` | UUID FK | → empresas_grupo |
 | `nombre` | text | Fundador, Administrador, Socio, Director, Coordinador, Responsable, Miembro, Intern, Externo, Implant |
 | `descripcion` | text, nullable | |
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
+
+> Universales: los mismos roles aplican a todas las personas del grupo.
 
 ---
 
@@ -146,18 +149,17 @@
 
 ---
 
-### `equipo` (entidad → empresas_grupo + lookups)
+### `personas` (entidad → empresas_grupo + lookups)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
-| `nombre_interno` | text | Identificador informal |
+| `persona` | text | Alias / identificador informal |
 | `dni` | text, unique | DNI/NIE |
 | `nombre` | text | |
 | `apellido_primero` | text | |
 | `apellido_segundo` | text, nullable | |
 | `empresa_grupo_id` | UUID FK | → empresas_grupo |
-| `departamento_id` | UUID FK | → departamentos |
 | `ciudad_id` | UUID FK | → ciudades |
 | `oficina_id` | UUID FK, nullable | → oficinas (nullable: remoto o implant) |
 | `rango_id` | UUID FK | → rangos_internos |
@@ -170,16 +172,30 @@
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Los campos organizativos (empresa_grupo_id, departamento_id, rango_id, puesto_id, division_id, rol_id) son el valor actual. La fuente de verdad histórica es `condiciones`.
+> Los campos organizativos (empresa_grupo_id, rango_id, puesto_id, division_id, rol_id) son el valor actual. Los departamentos de cada persona se definen en `personas_departamentos` (N:M con % de tiempo). La fuente de verdad histórica es `condiciones`. El campo `persona` es un alias informal (ej: "Marta G."), no el nombre legal.
 
 ---
 
-### `condiciones` (entidad → equipo — foto completa histórica)
+### `personas_departamentos` (intermedia N:M — reparto de tiempo por departamento)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
-| `equipo_id` | UUID FK | → equipo |
+| `persona_id` | UUID FK | → personas |
+| `departamento_id` | UUID FK | → departamentos |
+| `porcentaje_tiempo` | numeric | % del tiempo dedicado (ej: 100, 70, 30). La suma por persona debe ser 100 |
+| `created_at` | timestamptz | Auto |
+
+> UNIQUE(persona_id, departamento_id). Permite que una persona reparta su tiempo entre varios departamentos. Las horas disponibles por departamento = horas_trabajables × porcentaje_tiempo / 100.
+
+---
+
+### `condiciones` (entidad → personas — foto completa histórica)
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `id` | UUID PK | Auto |
+| `persona_id` | UUID FK | → personas |
 | `fecha_inicio` | date | Inicio de vigencia |
 | `fecha_fin` | date, nullable | Null = vigente |
 | `empresa_grupo_id` | UUID FK | → empresas_grupo |
@@ -203,12 +219,12 @@
 
 ---
 
-### `ausencias` (entidad → equipo)
+### `ausencias` (entidad → personas)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
-| `equipo_id` | UUID FK | → equipo |
+| `persona_id` | UUID FK | → personas |
 | `tipo` | text | Vacaciones, baja médica, permiso... |
 | `fecha_inicio` | date | |
 | `fecha_fin` | date | |
@@ -218,12 +234,12 @@
 
 ---
 
-### `evolucion` (entidad → equipo — evaluaciones de desempeño)
+### `evolucion` (entidad → personas — evaluaciones de desempeño)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
-| `equipo_id` | UUID FK | → equipo |
+| `persona_id` | UUID FK | → personas |
 | `fecha` | date | |
 | `tipo_evento` | text | Promoción, cambio departamento, evaluación... |
 | `descripcion` | text, nullable | |
@@ -305,14 +321,13 @@
 | `id` | UUID PK | Auto |
 | `empresa_id` | UUID FK, nullable | → empresas (nullable para proyectos internos) |
 | `empresa_grupo_id` | UUID FK | → empresas_grupo (qué empresa del holding ejecuta) |
-| `servicio_principal_id` | UUID FK, nullable | → catalogo_servicios (studio principal, para display) |
 | `titulo` | text | |
 | `descripcion` | text, nullable | |
 | `tipo_proyecto` | text, check | Interno, Externo, Facturable |
 | `tipo_partida` | text, check | Puntual, Recurrente |
 | `estado` | text, check | Propuesta, Confirmado, Activo, Pausado, Finalizado, Cancelado |
-| `aprobador_final_id` | UUID FK | → equipo |
-| `ppto_mensual_esperado` | numeric | Presupuesto mensual en euros |
+| `aprobador_final_id` | UUID FK | → personas |
+| `ppto_estimado` | numeric | Presupuesto estimado en euros (mensual para Recurrente, total para Puntual) |
 | `explicacion_presupuestos` | text, nullable | |
 | `fecha_activacion` | date, nullable | |
 | `fecha_cierre` | date, nullable | |
@@ -320,8 +335,22 @@
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Nombre para mostrar (computado en app): empresa.nombre_interno + servicio_principal + titulo.
+> Nombre para mostrar (computado en app): empresa.nombre_interno - proyecto.titulo. Los servicios se definen a nivel de orden de trabajo, no de proyecto.
 > El ciclo de vida se gestiona con `estado`. Los cambios se documentan en `historial_estado_proyecto`.
+> Los departamentos que participan en un proyecto se definen en `proyectos_departamentos` (N:M).
+
+---
+
+### `proyectos_departamentos` (intermedia N:M — departamentos por proyecto)
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `id` | UUID PK | Auto |
+| `proyecto_id` | UUID FK | → proyectos |
+| `departamento_id` | UUID FK | → departamentos |
+| `created_at` | timestamptz | Auto |
+
+> UNIQUE(proyecto_id, departamento_id). Un proyecto puede involucrar a varios departamentos. Cada orden de trabajo del proyecto tiene un único departamento.
 
 ---
 
@@ -345,12 +374,13 @@
 |---|---|---|
 | `id` | UUID PK | Auto |
 | `proyecto_id` | UUID FK | → proyectos |
-| `servicio_id` | UUID FK | → catalogo_servicios (el studio de esta orden) |
+| `servicio_id` | UUID FK | → catalogo_servicios (el servicio de esta orden) |
+| `departamento_id` | UUID FK | → departamentos (departamento que ejecuta esta orden) |
 | `mes_anio` | date | Primer día del mes (ej: 2026-03-01) |
-| `porcentaje_ppto_mes` | numeric | % del ppto mensual del proyecto para esta orden |
+| `porcentaje_ppto_mes` | numeric | % del ppto estimado del proyecto para esta orden. Puntual: reparte el ppto total entre órdenes. Recurrente: reparte el ppto mensual entre órdenes del mismo mes |
 | `partida_prevista` | numeric | Puede calcularse (ppto x %), pero almacenado para override manual |
 | `partida_real` | numeric, nullable | Obligatorio antes de confirmar |
-| `aprobador_id` | UUID FK | → equipo |
+| `aprobador_id` | UUID FK | → personas |
 | `estado` | text, check | Propuesto, Planificado, Confirmado, Facturado |
 | `fecha_inicio` | date | |
 | `fecha_fin` | date, nullable | |
@@ -359,7 +389,20 @@
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Constraint: UNIQUE(proyecto_id, servicio_id, mes_anio)
+> Constraint: UNIQUE(proyecto_id, departamento_id, servicio_id, mes_anio). Un departamento puede tener varias órdenes por proyecto y mes, una por cada servicio distinto.
+
+---
+
+### `ordenes_trabajo_personas` (intermedia N:M — personas preseleccionadas)
+
+| Campo | Tipo | Nota |
+|---|---|---|
+| `id` | UUID PK | Auto |
+| `orden_trabajo_id` | UUID FK | → ordenes_trabajo |
+| `persona_id` | UUID FK | → personas (persona preseleccionada) |
+| `created_at` | timestamptz | Auto |
+
+> Preselección de personas para una orden. Se usa para generar asignaciones automáticamente. La fuente de verdad final de quién trabaja en qué es `asignaciones`.
 
 ---
 
@@ -369,30 +412,30 @@
 |---|---|---|
 | `id` | UUID PK | Auto |
 | `orden_trabajo_id` | UUID FK | → ordenes_trabajo |
-| `equipo_id` | UUID FK | → equipo (persona asignada) |
+| `persona_id` | UUID FK | → personas (persona asignada) |
 | `porcentaje_ppto_tm` | numeric | % de la partida asignado a esta persona |
-| `cuota_rango_id` | UUID FK | → cuotas_por_rango (tarifa congelada para esta asignación) |
+| `cuota_planificacion_id` | UUID FK | → cuotas_planificacion (tarifa congelada para esta asignación) |
 | `deleted_at` | timestamptz, nullable | Soft delete |
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Constraint: UNIQUE(orden_trabajo_id, equipo_id)
+> Constraint: UNIQUE(orden_trabajo_id, persona_id)
 
 Campos calculados (en queries, no almacenados):
 - **Ingresos asignados** = partida_prevista x porcentaje_ppto_tm
 - **Ingresos reales** = partida_real x porcentaje_ppto_tm
-- **Horas a dedicar** = ingresos_asignados / cuota_rango.precio_hora
+- **Horas a dedicar** = ingresos_asignados / cuota_planificacion.precio_hora
 - **Utilización** = horas_asignadas_total / horas_trabajables
 
 ---
 
-### `cuotas_por_rango` (lookup temporal → empresas_grupo)
+### `cuotas_planificacion` (lookup temporal → empresas_grupo)
 
 | Campo | Tipo | Nota |
 |---|---|---|
 | `id` | UUID PK | Auto |
 | `empresa_grupo_id` | UUID FK | → empresas_grupo |
-| `rango_id` | UUID FK | → rangos_internos |
+| `nombre` | text | Nombre de la categoría de tarifa (ej: Intern, Junior, Specialist, Senior, Coordinador) |
 | `precio_hora` | numeric | Euros por hora |
 | `inicio_validez` | date | |
 | `fin_validez` | date, nullable | Null = tarifa vigente |
@@ -400,7 +443,7 @@ Campos calculados (en queries, no almacenados):
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Se usa para planificación (ingresos). El rango_id en condiciones/equipo se usará para costes internos. Cada asignación apunta a una cuota concreta, así los informes históricos muestran la tarifa que aplicaba en ese momento.
+> Se usa para planificación (cálculo de horas desde presupuesto). **No está relacionada con `rangos_internos`** (RRHH). Cada empresa del grupo define sus propias categorías de tarifa con nombres y precios/hora independientes. Cada asignación apunta a una cuota concreta, así los informes históricos muestran la tarifa que aplicaba en ese momento. El `rango_id` en `condiciones`/`personas` apunta a `rangos_internos` y se usa para costes internos (RRHH), no para planificación.
 
 ---
 
@@ -412,18 +455,18 @@ Campos calculados (en queries, no almacenados):
 | `empresa_grupo_id` | UUID FK | → empresas_grupo |
 | `mes_trabajo` | date | Primer día del mes |
 | `horas` | numeric | Horas trabajables |
-| `servicio_id` | UUID FK, nullable | → catalogo_servicios (override por studio) |
-| `equipo_id` | UUID FK, nullable | → equipo (override por persona) |
+| `departamento_id` | UUID FK, nullable | → departamentos (override por departamento) |
+| `persona_id` | UUID FK, nullable | → personas (override por persona) |
 | `comentarios` | text, nullable | |
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Lógica de resolución (prioridad): persona > studio > empresa (general).
-> El multi-select de studios de Coda se resuelve creando una fila por studio con las mismas horas.
+> Lógica de resolución (prioridad): persona > departamento > empresa (general).
+> Se puede crear una fila por departamento con horas específicas si difieren de la empresa.
 
 ---
 
-## RESUMEN — 23 tablas
+## RESUMEN — 26 tablas
 
 | # | Tabla | Tipo | Depende de |
 |---|---|---|---|
@@ -433,20 +476,23 @@ Campos calculados (en queries, no almacenados):
 | 4 | `servicios_y_depts` | Intermedia N:M | 2, 3 |
 | 5 | `rangos_internos` | Lookup | 1 |
 | 6 | `puestos` | Lookup | 1 |
-| 7 | `divisiones` | Lookup | 1 |
-| 8 | `roles` | Lookup | 1 |
+| 7 | `divisiones` | Lookup global | — |
+| 8 | `roles` | Lookup global | — |
 | 9 | `ciudades` | Lookup global | — |
 | 10 | `oficinas` | Lookup global | — |
-| 11 | `equipo` | Entidad | 1, 3, 5, 6, 7, 8, 9, 10 |
+| 11 | `personas` | Entidad | 1, 5, 6, 7, 8, 9, 10 |
+| 11b | `personas_departamentos` | Intermedia N:M | 11, 3 |
 | 12 | `condiciones` | Entidad histórica | 11, 1, 3, 5, 6, 7, 8 |
 | 13 | `ausencias` | Entidad | 11 |
 | 14 | `evolucion` | Entidad | 11 |
 | 15 | `empresas` | Maestra | — |
 | 16 | `contactos_empresas` | Entidad | 15 |
 | 17 | `historial_estado_empresa` | Historial | 15 |
-| 18 | `proyectos` | Entidad | 15, 1, 2, 11 |
+| 18 | `proyectos` | Entidad | 15, 1, 11 |
+| 18b | `proyectos_departamentos` | Intermedia N:M | 18, 3 |
 | 19 | `historial_estado_proyecto` | Historial | 18 |
-| 20 | `ordenes_trabajo` | Entidad | 18, 2, 11 |
+| 20 | `ordenes_trabajo` | Entidad | 18, 2, 3, 11 |
 | 21 | `asignaciones` | Entidad | 20, 11, 22 |
-| 22 | `cuotas_por_rango` | Lookup temporal | 1, 5 |
-| 23 | `horas_trabajables` | Lookup con overrides | 1, 2, 11 |
+| 21b | `ordenes_trabajo_personas` | Intermedia N:M | 20, 11 |
+| 22 | `cuotas_planificacion` | Lookup temporal | 1 |
+| 23 | `horas_trabajables` | Lookup con overrides | 1, 3, 11 |

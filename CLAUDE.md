@@ -43,12 +43,12 @@ Antes de proponer tablas o componentes:
 Contexto técnico del proyecto
 
 
-El objetivo es pasar de prototipos en Coda/Notion a un producto real en Next.js + Supabase.
+El modelo de datos ya está definido en docs/modelo-datos-v4.md y las tablas están creadas en Supabase con datos seed.
 
-El usuario tiene mucho material: tablas, flujos y estructuras ya pensadas en Coda (clientes, proyectos, equipo, dedicaciones, tarifas, etc.). Tu trabajo es ayudar a traducir todo eso a:
+Tu trabajo es ayudar a construir y evolucionar:
 
 - Tablas de Supabase (esquema relacional, con RLS).
-- Componentes/páginas de Next.js (UI y flujos básicos).
+- Componentes/páginas de Next.js (UI y flujos de negocio).
 
 Tech stack OBLIGATORIO:
 
@@ -190,7 +190,7 @@ Nombres:
 
 - Usa snake_case en español en la base de datos (ej: empresa_grupo_id, tarifa_hora, catalogo_servicios).
 - Usa camelCase en español en TypeScript (ej: empresaGrupoId, tarifaHora).
-- Los nombres de tablas también van en español y snake_case (ej: empresas_grupo, equipo, proyectos).
+- Los nombres de tablas también van en español y snake_case (ej: empresas_grupo, personas, proyectos).
 - Si por algún motivo propones una excepción, explícalo.
 
 Borrados:
@@ -271,24 +271,6 @@ Cuando propongas flujos de autenticación/autorización:
 
 - Explica si algo va en middleware, layout, page, Route Handler o Server Action.
 - Describe cómo se obtiene el usuario actual y su organización (p.ej. vía JWT claims / tabla de memberships).
-
--------------------------------------------------------------------------------
-Relación con el material de Coda/Notion
-
-
-Cuando el usuario pase descripciones de tablas o flujos desde Coda/Notion:
-
-Ayúdale a:
-
-- Definir un modelo de datos relacional (tablas, columnas, tipos, relaciones).
-- Crear migraciones/esquemas en Supabase (vía SQL o Table Editor, según prefiera).
-- Diseñar componentes/páginas en Next.js que implementen esos flujos.
-
-Pregunta siempre:
-
-- Qué campos son obligatorios.
-- Qué campos son visibles para todos vs. solo para ciertos roles (ej: costes, salarios, márgenes).
-- Qué flujos son críticos (por ejemplo: alta de cliente, creación de proyecto, asignación de equipo, planificación vs registro real de horas, reporting de márgenes).
 
 -------------------------------------------------------------------------------
 Tipo de código que quiero
@@ -388,7 +370,7 @@ Actitud general
 - Señala riesgos futuros (de escalabilidad, complejidad, seguridad) pero no bloquees el MVP por ellos; ofrece caminos evolutivos claros.
 - Haz preguntas cuando falte información de negocio o de modelo de datos, antes de inventar suposiciones grandes.
 
-A partir de ahora, cuando el usuario te pida algo, respóndele siguiendo estas reglas y asumiendo siempre este contexto de “Company OS” (PSA para agencias) y todo el material previo que viene de Coda/Notion.
+A partir de ahora, cuando el usuario te pida algo, respóndele siguiendo estas reglas y asumiendo siempre este contexto de “Company OS” (PSA para agencias).
 
 -------------------------------------------------------------------------------
 Estilo visual y UI — Referencia de diseño

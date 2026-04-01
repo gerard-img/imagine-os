@@ -1,0 +1,320 @@
+// ============================================================
+// Queries Supabase — Company OS
+//
+// Funciones server-only para leer datos desde Supabase.
+// Se usan desde Server Components y Server Actions.
+// Cada función crea su propio cliente (patrón recomendado por Supabase).
+// ============================================================
+
+import 'server-only'
+import { createClient } from './server'
+import type {
+  EmpresaGrupo,
+  CatalogoServicio,
+  Departamento,
+  Persona,
+  PersonaDepartamento,
+  Empresa,
+  Proyecto,
+  ProyectoDepartamento,
+  OrdenTrabajo,
+  OrdenTrabajoPersona,
+  Asignacion,
+  CuotaPlanificacion,
+  HorasTrabajables,
+  ContactoEmpresa,
+  Division,
+  Rol,
+  RangoInterno,
+  Puesto,
+  Ciudad,
+  Oficina,
+} from './types'
+
+// ── Helpers internos ──
+
+async function query<T>(
+  table: string,
+  options?: {
+    select?: string
+    filters?: Array<{ column: string; op: 'eq' | 'neq' | 'is' | 'in'; value: unknown }>
+    order?: { column: string; ascending?: boolean }
+  }
+): Promise<T[]> {
+  const supabase = await createClient()
+  let q = supabase.from(table).select(options?.select ?? '*')
+
+  if (options?.filters) {
+    for (const f of options.filters) {
+      if (f.op === 'eq') q = q.eq(f.column, f.value)
+      else if (f.op === 'neq') q = q.neq(f.column, f.value)
+      else if (f.op === 'is') q = q.is(f.column, f.value as null)
+      else if (f.op === 'in') q = q.in(f.column, f.value as string[])
+    }
+  }
+
+  if (options?.order) {
+    q = q.order(options.order.column, { ascending: options.order.ascending ?? true })
+  }
+
+  const { data, error } = await q
+  if (error) throw new Error(`Error consultando ${table}: ${error.message}`)
+  return (data ?? []) as T[]
+}
+
+// ── Empresas Grupo ──
+
+export async function getEmpresasGrupo(): Promise<EmpresaGrupo[]> {
+  return query<EmpresaGrupo>('empresas_grupo', {
+    order: { column: 'nombre' },
+  })
+}
+
+// ── Catálogo Servicios ──
+
+export async function getCatalogoServicios(): Promise<CatalogoServicio[]> {
+  return query<CatalogoServicio>('catalogo_servicios', {
+    order: { column: 'nombre' },
+  })
+}
+
+// ── Departamentos ──
+
+export async function getDepartamentos(): Promise<Departamento[]> {
+  return query<Departamento>('departamentos', {
+    order: { column: 'nombre' },
+  })
+}
+
+// ── Lookups globales ──
+
+export async function getDivisiones(): Promise<Division[]> {
+  return query<Division>('divisiones', { order: { column: 'nombre' } })
+}
+
+export async function getRoles(): Promise<Rol[]> {
+  return query<Rol>('roles', { order: { column: 'nombre' } })
+}
+
+export async function getRangosInternos(): Promise<RangoInterno[]> {
+  return query<RangoInterno>('rangos_internos', { order: { column: 'nombre' } })
+}
+
+export async function getPuestos(): Promise<Puesto[]> {
+  return query<Puesto>('puestos', { order: { column: 'nombre' } })
+}
+
+export async function getCiudades(): Promise<Ciudad[]> {
+  return query<Ciudad>('ciudades', { order: { column: 'nombre' } })
+}
+
+export async function getOficinas(): Promise<Oficina[]> {
+  return query<Oficina>('oficinas', { order: { column: 'nombre' } })
+}
+
+// ── Personas ──
+
+export async function getPersonas(): Promise<Persona[]> {
+  return query<Persona>('personas', {
+    order: { column: 'nombre' },
+  })
+}
+
+export async function getPersonaById(id: string): Promise<Persona | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('personas')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (error) return null
+  return data as Persona
+}
+
+export async function getPersonasDepartamentos(): Promise<PersonaDepartamento[]> {
+  return query<PersonaDepartamento>('personas_departamentos')
+}
+
+// ── Empresas (clientes) ──
+
+export async function getEmpresas(): Promise<Empresa[]> {
+  return query<Empresa>('empresas', {
+    order: { column: 'nombre_legal' },
+  })
+}
+
+export async function getEmpresaById(id: string): Promise<Empresa | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('empresas')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (error) return null
+  return data as Empresa
+}
+
+// ── Proyectos ──
+
+export async function getProyectos(): Promise<Proyecto[]> {
+  return query<Proyecto>('proyectos', {
+    order: { column: 'titulo' },
+  })
+}
+
+export async function getProyectoById(id: string): Promise<Proyecto | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('proyectos')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (error) return null
+  return data as Proyecto
+}
+
+export async function getProyectosDepartamentos(): Promise<ProyectoDepartamento[]> {
+  return query<ProyectoDepartamento>('proyectos_departamentos')
+}
+
+export async function getProyectosDepartamentosByProyecto(proyectoId: string): Promise<ProyectoDepartamento[]> {
+  return query<ProyectoDepartamento>('proyectos_departamentos', {
+    filters: [{ column: 'proyecto_id', op: 'eq', value: proyectoId }],
+  })
+}
+
+// ── Órdenes de trabajo ──
+
+export async function getOrdenesTrabajo(): Promise<OrdenTrabajo[]> {
+  return query<OrdenTrabajo>('ordenes_trabajo', {
+    filters: [{ column: 'deleted_at', op: 'is', value: null }],
+    order: { column: 'mes_anio' },
+  })
+}
+
+export async function getOrdenesTrabajoByMes(mes: string): Promise<OrdenTrabajo[]> {
+  return query<OrdenTrabajo>('ordenes_trabajo', {
+    filters: [
+      { column: 'deleted_at', op: 'is', value: null },
+      { column: 'mes_anio', op: 'eq', value: mes },
+    ],
+    order: { column: 'created_at' },
+  })
+}
+
+export async function getOrdenesTrabajoByProyecto(proyectoId: string): Promise<OrdenTrabajo[]> {
+  return query<OrdenTrabajo>('ordenes_trabajo', {
+    filters: [
+      { column: 'deleted_at', op: 'is', value: null },
+      { column: 'proyecto_id', op: 'eq', value: proyectoId },
+    ],
+    order: { column: 'mes_anio', ascending: false },
+  })
+}
+
+export async function getOrdenesTrabajoPersonas(): Promise<OrdenTrabajoPersona[]> {
+  return query<OrdenTrabajoPersona>('ordenes_trabajo_personas')
+}
+
+// ── Asignaciones ──
+
+export async function getAsignaciones(): Promise<Asignacion[]> {
+  return query<Asignacion>('asignaciones', {
+    filters: [{ column: 'deleted_at', op: 'is', value: null }],
+  })
+}
+
+export async function getAsignacionesByOrden(ordenId: string): Promise<Asignacion[]> {
+  return query<Asignacion>('asignaciones', {
+    filters: [
+      { column: 'deleted_at', op: 'is', value: null },
+      { column: 'orden_trabajo_id', op: 'eq', value: ordenId },
+    ],
+  })
+}
+
+// ── Cuotas de planificación ──
+
+export async function getCuotasPlanificacion(): Promise<CuotaPlanificacion[]> {
+  return query<CuotaPlanificacion>('cuotas_planificacion', {
+    order: { column: 'nombre' },
+  })
+}
+
+// ── Contactos de empresas ──
+
+export async function getContactosEmpresas(): Promise<ContactoEmpresa[]> {
+  return query<ContactoEmpresa>('contactos_empresas', {
+    order: { column: 'nombre' },
+  })
+}
+
+export async function getContactosEmpresasByEmpresa(empresaId: string): Promise<ContactoEmpresa[]> {
+  return query<ContactoEmpresa>('contactos_empresas', {
+    filters: [{ column: 'empresa_id', op: 'eq', value: empresaId }],
+    order: { column: 'nombre' },
+  })
+}
+
+// ── Asignaciones por persona ──
+
+export async function getAsignacionesByPersona(personaId: string): Promise<Asignacion[]> {
+  return query<Asignacion>('asignaciones', {
+    filters: [
+      { column: 'deleted_at', op: 'is', value: null },
+      { column: 'persona_id', op: 'eq', value: personaId },
+    ],
+  })
+}
+
+// ── Horas trabajables ──
+
+export async function getHorasTrabajables(): Promise<HorasTrabajables[]> {
+  return query<HorasTrabajables>('horas_trabajables')
+}
+
+// ── Función compuesta: resolver horas trabajables por persona/mes ──
+// Prioridad: override persona > override departamento > general empresa
+
+export async function resolverHorasTrabajablesPersona(
+  personaId: string,
+  mes: string,
+  // Se pasan pre-cargados para evitar N+1 queries
+  personasDepts: PersonaDepartamento[],
+  horasTrab: HorasTrabajables[],
+  personas: Persona[]
+): Promise<number> {
+  const persona = personas.find((p) => p.id === personaId)
+  if (!persona) return 0
+
+  // 1. Override por persona
+  const overridePersona = horasTrab.find(
+    (h) => h.persona_id === personaId && h.mes_trabajo === mes
+  )
+  if (overridePersona) return overridePersona.horas
+
+  // 2. Override por departamento (principal de la persona)
+  const depts = personasDepts
+    .filter((pd) => pd.persona_id === personaId)
+    .sort((a, b) => b.porcentaje_tiempo - a.porcentaje_tiempo)
+  if (depts.length > 0) {
+    const deptPrincipalId = depts[0].departamento_id
+    const overrideDepto = horasTrab.find(
+      (h) =>
+        h.departamento_id === deptPrincipalId &&
+        !h.persona_id &&
+        h.mes_trabajo === mes
+    )
+    if (overrideDepto) return overrideDepto.horas
+  }
+
+  // 3. General de la empresa
+  const general = horasTrab.find(
+    (h) =>
+      h.empresa_grupo_id === persona.empresa_grupo_id &&
+      !h.departamento_id &&
+      !h.persona_id &&
+      h.mes_trabajo === mes
+  )
+  return general?.horas ?? 0
+}
