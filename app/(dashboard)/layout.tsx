@@ -16,10 +16,14 @@ export default async function DashboardLayout({
     redirect('/sin-acceso')
   }
 
+  // Extraer nombre del rol para filtrar sidebar
+  const roles = persona.roles as unknown as { nombre: string } | null
+  const rolNombre = roles?.nombre
+
   return (
     <div className="flex min-h-screen">
       <Suspense>
-        <Sidebar />
+        <Sidebar rolNombre={rolNombre} />
       </Suspense>
       <div className="ml-[220px] flex-1 flex flex-col">
         <Header />

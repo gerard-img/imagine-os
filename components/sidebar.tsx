@@ -25,6 +25,7 @@ import {
   Network,
   Tag,
   BookOpen,
+  Home,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -40,7 +41,8 @@ type NavSection = {
   items: NavItem[]
 }
 
-const navSections: NavSection[] = [
+// Navegación completa para roles con acceso amplio
+const allSections: NavSection[] = [
   {
     label: 'GESTIÓN',
     items: [
@@ -51,6 +53,7 @@ const navSections: NavSection[] = [
   {
     label: 'DATOS',
     items: [
+      { name: 'Dashboard Personal', href: '/dashboard-personal', icon: Home },
       { name: 'Cargas de Trabajo', href: '/cargas-trabajo', icon: Activity },
       { name: 'Informes', href: '/informes', icon: BarChart3 },
     ],
@@ -110,15 +113,34 @@ const navSections: NavSection[] = [
   },
 ]
 
-export function Sidebar() {
+// Navegación reducida para roles con acceso limitado
+const limitedSections: NavSection[] = [
+  {
+    label: 'MI ESPACIO',
+    items: [
+      { name: 'Dashboard Personal', href: '/dashboard-personal', icon: Home },
+    ],
+  },
+]
+
+// Roles que solo ven el dashboard personal
+const ROLES_LIMITADOS = ['Responsable', 'Miembro', 'Intern', 'Externo', 'Implant']
+
+type SidebarProps = {
+  rolNombre?: string
+}
+
+export function Sidebar({ rolNombre }: SidebarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const fullUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname
 
+  const navSections = rolNombre && ROLES_LIMITADOS.includes(rolNombre)
+    ? limitedSections
+    : allSections
+
   function isActive(href: string) {
-    // Exact match for items with query params
     if (href.includes('?')) return fullUrl === href
-    // Path-based match for items without query params
     return pathname === href || pathname.startsWith(href + '/')
   }
 
@@ -166,7 +188,6 @@ export function Sidebar() {
                       <Icon className="h-4 w-4 shrink-0" />
                       {item.name}
                     </Link>
-                    {/* Sub-items */}
                     {item.children && (
                       <ul className="mt-0.5 ml-4 space-y-0.5">
                         {item.children.map((child) => {
