@@ -6,6 +6,9 @@ import {
   getRoles,
   getEmpresasGrupo,
   getPuestos,
+  getRangosInternos,
+  getCiudades,
+  getOficinas,
   getAsignaciones,
   getOrdenesTrabajo,
   getEmpresas,
@@ -23,6 +26,9 @@ export default async function PersonasPage() {
     roles,
     empresasGrupo,
     puestos,
+    rangos,
+    ciudades,
+    oficinas,
     asignaciones,
     ordenesTrabajo,
     empresas,
@@ -36,6 +42,9 @@ export default async function PersonasPage() {
     getRoles(),
     getEmpresasGrupo(),
     getPuestos(),
+    getRangosInternos(),
+    getCiudades(),
+    getOficinas(),
     getAsignaciones(),
     getOrdenesTrabajo(),
     getEmpresas(),
@@ -52,6 +61,9 @@ export default async function PersonasPage() {
       roles={roles}
       empresasGrupo={empresasGrupo}
       puestos={puestos}
+      rangos={rangos}
+      ciudades={ciudades}
+      oficinas={oficinas}
       asignaciones={asignaciones}
       ordenesTrabajo={ordenesTrabajo}
       empresas={empresas}

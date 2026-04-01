@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import {
   getEmpresaById,
   getContactosEmpresasByEmpresa,
-  getProyectos,
+  getProyectosByEmpresa,
   getOrdenesTrabajo,
   getAsignaciones,
   getCatalogoServicios,
@@ -11,6 +11,7 @@ import {
   getPersonasDepartamentos,
   getDepartamentos,
   getPuestos,
+  getEmpresasGrupo,
 } from '@/lib/supabase/queries'
 import { EmpresaDetalleClient } from './empresa-detalle-client'
 
@@ -26,9 +27,10 @@ export default async function EmpresaDetallePage({
   const [
     contactos, proyectos, ordenesTrabajo, asignaciones,
     servicios, cuotas, personas, personasDepts, departamentos, puestos,
+    empresasGrupo,
   ] = await Promise.all([
     getContactosEmpresasByEmpresa(id),
-    getProyectos(),
+    getProyectosByEmpresa(id),
     getOrdenesTrabajo(),
     getAsignaciones(),
     getCatalogoServicios(),
@@ -37,6 +39,7 @@ export default async function EmpresaDetallePage({
     getPersonasDepartamentos(),
     getDepartamentos(),
     getPuestos(),
+    getEmpresasGrupo(),
   ])
 
   return (
@@ -52,6 +55,7 @@ export default async function EmpresaDetallePage({
       personasDepts={personasDepts}
       departamentos={departamentos}
       puestos={puestos}
+      empresasGrupo={empresasGrupo}
     />
   )
 }

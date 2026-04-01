@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { ChevronRight, ChevronDown, TrendingUp, TrendingDown, Minus, ChevronsUpDown, ChevronsDownUp } from 'lucide-react'
+import { ChevronRight, ChevronDown, TrendingUp, TrendingDown, ChevronsUpDown, ChevronsDownUp, Info } from 'lucide-react'
 import { formatMoney } from '@/lib/helpers'
 import { MonthNavigator } from '@/components/month-navigator'
 import { FilterPills } from '@/components/filter-pills'
@@ -48,9 +48,9 @@ type Props = {
 }
 
 type VistaTab = 'cliente' | 'mes' | 'depto'
-type TipoProyecto = 'externo' | 'interno'
+type TipoProyecto = 'todos' | 'facturable' | 'externo' | 'interno'
 type EstadoOTFilter = 'Todos' | 'Planificado' | 'Confirmado' | 'Facturado'
-type SortColumn = 'label' | 'ingresosPrev' | 'ingresosReal' | 'deltaRealizacion' | 'horasAsignadas' | 'pctCarga' | 'euroHora' | 'horasNoAsignadas'
+type SortColumn = 'label' | 'ingresosReal' | 'ingresosPrev' | 'pctRealizacion' | 'horasAsignadas' | 'pctCarga' | 'euroHoraEfectivo' | 'horasNoAsignadas'
 type SortDir = 'asc' | 'desc'
 
 // ── Helpers de formato ────────────────────────────────────────
@@ -93,11 +93,11 @@ function KpiDelta({ actual, anterior, invertir = false }: { actual: number; ante
 
 // ── Colores condicionales ─────────────────────────────────────
 
-function deltaColor(delta: number): string {
-  if (delta > 0) return 'text-emerald-600'
-  if (delta < -5) return 'text-red-600'
-  if (delta < 0) return 'text-amber-600'
-  return 'text-muted-foreground'
+function realizacionColor(pct: number): string {
+  if (pct === 0) return 'text-muted-foreground'
+  if (pct >= 100) return 'text-emerald-600'
+  if (pct >= 90) return 'text-amber-600'
+  return 'text-red-600'
 }
 
 function cargaColor(pct: number): { text: string; border: string } {
@@ -229,26 +229,23 @@ function FilaColapsable({
           </div>
         </td>
 
-        {/* Ingresos previstos */}
-        <td className={`py-3 px-3 text-right ${textSize} tabular-nums text-foreground`}>
-          {formatMoney(fila.ingresosPrev)}
-        </td>
-
-        {/* Ingresos reales */}
-        <td className={`py-3 px-3 text-right ${textSize} tabular-nums text-foreground`}>
+        {/* Facturado (partida_real) — columna primaria */}
+        <td className={`py-3 px-3 text-right ${textSize} tabular-nums font-medium text-foreground`}>
           {fila.ingresosReal > 0 ? formatMoney(fila.ingresosReal) : (
             <span className="text-muted-foreground">—</span>
           )}
         </td>
 
-        {/* Δ Realización */}
+        {/* Planificado (partida_prevista) — referencia */}
+        <td className={`py-3 px-3 text-right ${textSize} tabular-nums text-muted-foreground`}>
+          {formatMoney(fila.ingresosPrev)}
+        </td>
+
+        {/* % Realización */}
         <td className={`py-3 px-3 text-right ${textSize} tabular-nums`}>
           {fila.ingresosPrev > 0 && fila.ingresosReal > 0 ? (
-            <span className={`inline-flex items-center gap-0.5 ${deltaColor(fila.deltaRealizacion)}`}>
-              {fila.deltaRealizacion > 0 ? <TrendingUp className="h-3 w-3" /> :
-               fila.deltaRealizacion < 0 ? <TrendingDown className="h-3 w-3" /> :
-               <Minus className="h-3 w-3" />}
-              {formatPct(fila.deltaRealizacion)}
+            <span className={`font-medium ${realizacionColor(fila.pctRealizacion)}`}>
+              {Math.round(fila.pctRealizacion)}%
             </span>
           ) : (
             <span className="text-muted-foreground">—</span>
@@ -274,9 +271,9 @@ function FilaColapsable({
           )}
         </td>
 
-        {/* €/hora */}
+        {/* €/hora efectivo */}
         <td className={`py-3 px-3 text-right ${textSize} tabular-nums text-foreground`}>
-          {fila.horasAsignadas > 0 ? formatEuroHora(fila.euroHora) : (
+          {fila.horasAsignadas > 0 ? formatEuroHora(fila.euroHoraEfectivo) : (
             <span className="text-muted-foreground">—</span>
           )}
         </td>
@@ -334,9 +331,9 @@ export function InformesClient({
   const month = searchParams.get('mes') || mesInicial
   const egFilter = searchParams.get('empresa') || 'Todos'
   const vistaTab = (searchParams.get('vista') as VistaTab) || 'cliente'
-  const tipoProyecto = (searchParams.get('tipo') as TipoProyecto) || 'externo'
+  const tipoProyecto = (searchParams.get('tipo') as TipoProyecto) || 'facturable'
   const estadoOT = (searchParams.get('estadoOT') as EstadoOTFilter) || 'Todos'
-  const sortCol = (searchParams.get('orden') as SortColumn) || 'ingresosPrev'
+  const sortCol = (searchParams.get('orden') as SortColumn) || 'ingresosReal'
   const sortDir = (searchParams.get('dir') as SortDir) || 'desc'
 
   // Estado puramente de UI (no va a la URL)
@@ -355,7 +352,7 @@ export function InformesClient({
   const setMonth = (v: string) => { setParams({ mes: v }); setExpandedKeys(new Set()) }
   const setEgFilter = (v: string) => { setParams({ empresa: v === 'Todos' ? null : v }); setExpandedKeys(new Set()) }
   const setVistaTab = (v: VistaTab) => { setParams({ vista: v === 'cliente' ? null : v }); setExpandedKeys(new Set()) }
-  const setTipoProyecto = (v: TipoProyecto) => { setParams({ tipo: v === 'externo' ? null : v }); setExpandedKeys(new Set()) }
+  const setTipoProyecto = (v: TipoProyecto) => { setParams({ tipo: v === 'facturable' ? null : v }); setExpandedKeys(new Set()) }
   const setEstadoOT = (v: EstadoOTFilter) => { setParams({ estadoOT: v === 'Todos' ? null : v }); setExpandedKeys(new Set()) }
 
   const toggleExpand = (key: string) => {
@@ -369,7 +366,7 @@ export function InformesClient({
 
   const toggleSort = (col: SortColumn) => {
     const newDir = sortCol === col ? (sortDir === 'asc' ? 'desc' : 'asc') : (col === 'label' ? 'asc' : 'desc')
-    setParams({ orden: col === 'ingresosPrev' ? null : col, dir: newDir === 'desc' ? null : newDir })
+    setParams({ orden: col === 'ingresosReal' ? null : col, dir: newDir === 'desc' ? null : newDir })
   }
 
   const filtroEg = egFilter === 'Todos' ? null : egFilter
@@ -443,8 +440,8 @@ export function InformesClient({
 
   // Datos para gráficos
   const datosMensuales = useMemo(
-    () => calcularDatosMensualesBarras(asignaciones, maps, filtroEg, anio, tipoProyecto),
-    [asignaciones, maps, filtroEg, anio, tipoProyecto],
+    () => calcularDatosMensualesBarras(asignaciones, maps, filtroEg, anio, tipoProyecto, estadoOT),
+    [asignaciones, maps, filtroEg, anio, tipoProyecto, estadoOT],
   )
 
   const datosConcentracion = useMemo(
@@ -484,18 +481,24 @@ export function InformesClient({
     return filas
   }, [filasCrudasMes, filasCrudasAnio, horasTrabPorMes, horasTrabPorMesAnio, horasTrabPorDepto, horasTrabPorDeptoAnio, vistaTab, sortCol, sortDir])
 
-  // Totales para fila sticky
+  // Totales para fila sticky — deben coincidir con la vista activa
+  const kpisTabla = useMemo(() => {
+    if (vistaTab === 'cliente') return kpis
+    // Vistas mes/depto muestran año completo → totales del año
+    return calcularKpis(filasCrudasAnio, horasTrabPorMesAnio)
+  }, [vistaTab, kpis, filasCrudasAnio, horasTrabPorMesAnio])
+
   const totales: FilaInforme = {
     key: '__totales__',
     label: 'Total',
-    ingresosPrev: kpis.ingresosPrev,
-    ingresosReal: kpis.ingresosReal,
-    deltaRealizacion: kpis.deltaPrevReal,
-    horasAsignadas: kpis.horasAsignadas,
-    horasTrabajables: kpis.horasTrabajables,
-    pctCarga: kpis.pctCarga,
-    euroHora: kpis.euroHora,
-    horasNoAsignadas: kpis.horasNoAsignadas,
+    ingresosPrev: kpisTabla.ingresosPrev,
+    ingresosReal: kpisTabla.ingresosReal,
+    pctRealizacion: kpisTabla.pctRealizacion,
+    horasAsignadas: kpisTabla.horasAsignadas,
+    horasTrabajables: kpisTabla.horasTrabajables,
+    pctCarga: kpisTabla.pctCarga,
+    euroHoraEfectivo: kpisTabla.euroHoraEfectivo,
+    horasNoAsignadas: kpisTabla.horasNoAsignadas,
   }
 
   const hhiStyle = hhiColor(kpis.hhiNivel)
@@ -507,8 +510,18 @@ export function InformesClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Informes</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground flex items-center gap-1.5">
             Análisis de ingresos, carga y concentración por cliente, mes y departamento
+            <span className="group relative">
+              <Info className="h-3.5 w-3.5 text-muted-foreground/60 cursor-help" />
+              <span className="absolute left-1/2 -translate-x-1/2 top-6 z-50 hidden group-hover:block w-72 rounded-lg border border-border bg-white p-3 text-xs text-muted-foreground shadow-lg leading-relaxed">
+                <strong className="text-foreground block mb-1">Dato principal: Facturado (partida real)</strong>
+                Las métricas de negocio (concentración, tendencia, €/hora efectivo) usan la <em>partida real</em> de cada OT.
+                Cuando una OT aún no tiene partida real confirmada, se usa la <em>partida prevista</em> como aproximación.
+                <br /><br />
+                Las <em>horas asignadas</em> siempre se calculan desde la partida prevista (son una herramienta de planificación).
+              </span>
+            </span>
           </p>
         </div>
         <MonthNavigator value={month} onChange={setMonth} />
@@ -528,9 +541,12 @@ export function InformesClient({
         </select>
 
         <FilterPills
-          options={['Externo', 'Interno']}
-          active={tipoProyecto === 'externo' ? 'Externo' : 'Interno'}
-          onChange={(v) => setTipoProyecto(v === 'Externo' ? 'externo' : 'interno')}
+          options={['Todos', 'Facturable', 'Externo', 'Interno']}
+          active={tipoProyecto === 'todos' ? 'Todos' : tipoProyecto === 'facturable' ? 'Facturable' : tipoProyecto === 'externo' ? 'Externo' : 'Interno'}
+          onChange={(v) => {
+            const map: Record<string, TipoProyecto> = { Todos: 'todos', Facturable: 'facturable', Externo: 'externo', Interno: 'interno' }
+            setTipoProyecto(map[v] ?? 'facturable')
+          }}
         />
 
         <select
@@ -547,18 +563,9 @@ export function InformesClient({
 
       {/* KPI Cards */}
       <div className="mt-5 grid grid-cols-3 gap-4 lg:grid-cols-6">
-        {/* Ingresos previstos */}
-        <div className="rounded-xl bg-white p-5 shadow-sm border-t-4 border-t-blue-500">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">Ingresos previstos</p>
-          <p className="mt-1 text-3xl font-bold text-foreground">{formatMoney(kpis.ingresosPrev)}</p>
-          <div className="mt-1">
-            <KpiDelta actual={kpis.ingresosPrev} anterior={kpisPrev.ingresosPrev} />
-          </div>
-        </div>
-
-        {/* Ingresos reales */}
+        {/* FACTURADO — la métrica primaria */}
         <div className="rounded-xl bg-white p-5 shadow-sm border-t-4 border-t-primary">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">Ingresos reales</p>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">Facturado</p>
           <p className="mt-1 text-3xl font-bold text-foreground">
             {kpis.ingresosReal > 0 ? formatMoney(kpis.ingresosReal) : '—'}
           </p>
@@ -566,8 +573,25 @@ export function InformesClient({
             {kpis.ingresosReal > 0 ? (
               <KpiDelta actual={kpis.ingresosReal} anterior={kpisPrev.ingresosReal} />
             ) : (
-              <span className="text-[11px] text-muted-foreground">Sin datos reales</span>
+              <span className="text-[11px] text-muted-foreground">Sin partida real confirmada</span>
             )}
+          </div>
+        </div>
+
+        {/* % Realización */}
+        <div className={`rounded-xl bg-white p-5 shadow-sm border-t-4 ${
+          kpis.pctRealizacion >= 100 ? 'border-t-emerald-500' :
+          kpis.pctRealizacion >= 90 ? 'border-t-amber-500' :
+          kpis.pctRealizacion > 0 ? 'border-t-red-500' : 'border-t-gray-300'
+        }`}>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">% Realización</p>
+          <p className={`mt-1 text-3xl font-bold ${kpis.pctRealizacion > 0 ? realizacionColor(kpis.pctRealizacion) : 'text-muted-foreground'}`}>
+            {kpis.pctRealizacion > 0 ? `${Math.round(kpis.pctRealizacion)}%` : '—'}
+          </p>
+          <div className="mt-1">
+            <span className="text-[11px] text-muted-foreground">
+              Plan: {formatMoney(kpis.ingresosPrev)}
+            </span>
           </div>
         </div>
 
@@ -590,12 +614,12 @@ export function InformesClient({
           </div>
         </div>
 
-        {/* €/hora promedio */}
+        {/* €/hora efectivo */}
         <div className="rounded-xl bg-white p-5 shadow-sm border-t-4 border-t-amber-500">
-          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">€/hora promedio</p>
-          <p className="mt-1 text-3xl font-bold text-foreground">{formatEuroHora(kpis.euroHora)}</p>
+          <p className="text-[10px] font-semibold tracking-widest uppercase text-muted-foreground">€/hora efectivo</p>
+          <p className="mt-1 text-3xl font-bold text-foreground">{formatEuroHora(kpis.euroHoraEfectivo)}</p>
           <div className="mt-1">
-            <KpiDelta actual={kpis.euroHora} anterior={kpisPrev.euroHora} />
+            <KpiDelta actual={kpis.euroHoraEfectivo} anterior={kpisPrev.euroHoraEfectivo} />
           </div>
         </div>
 
@@ -702,12 +726,12 @@ export function InformesClient({
               <tr className="border-b border-border">
                 {([
                   { key: 'label' as SortColumn, label: vistaTab === 'cliente' ? 'Cliente' : 'Periodo', align: 'left', className: 'pl-4 pr-2 w-[220px]' },
-                  { key: 'ingresosPrev' as SortColumn, label: 'Ing. Previsto', align: 'right', className: 'px-3' },
-                  { key: 'ingresosReal' as SortColumn, label: 'Ing. Real', align: 'right', className: 'px-3' },
-                  { key: 'deltaRealizacion' as SortColumn, label: 'Δ Realización', align: 'right', className: 'px-3' },
+                  { key: 'ingresosReal' as SortColumn, label: 'Facturado', align: 'right', className: 'px-3' },
+                  { key: 'ingresosPrev' as SortColumn, label: 'Planificado', align: 'right', className: 'px-3' },
+                  { key: 'pctRealizacion' as SortColumn, label: '% Realiz.', align: 'right', className: 'px-3' },
                   { key: 'horasAsignadas' as SortColumn, label: 'Horas', align: 'right', className: 'px-3' },
                   { key: 'pctCarga' as SortColumn, label: '% Carga', align: 'right', className: 'px-3' },
-                  { key: 'euroHora' as SortColumn, label: '€/hora', align: 'right', className: 'px-3' },
+                  { key: 'euroHoraEfectivo' as SortColumn, label: '€/h efect.', align: 'right', className: 'px-3' },
                   { key: 'horasNoAsignadas' as SortColumn, label: 'H. no asig.', align: 'right', className: 'px-3' },
                 ] as const).map((col) => (
                   <th
@@ -757,15 +781,15 @@ export function InformesClient({
                     Total
                   </td>
                   <td className="py-3 px-3 text-right text-sm font-bold tabular-nums text-foreground">
-                    {formatMoney(totales.ingresosPrev)}
-                  </td>
-                  <td className="py-3 px-3 text-right text-sm font-bold tabular-nums text-foreground">
                     {totales.ingresosReal > 0 ? formatMoney(totales.ingresosReal) : '—'}
+                  </td>
+                  <td className="py-3 px-3 text-right text-sm font-bold tabular-nums text-muted-foreground">
+                    {formatMoney(totales.ingresosPrev)}
                   </td>
                   <td className="py-3 px-3 text-right text-sm font-bold tabular-nums">
                     {totales.ingresosPrev > 0 && totales.ingresosReal > 0 ? (
-                      <span className={deltaColor(totales.deltaRealizacion)}>
-                        {formatPct(totales.deltaRealizacion)}
+                      <span className={realizacionColor(totales.pctRealizacion)}>
+                        {Math.round(totales.pctRealizacion)}%
                       </span>
                     ) : '—'}
                   </td>
@@ -783,7 +807,7 @@ export function InformesClient({
                     ) : '—'}
                   </td>
                   <td className="py-3 px-3 text-right text-sm font-bold tabular-nums text-foreground">
-                    {totales.horasAsignadas > 0 ? formatEuroHora(totales.euroHora) : '—'}
+                    {totales.horasAsignadas > 0 ? formatEuroHora(totales.euroHoraEfectivo) : '—'}
                   </td>
                   <td className="py-3 px-3 text-right text-sm font-bold tabular-nums text-amber-600">
                     {totales.horasTrabajables > 0 ? formatHoras(totales.horasNoAsignadas) : '—'}

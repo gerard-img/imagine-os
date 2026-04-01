@@ -21,6 +21,10 @@ const statusStyles: Record<string, string> = {
   'Propuesto': 'bg-gray-100 text-gray-600',
   'Planificado': 'bg-amber-50 text-amber-700',
   'Facturado': 'bg-emerald-50 text-emerald-700',
+  // Ausencias
+  'Solicitada': 'bg-amber-50 text-amber-700',
+  'Aprobada': 'bg-emerald-50 text-emerald-700',
+  'Rechazada': 'bg-red-50 text-red-700',
 }
 
 interface StatusBadgeProps {

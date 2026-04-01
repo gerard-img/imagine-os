@@ -99,6 +99,7 @@ export type Database = {
           id: string
           nombre: string
           descripcion: string | null
+          nivel_acceso: 'global' | 'empresa' | 'personal'
           created_at: string
           updated_at: string
         }
@@ -149,6 +150,7 @@ export type Database = {
           modalidad_trabajo: 'Presencial' | 'Híbrido' | 'Remoto' | null
           nivel_ingles: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2' | 'Nativo' | null
           skills_tags: string[] | null
+          auth_user_id: string | null
           created_at: string
           updated_at: string
         }

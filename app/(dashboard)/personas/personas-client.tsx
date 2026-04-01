@@ -10,6 +10,9 @@ import type {
   Rol,
   EmpresaGrupo,
   Puesto,
+  RangoInterno,
+  Ciudad,
+  Oficina,
   Asignacion,
   OrdenTrabajo,
   Empresa,
@@ -19,8 +22,7 @@ import type {
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
-import { Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { PersonaFormSheet } from './persona-form-sheet'
 
 interface PersonasClientProps {
   personas: Persona[]
@@ -30,6 +32,9 @@ interface PersonasClientProps {
   roles: Rol[]
   empresasGrupo: EmpresaGrupo[]
   puestos: Puesto[]
+  rangos: RangoInterno[]
+  ciudades: Ciudad[]
+  oficinas: Oficina[]
   asignaciones: Asignacion[]
   ordenesTrabajo: OrdenTrabajo[]
   empresas: Empresa[]
@@ -98,6 +103,9 @@ export default function PersonasClient({
   roles,
   empresasGrupo,
   puestos,
+  rangos,
+  ciudades,
+  oficinas,
   asignaciones,
   ordenesTrabajo,
   empresas,
@@ -232,10 +240,17 @@ export default function PersonasClient({
         <FilterSelect label="Rol" value={rolFilter} options={rolOptions} onChange={setRolFilter} />
         <FilterSelect label="División" value={divisionFilter} options={divisionOptions} onChange={setDivisionFilter} />
         <FilterSelect label="Empresa" value={empresaFilter} options={empresaOptions} onChange={setEmpresaFilter} />
-        <Button size="default" className="gap-1.5 shrink-0 ml-auto">
-          <Plus className="h-4 w-4" />
-          Nuevo Miembro
-        </Button>
+        <div className="ml-auto">
+          <PersonaFormSheet
+            empresasGrupo={empresasGrupo}
+            roles={roles}
+            divisiones={divisiones}
+            puestos={puestos}
+            rangos={rangos}
+            ciudades={ciudades}
+            oficinas={oficinas}
+          />
+        </div>
       </div>
 
       {/* Person cards */}

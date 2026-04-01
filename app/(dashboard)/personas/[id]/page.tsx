@@ -11,6 +11,8 @@ import {
   getCiudades,
   getOficinas,
   getAsignacionesByPersona,
+  getCondicionesByPersona,
+  getAusenciasByPersona,
   getOrdenesTrabajo,
   getProyectos,
   getEmpresas,
@@ -31,6 +33,7 @@ export default async function PersonaDetallePage({
   const [
     personasDepts, departamentos, empresasGrupo, rangos, puestos,
     divisiones, roles, ciudades, oficinas, asignaciones,
+    condiciones, ausencias,
     ordenesTrabajo, proyectos, empresas, servicios, cuotas,
   ] = await Promise.all([
     getPersonasDepartamentos(),
@@ -43,6 +46,8 @@ export default async function PersonaDetallePage({
     getCiudades(),
     getOficinas(),
     getAsignacionesByPersona(id),
+    getCondicionesByPersona(id),
+    getAusenciasByPersona(id),
     getOrdenesTrabajo(),
     getProyectos(),
     getEmpresas(),
@@ -63,6 +68,8 @@ export default async function PersonaDetallePage({
       ciudades={ciudades}
       oficinas={oficinas}
       asignaciones={asignaciones}
+      condiciones={condiciones}
+      ausencias={ausencias}
       ordenesTrabajo={ordenesTrabajo}
       proyectos={proyectos}
       empresas={empresas}

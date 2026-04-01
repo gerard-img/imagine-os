@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type {
   Empresa,
   ContactoEmpresa,
@@ -14,11 +15,12 @@ import type {
   PersonaDepartamento,
   Departamento,
   Puesto,
+  EmpresaGrupo,
 } from '@/lib/supabase/types'
 import { formatMoney, formatDate, safeDivide } from '@/lib/helpers'
 import { StatusBadge } from '@/components/status-badge'
 import { MonthNavigator } from '@/components/month-navigator'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Globe, Phone, Mail, ExternalLink, Crown, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 type Props = {
@@ -33,30 +35,27 @@ type Props = {
   personasDepts: PersonaDepartamento[]
   departamentos: Departamento[]
   puestos: Puesto[]
+  empresasGrupo: EmpresaGrupo[]
 }
 
-const servicioColors: Record<string, string> = {
-  SEO: 'bg-emerald-100 text-emerald-700',
-  SEM: 'bg-blue-100 text-blue-700',
-  'Diseño Web': 'bg-purple-100 text-purple-700',
-  Contenidos: 'bg-amber-100 text-amber-700',
-  'Social Media': 'bg-pink-100 text-pink-700',
-  Analítica: 'bg-indigo-100 text-indigo-700',
-  Estrategia: 'bg-orange-100 text-orange-700',
-}
-
-function ServicioPill({ name }: { name: string }) {
-  const color = servicioColors[name] ?? 'bg-gray-100 text-gray-700'
+function InfoRow({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${color}`}>
-      {name.toUpperCase()}
-    </span>
+    <div className="flex justify-between">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-semibold text-right">{children ?? value ?? '—'}</dd>
+    </div>
   )
+}
+
+const clasificacionColors: Record<string, string> = {
+  A: 'bg-emerald-100 text-emerald-700',
+  B: 'bg-blue-100 text-blue-700',
+  C: 'bg-gray-100 text-gray-600',
 }
 
 export function EmpresaDetalleClient({
   empresa, contactos, proyectos, ordenesTrabajo, asignaciones,
-  servicios, cuotas, personas, personasDepts, departamentos, puestos,
+  servicios, cuotas, personas, personasDepts, departamentos, puestos, empresasGrupo,
 }: Props) {
   const router = useRouter()
   const [mes, setMes] = useState('2026-01-01')
@@ -68,11 +67,9 @@ export function EmpresaDetalleClient({
   const deptMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
   const puestoMap = useMemo(() => new Map(puestos.map((p) => [p.id, p])), [puestos])
   const otMap = useMemo(() => new Map(ordenesTrabajo.map((ot) => [ot.id, ot])), [ordenesTrabajo])
+  const egMap = useMemo(() => new Map(empresasGrupo.map((eg) => [eg.id, eg])), [empresasGrupo])
 
-  // Proyectos for this empresa
-  const proyIds = useMemo(() => {
-    return new Set(proyectos.filter((p) => p.empresa_id === empresa.id).map((p) => p.id))
-  }, [proyectos, empresa.id])
+  const proyIds = useMemo(() => new Set(proyectos.map((p) => p.id)), [proyectos])
 
   // Ordenes for this empresa in current month
   const ordenesMes = useMemo(() => {
@@ -106,7 +103,7 @@ export function EmpresaDetalleClient({
   // Equipo asignado
   const equipo = useMemo(() => {
     const ordenIds = new Set(ordenesMes.map((ot) => ot.id))
-    const pMap = new Map<string, { persona: string; departamento: string; puesto: string; horas: number }>()
+    const pMap = new Map<string, { personaId: string; persona: string; departamento: string; puesto: string; horas: number }>()
 
     for (const a of asignaciones.filter((a) => ordenIds.has(a.orden_trabajo_id))) {
       const persona = personaMap.get(a.persona_id)
@@ -129,6 +126,7 @@ export function EmpresaDetalleClient({
 
       const key = persona.id
       const existing = pMap.get(key) ?? {
+        personaId: persona.id,
         persona: persona.persona,
         departamento: dept?.nombre ?? '—',
         puesto: puesto?.nombre ?? '—',
@@ -138,7 +136,7 @@ export function EmpresaDetalleClient({
       pMap.set(key, existing)
     }
 
-    return [...pMap.values()]
+    return [...pMap.values()].sort((a, b) => b.horas - a.horas)
   }, [ordenesMes, asignaciones, personaMap, otMap, cuotaMap, personasDepts, deptMap, puestoMap])
 
   const contactosActivos = contactos.filter((c) => c.activo)
@@ -146,172 +144,173 @@ export function EmpresaDetalleClient({
   const horasEquipoTotal = equipo.reduce((sum, e) => sum + e.horas, 0)
 
   const subestado =
-    empresa.estado === 'Conocido'
-      ? empresa.tipo_conocido
-      : empresa.estado === 'Cliente'
-        ? empresa.tipo_cliente
-        : empresa.estado === 'Prospecto'
-          ? empresa.estado_prospecto
-          : null
+    empresa.estado === 'Conocido' ? empresa.tipo_conocido
+    : empresa.estado === 'Cliente' ? empresa.tipo_cliente
+    : empresa.estado === 'Prospecto' ? empresa.estado_prospecto
+    : null
 
-  const contactoPrincipal = contactos.find(
-    (c) => c.es_contacto_principal && c.activo
-  )
+  const responsable = empresa.responsable_cuenta_id ? personaMap.get(empresa.responsable_cuenta_id) : null
+
+  // Proyectos activos e inactivos
+  const proyectosActivos = proyectos.filter((p) => ['Activo', 'Confirmado', 'Propuesta'].includes(p.estado))
+  const proyectosInactivos = proyectos.filter((p) => !['Activo', 'Confirmado', 'Propuesta'].includes(p.estado))
+
+  // Ingresos totales acumulados (todas las OTs de todos los proyectos)
+  const ingresosTotal = useMemo(() => {
+    return ordenesTrabajo
+      .filter((ot) => proyIds.has(ot.proyecto_id) && !ot.deleted_at)
+      .reduce((sum, ot) => sum + ot.partida_prevista, 0)
+  }, [ordenesTrabajo, proyIds])
 
   return (
     <div>
-      {/* Page header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">
-          {empresa.nombre_interno ?? empresa.nombre_legal}
-        </h1>
-        <p className="text-sm text-muted-foreground">Ficha de empresa</p>
-      </div>
-
-      {/* Back + title bar */}
-      <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => router.back()} className="gap-1.5">
             <ArrowLeft className="h-3.5 w-3.5" />
             Volver
           </Button>
-          <span className="text-lg font-bold text-foreground">
-            {(empresa.nombre_interno ?? empresa.nombre_legal).toUpperCase()}
-          </span>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              {(empresa.nombre_interno ?? empresa.nombre_legal).toUpperCase()}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {empresa.nombre_legal} · {empresa.cif}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
+          {empresa.clasificacion_cuenta && (
+            <span className={`inline-flex rounded-full px-3 py-0.5 text-xs font-bold ${clasificacionColors[empresa.clasificacion_cuenta] ?? 'bg-gray-100 text-gray-600'}`}>
+              Cuenta {empresa.clasificacion_cuenta}
+            </span>
+          )}
           <StatusBadge status={empresa.estado} />
-          <MonthNavigator value={mes} onChange={setMes} />
-          <button className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 transition-colors">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {subestado && (
+            <span className="text-xs text-muted-foreground">({subestado})</span>
+          )}
         </div>
       </div>
 
-      {/* 3-column info cards */}
+      {/* Row 1: 3 info cards */}
       <div className="mt-5 grid grid-cols-3 gap-4">
         {/* Datos Generales */}
         <div className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Datos Generales
-            </p>
-            <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Datos Generales
+          </p>
           <dl className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Nombre</dt>
-              <dd className="font-semibold text-right">{empresa.nombre_legal}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">CIF</dt>
-              <dd className="font-semibold">{empresa.cif}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Tipo</dt>
-              <dd className="font-semibold">{empresa.tipo}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Sector</dt>
-              <dd className="font-semibold">{empresa.sector ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Estado</dt>
-              <dd><StatusBadge status={empresa.estado} /></dd>
-            </div>
-            {subestado && (
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Subestado</dt>
-                <dd className="font-semibold">{subestado}</dd>
-              </div>
-            )}
+            <InfoRow label="Tipo" value={empresa.tipo} />
+            <InfoRow label="Sector" value={empresa.sector} />
+            <InfoRow label="Moneda" value={empresa.moneda} />
             {empresa.fecha_primer_contrato && (
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">1er contrato</dt>
-                <dd className="font-semibold">{formatDate(empresa.fecha_primer_contrato)}</dd>
-              </div>
+              <InfoRow label="1er contrato" value={formatDate(empresa.fecha_primer_contrato)} />
+            )}
+            {empresa.fuente_captacion && (
+              <InfoRow label="Fuente" value={empresa.fuente_captacion} />
+            )}
+            {responsable && (
+              <InfoRow label="Responsable">
+                <Link href={`/personas/${responsable.id}`} className="font-semibold text-primary hover:underline">
+                  {responsable.persona}
+                </Link>
+              </InfoRow>
+            )}
+            {empresa.idioma_preferido && (
+              <InfoRow label="Idioma" value={empresa.idioma_preferido} />
             )}
           </dl>
         </div>
 
-        {/* Dirección */}
+        {/* Comercial */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Datos Comerciales
+          </p>
+          <dl className="space-y-2.5 text-sm">
+            {empresa.num_empleados != null && (
+              <InfoRow label="Empleados" value={empresa.num_empleados.toLocaleString('es-ES')} />
+            )}
+            {empresa.facturacion_anual_estimada != null && (
+              <InfoRow label="Facturación est." value={formatMoney(empresa.facturacion_anual_estimada)} />
+            )}
+            <InfoRow label="Proyectos activos" value={String(proyectosActivos.length)} />
+            <InfoRow label="Ingresos acumulados" value={formatMoney(ingresosTotal)} />
+          </dl>
+
+          {/* Dirección */}
+          <div className="mt-4 border-t border-border pt-3">
+            <p className="text-[10px] uppercase text-muted-foreground mb-2">Dirección</p>
+            <p className="text-sm">
+              {[empresa.calle, empresa.codigo_postal, empresa.ciudad, empresa.provincia, empresa.pais].filter(Boolean).join(', ') || '—'}
+            </p>
+          </div>
+
+          {/* Links */}
+          <div className="mt-3 flex items-center gap-3">
+            {empresa.web && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Globe className="h-3 w-3" />
+                <span className="truncate max-w-[150px]">{empresa.web}</span>
+              </span>
+            )}
+            {empresa.linkedin_url && (
+              <span className="flex items-center gap-1 text-xs text-blue-600">
+                <ExternalLink className="h-3 w-3" />
+                LinkedIn
+              </span>
+            )}
+            {empresa.telefono && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Phone className="h-3 w-3" />
+                {empresa.telefono}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Resumen Mes */}
         <div className="rounded-xl bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Dirección
+              Resumen del Mes
             </p>
-            <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
+            <MonthNavigator value={mes} onChange={setMes} />
           </div>
-          <dl className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Dirección</dt>
-              <dd className="font-semibold text-right">
-                {[empresa.calle, empresa.codigo_postal, empresa.ciudad, empresa.provincia, empresa.pais].filter(Boolean).join(', ') || '—'}
-              </dd>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
+              <p className="text-lg font-bold text-primary">{formatMoney(feeTotal)}</p>
+              <p className="text-[10px] text-muted-foreground">Fee mensual</p>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Web</dt>
-              <dd className="font-semibold text-right truncate max-w-[200px]">{empresa.web ?? '—'}</dd>
+            <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
+              <p className="text-lg font-bold text-blue-600">{Math.round(horasEquipoTotal)}h</p>
+              <p className="text-[10px] text-muted-foreground">Horas equipo</p>
             </div>
-          </dl>
+            <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
+              <p className="text-lg font-bold text-emerald-600">{equipo.length}</p>
+              <p className="text-[10px] text-muted-foreground">Personas</p>
+            </div>
+            <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
+              <p className="text-lg font-bold text-amber-600">{serviciosFees.length}</p>
+              <p className="text-[10px] text-muted-foreground">Servicios</p>
+            </div>
+          </div>
+
           {empresa.notas && (
             <div className="mt-4 border-t border-border pt-3">
-              <p className="text-xs text-muted-foreground">Notas</p>
-              <p className="mt-1 text-sm text-foreground">{empresa.notas}</p>
+              <p className="text-[10px] uppercase text-muted-foreground mb-1">Notas</p>
+              <p className="text-sm text-muted-foreground">{empresa.notas}</p>
             </div>
-          )}
-        </div>
-
-        {/* Contacto */}
-        <div className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Contacto
-            </p>
-            <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          {contactoPrincipal ? (
-            <dl className="space-y-2.5 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Nombre</dt>
-                <dd className="font-semibold">
-                  {contactoPrincipal.nombre} {contactoPrincipal.apellidos}
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Cargo</dt>
-                <dd className="font-semibold">{contactoPrincipal.cargo ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Email</dt>
-                <dd className="font-semibold text-right truncate max-w-[200px]">{contactoPrincipal.email ?? '—'}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Teléfono</dt>
-                <dd className="font-semibold">{contactoPrincipal.movil ?? contactoPrincipal.telefono_directo ?? '—'}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="text-sm text-muted-foreground">Sin contacto principal.</p>
-          )}
-          {contactosActivos.length > 1 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              +{contactosActivos.length - 1} contacto{contactosActivos.length - 1 > 1 ? 's' : ''} más
-            </p>
           )}
         </div>
       </div>
 
-      {/* Servicios & Fees */}
-      <div className="mt-6 rounded-xl bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+      {/* Row 2: Servicios + Equipo */}
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        {/* Servicios */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Servicios
             </p>
@@ -319,64 +318,48 @@ export function EmpresaDetalleClient({
               <span className="text-sm font-bold text-primary">{formatMoney(feeTotal)}/mes</span>
             )}
           </div>
-          <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+
+          {serviciosFees.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Sin servicios asignados este mes.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[10px] uppercase text-muted-foreground">
+                  <th className="pb-2 font-semibold">Servicio</th>
+                  <th className="pb-2 font-semibold text-right">Fee</th>
+                  <th className="pb-2 font-semibold text-right w-[100px]">%</th>
+                  <th className="pb-2 font-semibold text-right">Horas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {serviciosFees.map((s) => {
+                  const pct = feeTotal > 0 ? safeDivide(s.fee, feeTotal) * 100 : 0
+                  return (
+                    <tr key={s.nombre} className="border-t border-border/50">
+                      <td className="py-2.5 font-medium">{s.nombre}</td>
+                      <td className="py-2.5 text-right text-primary font-medium">{formatMoney(s.fee)}</td>
+                      <td className="py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="h-1.5 w-16 rounded-full bg-gray-100">
+                            <div className="h-1.5 rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-muted-foreground w-8 text-right">{Math.round(pct)}%</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-right text-muted-foreground">{Math.round(s.horas)}h</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {serviciosFees.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Sin servicios asignados este mes.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-muted-foreground">
-                <th className="pb-2 font-semibold">Servicio</th>
-                <th className="pb-2 font-semibold text-right">Fee</th>
-                <th className="pb-2 font-semibold text-right w-[120px]">%</th>
-                <th className="pb-2 font-semibold text-right">Horas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {serviciosFees.map((s) => {
-                const pct = feeTotal > 0 ? safeDivide(s.fee, feeTotal) * 100 : 0
-                return (
-                  <tr key={s.nombre} className="border-t border-border/50">
-                    <td className="py-3">
-                      <ServicioPill name={s.nombre} />
-                    </td>
-                    <td className="py-3 text-right font-medium text-primary">
-                      {formatMoney(s.fee)}
-                    </td>
-                    <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <div className="h-1.5 w-20 rounded-full bg-gray-100">
-                          <div
-                            className="h-1.5 rounded-full bg-primary"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground w-10 text-right">
-                          {Math.round(pct)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="py-3 text-right text-muted-foreground">
-                      {Math.round(s.horas)}h
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Equipo Asignado */}
-      <div className="mt-4 rounded-xl bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+        {/* Equipo Asignado */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Equipo Asignado
             </p>
@@ -384,45 +367,139 @@ export function EmpresaDetalleClient({
               <span className="text-sm font-bold text-primary">{Math.round(horasEquipoTotal)}h totales</span>
             )}
           </div>
-          <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+
+          {equipo.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Sin equipo asignado este mes.
+            </p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[10px] uppercase text-muted-foreground">
+                  <th className="pb-2 font-semibold">Persona</th>
+                  <th className="pb-2 font-semibold">Dept.</th>
+                  <th className="pb-2 font-semibold">Puesto</th>
+                  <th className="pb-2 font-semibold text-right">Horas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {equipo.map((e) => (
+                  <tr key={e.personaId} className="border-t border-border/50">
+                    <td className="py-2.5">
+                      <Link href={`/personas/${e.personaId}`} className="font-medium hover:text-primary transition-colors">
+                        {e.persona}
+                      </Link>
+                    </td>
+                    <td className="py-2.5 text-muted-foreground">{e.departamento}</td>
+                    <td className="py-2.5 text-muted-foreground">{e.puesto}</td>
+                    <td className="py-2.5 text-right font-medium text-primary">{Math.round(e.horas)}h</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* Row 3: Contactos + Proyectos */}
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        {/* Contactos */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Contactos
+            </p>
+            <span className="text-xs text-muted-foreground">{contactosActivos.length} activos</span>
+          </div>
+
+          {contactosActivos.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Sin contactos registrados.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {contactosActivos.map((c) => (
+                <div key={c.id} className="rounded-lg border border-border/50 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        {c.nombre} {c.apellidos ?? ''}
+                      </span>
+                      {c.es_contacto_principal && (
+                        <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                      )}
+                      {c.es_decisor && (
+                        <Crown className="h-3.5 w-3.5 text-purple-500" />
+                      )}
+                    </div>
+                    {c.rol_influencia && (
+                      <span className="text-[10px] text-muted-foreground">{c.rol_influencia}</span>
+                    )}
+                  </div>
+                  {c.cargo && (
+                    <p className="text-xs text-muted-foreground mb-1">{c.cargo}{c.departamento ? ` · ${c.departamento}` : ''}</p>
+                  )}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    {c.email && (
+                      <span className="flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        <span className="truncate max-w-[160px]">{c.email}</span>
+                      </span>
+                    )}
+                    {(c.movil ?? c.telefono_directo) && (
+                      <span className="flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {c.movil ?? c.telefono_directo}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {equipo.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Sin equipo asignado este mes.
-          </p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs uppercase text-muted-foreground">
-                <th className="pb-2 font-semibold">Persona</th>
-                <th className="pb-2 font-semibold">Departamento</th>
-                <th className="pb-2 font-semibold">Puesto</th>
-                <th className="pb-2 font-semibold text-right">Horas</th>
-              </tr>
-            </thead>
-            <tbody>
-              {equipo.map((e) => (
-                <tr key={e.persona} className="border-t border-border/50">
-                  <td className="py-3 font-medium">{e.persona}</td>
-                  <td className="py-3 text-muted-foreground">{e.departamento}</td>
-                  <td className="py-3 text-muted-foreground">{e.puesto}</td>
-                  <td className="py-3 text-right font-medium text-primary">{Math.round(e.horas)}h</td>
-                </tr>
-              ))}
-              <tr className="border-t border-border">
-                <td colSpan={3} className="py-3 text-right text-xs font-semibold text-muted-foreground">
-                  Total:
-                </td>
-                <td className="py-3 text-right font-bold text-primary">
-                  {Math.round(horasEquipoTotal)}h
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        )}
+        {/* Proyectos */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Proyectos
+            </p>
+            <span className="text-xs text-muted-foreground">
+              {proyectosActivos.length} activos · {proyectos.length} total
+            </span>
+          </div>
+
+          {proyectos.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Sin proyectos asociados.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {[...proyectosActivos, ...proyectosInactivos].map((p) => {
+                const eg = egMap.get(p.empresa_grupo_id)
+                return (
+                  <Link
+                    key={p.id}
+                    href={`/proyectos`}
+                    className="flex items-center justify-between rounded-lg border border-border/50 p-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{p.titulo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {eg?.codigo ?? '—'} · {p.tipo_proyecto} · {p.tipo_partida}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-medium text-primary">{formatMoney(p.ppto_estimado)}</span>
+                      <StatusBadge status={p.estado} />
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

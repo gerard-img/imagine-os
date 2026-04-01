@@ -2,8 +2,47 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { personaSchema, type PersonaFormData } from '@/lib/schemas/persona'
 
 export type ActionResult = { success: boolean; error?: string }
+
+export async function crearPersona(data: PersonaFormData): Promise<ActionResult> {
+  const parsed = personaSchema.safeParse(data)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
+  }
+
+  const d = parsed.data
+  const persona = [d.nombre, d.apellido_primero, d.apellido_segundo].filter(Boolean).join(' ')
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('personas').insert({
+    persona,
+    nombre: d.nombre,
+    apellido_primero: d.apellido_primero,
+    apellido_segundo: d.apellido_segundo || null,
+    dni: d.dni,
+    empresa_grupo_id: d.empresa_grupo_id,
+    rol_id: d.rol_id,
+    division_id: d.division_id,
+    puesto_id: d.puesto_id,
+    rango_id: d.rango_id,
+    ciudad_id: d.ciudad_id,
+    oficina_id: d.oficina_id || null,
+    fecha_incorporacion: d.fecha_incorporacion,
+    email_corporativo: d.email_corporativo || null,
+    email_personal: d.email_personal || null,
+    telefono: d.telefono || null,
+    modalidad_trabajo: d.modalidad_trabajo || null,
+    activo: true,
+    rango_es_interino: false,
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/personas')
+  return { success: true }
+}
 
 export async function actualizarDepartamentosPersona(
   personaId: string,

@@ -26,19 +26,27 @@ import type {
 
 // ── Tipos de datos agregados ──────────────────────────────────
 
+/**
+ * Ingreso "mejor disponible": usa partida_real si existe, fallback a partida_prevista.
+ * Útil para métricas de negocio (concentración, tendencia, €/hora efectivo).
+ */
+export function mejorIngreso(real: number, prevista: number): number {
+  return real > 0 ? real : prevista
+}
+
 /** Fila agregada con todas las métricas calculadas */
 export type FilaInforme = {
   key: string
   label: string
-  ingresosPrev: number
   ingresosReal: number
-  deltaRealizacion: number // (real - prev) / prev * 100
+  ingresosPrev: number
+  pctRealizacion: number // real / prev * 100
   horasAsignadas: number
   horasTrabajables: number
   pctCarga: number
-  euroHora: number
+  euroHoraEfectivo: number // real / horas (o prev / horas si no hay real)
   horasNoAsignadas: number
-  /** Datos para sparkline de tendencia (últimos N meses de ingresos previstos) */
+  /** Sparkline de tendencia — usa partida_real con fallback a prevista */
   sparkline?: number[]
   /** Hijos colapsables (nivel 2 y 3) */
   children?: FilaInforme[]
@@ -46,14 +54,14 @@ export type FilaInforme = {
 
 /** KPIs globales del mes/periodo */
 export type KpisInformes = {
-  ingresosPrev: number
   ingresosReal: number
-  deltaPrevReal: number // %
+  ingresosPrev: number
+  pctRealizacion: number // real / prev * 100
   horasAsignadas: number
   horasTrabajables: number
   pctCarga: number
-  euroHora: number
-  hhi: number
+  euroHoraEfectivo: number
+  hhi: number // calculado sobre real con fallback
   hhiNivel: 'diversificado' | 'moderado' | 'concentrado'
   topClientePct: number
   topClienteNombre: string
@@ -147,6 +155,8 @@ type FilaCruda = {
   mesAnio: string
   ingresosPrev: number
   ingresosReal: number
+  /** Real si existe, fallback a prevista — para métricas de negocio */
+  ingresosMejor: number
   horasAsignadas: number
 }
 
@@ -157,7 +167,7 @@ export function buildFilasCrudas(
   maps: LookupMaps,
   filtroEmpresaGrupo: string | null,
   filtroMeses: string[], // lista de meses a incluir
-  filtroTipoProyecto: 'externo' | 'interno',
+  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
   filtroEstadoOT?: string | null, // null o 'Todos' = sin filtro
 ): FilaCruda[] {
   const filas: FilaCruda[] = []
@@ -176,9 +186,11 @@ export function buildFilasCrudas(
     // Filtro empresa grupo
     if (filtroEmpresaGrupo && proyecto.empresaGrupoId !== filtroEmpresaGrupo) continue
 
-    // Filtro tipo proyecto
-    if (filtroTipoProyecto === 'externo' && proyecto.tipoProyecto === 'Interno') continue
+    // Filtro tipo proyecto: Facturable (se cobra), Externo (a terceros sin cobrar), Interno
+    if (filtroTipoProyecto === 'facturable' && proyecto.tipoProyecto !== 'Facturable') continue
+    if (filtroTipoProyecto === 'externo' && proyecto.tipoProyecto !== 'Externo') continue
     if (filtroTipoProyecto === 'interno' && proyecto.tipoProyecto !== 'Interno') continue
+    // 'todos' no filtra
 
     const cuota = maps.cuotaMap.get(a.cuota_planificacion_id)
     if (!cuota) continue
@@ -199,6 +211,7 @@ export function buildFilasCrudas(
       mesAnio: orden.mesAnio,
       ingresosPrev: ingPrev,
       ingresosReal: ingReal,
+      ingresosMejor: mejorIngreso(ingReal, ingPrev),
       horasAsignadas: horas,
     })
   }
@@ -236,13 +249,14 @@ export function calcularDatosMensualesBarras(
   maps: LookupMaps,
   filtroEmpresaGrupo: string | null,
   anio: number,
-  filtroTipoProyecto: 'externo' | 'interno',
+  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
+  filtroEstadoOT?: string | null,
 ): DatoMensualBarras[] {
   const resultado: DatoMensualBarras[] = []
 
   for (let m = 1; m <= 12; m++) {
     const mes = `${anio}-${String(m).padStart(2, '0')}-01`
-    const filas = buildFilasCrudas(asignaciones, maps, filtroEmpresaGrupo, [mes], filtroTipoProyecto)
+    const filas = buildFilasCrudas(asignaciones, maps, filtroEmpresaGrupo, [mes], filtroTipoProyecto, filtroEstadoOT)
 
     resultado.push({
       mes,
@@ -261,19 +275,19 @@ export function calcularConcentracionClientes(
   filas: FilaCruda[],
   maxClientes: number = 6,
 ): DatoConcentracionCliente[] {
-  // Agrupar ingresos por cliente
+  // Agrupar ingresos por cliente — usa ingresosMejor (real con fallback a prevista)
   const ingresoPorCliente = new Map<string, { nombre: string; ingresos: number }>()
   for (const f of filas) {
     const key = f.empresaId ?? '__interno__'
     const existing = ingresoPorCliente.get(key)
     if (existing) {
-      existing.ingresos += f.ingresosPrev
+      existing.ingresos += f.ingresosMejor
     } else {
-      ingresoPorCliente.set(key, { nombre: f.empresaNombre, ingresos: f.ingresosPrev })
+      ingresoPorCliente.set(key, { nombre: f.empresaNombre, ingresos: f.ingresosMejor })
     }
   }
 
-  const total = filas.reduce((s, f) => s + f.ingresosPrev, 0)
+  const total = filas.reduce((s, f) => s + f.ingresosMejor, 0)
   if (total === 0) return []
 
   // Ordenar por ingresos desc
@@ -371,6 +385,35 @@ export function calcularHorasTrabajablesPorDepto(
   return result
 }
 
+// ── Helper para construir FilaInforme desde valores agregados ──
+
+function buildFila(
+  key: string,
+  label: string,
+  filas: FilaCruda[],
+  ht: number,
+  extra?: { sparkline?: number[]; children?: FilaInforme[] },
+): FilaInforme {
+  const real = filas.reduce((s, f) => s + f.ingresosReal, 0)
+  const prev = filas.reduce((s, f) => s + f.ingresosPrev, 0)
+  const horas = filas.reduce((s, f) => s + f.horasAsignadas, 0)
+  const mejor = filas.reduce((s, f) => s + f.ingresosMejor, 0)
+
+  return {
+    key,
+    label,
+    ingresosReal: real,
+    ingresosPrev: prev,
+    pctRealizacion: prev > 0 ? (real / prev) * 100 : 0,
+    horasAsignadas: horas,
+    horasTrabajables: ht,
+    pctCarga: ht > 0 ? safeDivide(horas, ht) * 100 : 0,
+    euroHoraEfectivo: horas > 0 ? safeDivide(mejor, horas) : 0,
+    horasNoAsignadas: Math.max(0, ht - horas),
+    ...extra,
+  }
+}
+
 // ── Vista: Cliente → Mes → Departamento ───────────────────────
 
 export function vistaCliente(
@@ -379,99 +422,47 @@ export function vistaCliente(
   horasTrabPorDepto: Map<string, number>,
   sparklines?: Map<string, number[]>,
 ): FilaInforme[] {
-  // Agrupar por empresa (cliente)
-  const porCliente = new Map<string, FilaCruda[]>()
-  for (const f of filas) {
-    const key = f.empresaId ?? '__interno__'
-    if (!porCliente.has(key)) porCliente.set(key, [])
-    porCliente.get(key)!.push(f)
-  }
-
+  const porCliente = agrupar(filas, (f) => f.empresaId ?? '__interno__')
   const resultado: FilaInforme[] = []
 
   for (const [clienteKey, filasCliente] of porCliente) {
-    // Nivel 2: por mes
-    const porMes = new Map<string, FilaCruda[]>()
-    for (const f of filasCliente) {
-      if (!porMes.has(f.mesAnio)) porMes.set(f.mesAnio, [])
-      porMes.get(f.mesAnio)!.push(f)
-    }
-
+    const porMes = agrupar(filasCliente, (f) => f.mesAnio)
     const childrenMes: FilaInforme[] = []
 
     for (const [mes, filasMes] of porMes) {
-      // Nivel 3: por departamento
-      const porDepto = new Map<string, FilaCruda[]>()
-      for (const f of filasMes) {
-        if (!porDepto.has(f.departamentoId)) porDepto.set(f.departamentoId, [])
-        porDepto.get(f.departamentoId)!.push(f)
-      }
+      const porDepto = agrupar(filasMes, (f) => f.departamentoId)
+      const childrenDepto = [...porDepto.entries()].map(([deptoId, filasDepto]) =>
+        buildFila(`${clienteKey}-${mes}-${deptoId}`, filasDepto[0].departamentoNombre, filasDepto, horasTrabPorDepto.get(deptoId) ?? 0),
+      )
+      childrenDepto.sort((a, b) => b.ingresosReal - a.ingresosReal)
 
-      const childrenDepto: FilaInforme[] = []
-      for (const [deptoId, filasDepto] of porDepto) {
-        const prev = filasDepto.reduce((s, f) => s + f.ingresosPrev, 0)
-        const real = filasDepto.reduce((s, f) => s + f.ingresosReal, 0)
-        const horas = filasDepto.reduce((s, f) => s + f.horasAsignadas, 0)
-        const ht = horasTrabPorDepto.get(deptoId) ?? 0
-
-        childrenDepto.push({
-          key: `${clienteKey}-${mes}-${deptoId}`,
-          label: filasDepto[0].departamentoNombre,
-          ingresosPrev: prev,
-          ingresosReal: real,
-          deltaRealizacion: prev > 0 ? ((real - prev) / prev) * 100 : 0,
-          horasAsignadas: horas,
-          horasTrabajables: ht,
-          pctCarga: ht > 0 ? safeDivide(horas, ht) * 100 : 0,
-          euroHora: horas > 0 ? safeDivide(prev, horas) : 0,
-          horasNoAsignadas: Math.max(0, ht - horas),
-        })
-      }
-      childrenDepto.sort((a, b) => b.ingresosPrev - a.ingresosPrev)
-
-      const prevMes = filasMes.reduce((s, f) => s + f.ingresosPrev, 0)
-      const realMes = filasMes.reduce((s, f) => s + f.ingresosReal, 0)
-      const horasMes = filasMes.reduce((s, f) => s + f.horasAsignadas, 0)
-      const htMes = horasTrabPorMes.get(mes) ?? 0
-
-      childrenMes.push({
-        key: `${clienteKey}-${mes}`,
-        label: formatMesLabel(mes),
-        ingresosPrev: prevMes,
-        ingresosReal: realMes,
-        deltaRealizacion: prevMes > 0 ? ((realMes - prevMes) / prevMes) * 100 : 0,
-        horasAsignadas: horasMes,
-        horasTrabajables: htMes,
-        pctCarga: htMes > 0 ? safeDivide(horasMes, htMes) * 100 : 0,
-        euroHora: horasMes > 0 ? safeDivide(prevMes, horasMes) : 0,
-        horasNoAsignadas: Math.max(0, htMes - horasMes),
-        children: childrenDepto,
-      })
+      childrenMes.push(
+        buildFila(`${clienteKey}-${mes}`, formatMesLabel(mes), filasMes, horasTrabPorMes.get(mes) ?? 0, { children: childrenDepto }),
+      )
     }
-    childrenMes.sort((a, b) => b.label.localeCompare(a.label)) // Mes más reciente primero
+    childrenMes.sort((a, b) => b.label.localeCompare(a.label))
 
-    const prevCliente = filasCliente.reduce((s, f) => s + f.ingresosPrev, 0)
-    const realCliente = filasCliente.reduce((s, f) => s + f.ingresosReal, 0)
-    const horasCliente = filasCliente.reduce((s, f) => s + f.horasAsignadas, 0)
-
-    resultado.push({
-      key: clienteKey,
-      label: filasCliente[0].empresaNombre,
-      ingresosPrev: prevCliente,
-      ingresosReal: realCliente,
-      deltaRealizacion: prevCliente > 0 ? ((realCliente - prevCliente) / prevCliente) * 100 : 0,
-      horasAsignadas: horasCliente,
-      horasTrabajables: 0, // No aplica a nivel cliente
-      pctCarga: 0,
-      euroHora: horasCliente > 0 ? safeDivide(prevCliente, horasCliente) : 0,
-      horasNoAsignadas: 0,
-      sparkline: sparklines?.get(clienteKey),
-      children: childrenMes,
-    })
+    resultado.push(
+      buildFila(clienteKey, filasCliente[0].empresaNombre, filasCliente, 0, {
+        sparkline: sparklines?.get(clienteKey),
+        children: childrenMes,
+      }),
+    )
   }
 
-  resultado.sort((a, b) => b.ingresosPrev - a.ingresosPrev)
+  resultado.sort((a, b) => b.ingresosReal - a.ingresosReal)
   return resultado
+}
+
+/** Helper: agrupa un array por clave */
+function agrupar<T>(items: T[], keyFn: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>()
+  for (const item of items) {
+    const key = keyFn(item)
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(item)
+  }
+  return map
 }
 
 // ── Vista: Mes → Cliente → Departamento ───────────────────────
@@ -490,87 +481,28 @@ export function vistaMes(
   const resultado: FilaInforme[] = []
 
   for (const [mes, filasMes] of porMes) {
-    // Nivel 2: por cliente
-    const porCliente = new Map<string, FilaCruda[]>()
-    for (const f of filasMes) {
-      const key = f.empresaId ?? '__interno__'
-      if (!porCliente.has(key)) porCliente.set(key, [])
-      porCliente.get(key)!.push(f)
-    }
-
+    const porCliente = agrupar(filasMes, (f) => f.empresaId ?? '__interno__')
     const childrenCliente: FilaInforme[] = []
 
     for (const [clienteKey, filasCliente] of porCliente) {
-      // Nivel 3: por depto
-      const porDepto = new Map<string, FilaCruda[]>()
-      for (const f of filasCliente) {
-        if (!porDepto.has(f.departamentoId)) porDepto.set(f.departamentoId, [])
-        porDepto.get(f.departamentoId)!.push(f)
-      }
+      const porDepto = agrupar(filasCliente, (f) => f.departamentoId)
+      const childrenDepto = [...porDepto.entries()].map(([deptoId, filasDepto]) =>
+        buildFila(`${mes}-${clienteKey}-${deptoId}`, filasDepto[0].departamentoNombre, filasDepto, horasTrabPorDepto.get(deptoId) ?? 0),
+      )
+      childrenDepto.sort((a, b) => b.ingresosReal - a.ingresosReal)
 
-      const childrenDepto: FilaInforme[] = []
-      for (const [deptoId, filasDepto] of porDepto) {
-        const prev = filasDepto.reduce((s, f) => s + f.ingresosPrev, 0)
-        const real = filasDepto.reduce((s, f) => s + f.ingresosReal, 0)
-        const horas = filasDepto.reduce((s, f) => s + f.horasAsignadas, 0)
-        const ht = horasTrabPorDepto.get(deptoId) ?? 0
-
-        childrenDepto.push({
-          key: `${mes}-${clienteKey}-${deptoId}`,
-          label: filasDepto[0].departamentoNombre,
-          ingresosPrev: prev,
-          ingresosReal: real,
-          deltaRealizacion: prev > 0 ? ((real - prev) / prev) * 100 : 0,
-          horasAsignadas: horas,
-          horasTrabajables: ht,
-          pctCarga: ht > 0 ? safeDivide(horas, ht) * 100 : 0,
-          euroHora: horas > 0 ? safeDivide(prev, horas) : 0,
-          horasNoAsignadas: Math.max(0, ht - horas),
-        })
-      }
-      childrenDepto.sort((a, b) => b.ingresosPrev - a.ingresosPrev)
-
-      const prevC = filasCliente.reduce((s, f) => s + f.ingresosPrev, 0)
-      const realC = filasCliente.reduce((s, f) => s + f.ingresosReal, 0)
-      const horasC = filasCliente.reduce((s, f) => s + f.horasAsignadas, 0)
-
-      childrenCliente.push({
-        key: `${mes}-${clienteKey}`,
-        label: filasCliente[0].empresaNombre,
-        ingresosPrev: prevC,
-        ingresosReal: realC,
-        deltaRealizacion: prevC > 0 ? ((realC - prevC) / prevC) * 100 : 0,
-        horasAsignadas: horasC,
-        horasTrabajables: 0,
-        pctCarga: 0,
-        euroHora: horasC > 0 ? safeDivide(prevC, horasC) : 0,
-        horasNoAsignadas: 0,
-        children: childrenDepto,
-      })
+      childrenCliente.push(
+        buildFila(`${mes}-${clienteKey}`, filasCliente[0].empresaNombre, filasCliente, 0, { children: childrenDepto }),
+      )
     }
-    childrenCliente.sort((a, b) => b.ingresosPrev - a.ingresosPrev)
+    childrenCliente.sort((a, b) => b.ingresosReal - a.ingresosReal)
 
-    const prevMes = filasMes.reduce((s, f) => s + f.ingresosPrev, 0)
-    const realMes = filasMes.reduce((s, f) => s + f.ingresosReal, 0)
-    const horasMes = filasMes.reduce((s, f) => s + f.horasAsignadas, 0)
-    const htMes = horasTrabPorMes.get(mes) ?? 0
-
-    resultado.push({
-      key: mes,
-      label: formatMesLabel(mes),
-      ingresosPrev: prevMes,
-      ingresosReal: realMes,
-      deltaRealizacion: prevMes > 0 ? ((realMes - prevMes) / prevMes) * 100 : 0,
-      horasAsignadas: horasMes,
-      horasTrabajables: htMes,
-      pctCarga: htMes > 0 ? safeDivide(horasMes, htMes) * 100 : 0,
-      euroHora: horasMes > 0 ? safeDivide(prevMes, horasMes) : 0,
-      horasNoAsignadas: Math.max(0, htMes - horasMes),
-      children: childrenCliente,
-    })
+    resultado.push(
+      buildFila(mes, formatMesLabel(mes), filasMes, horasTrabPorMes.get(mes) ?? 0, { children: childrenCliente }),
+    )
   }
 
-  resultado.sort((a, b) => b.key.localeCompare(a.key)) // Mes más reciente primero
+  resultado.sort((a, b) => b.key.localeCompare(a.key))
   return resultado
 }
 
@@ -581,93 +513,29 @@ export function vistaDepto(
   horasTrabPorMes: Map<string, number>,
   horasTrabPorDepto: Map<string, number>,
 ): FilaInforme[] {
-  const porMes = new Map<string, FilaCruda[]>()
-  for (const f of filas) {
-    if (!porMes.has(f.mesAnio)) porMes.set(f.mesAnio, [])
-    porMes.get(f.mesAnio)!.push(f)
-  }
-
+  const porMes = agrupar(filas, (f) => f.mesAnio)
   const resultado: FilaInforme[] = []
 
   for (const [mes, filasMes] of porMes) {
-    // Nivel 2: por departamento
-    const porDepto = new Map<string, FilaCruda[]>()
-    for (const f of filasMes) {
-      if (!porDepto.has(f.departamentoId)) porDepto.set(f.departamentoId, [])
-      porDepto.get(f.departamentoId)!.push(f)
-    }
-
+    const porDepto = agrupar(filasMes, (f) => f.departamentoId)
     const childrenDepto: FilaInforme[] = []
 
     for (const [deptoId, filasDepto] of porDepto) {
-      // Nivel 3: por cliente
-      const porCliente = new Map<string, FilaCruda[]>()
-      for (const f of filasDepto) {
-        const key = f.empresaId ?? '__interno__'
-        if (!porCliente.has(key)) porCliente.set(key, [])
-        porCliente.get(key)!.push(f)
-      }
+      const porCliente = agrupar(filasDepto, (f) => f.empresaId ?? '__interno__')
+      const childrenCliente = [...porCliente.entries()].map(([clienteKey, filasCliente]) =>
+        buildFila(`${mes}-${deptoId}-${clienteKey}`, filasCliente[0].empresaNombre, filasCliente, 0),
+      )
+      childrenCliente.sort((a, b) => b.ingresosReal - a.ingresosReal)
 
-      const childrenCliente: FilaInforme[] = []
-      for (const [clienteKey, filasCliente] of porCliente) {
-        const prev = filasCliente.reduce((s, f) => s + f.ingresosPrev, 0)
-        const real = filasCliente.reduce((s, f) => s + f.ingresosReal, 0)
-        const horas = filasCliente.reduce((s, f) => s + f.horasAsignadas, 0)
-
-        childrenCliente.push({
-          key: `${mes}-${deptoId}-${clienteKey}`,
-          label: filasCliente[0].empresaNombre,
-          ingresosPrev: prev,
-          ingresosReal: real,
-          deltaRealizacion: prev > 0 ? ((real - prev) / prev) * 100 : 0,
-          horasAsignadas: horas,
-          horasTrabajables: 0,
-          pctCarga: 0,
-          euroHora: horas > 0 ? safeDivide(prev, horas) : 0,
-          horasNoAsignadas: 0,
-        })
-      }
-      childrenCliente.sort((a, b) => b.ingresosPrev - a.ingresosPrev)
-
-      const prevD = filasDepto.reduce((s, f) => s + f.ingresosPrev, 0)
-      const realD = filasDepto.reduce((s, f) => s + f.ingresosReal, 0)
-      const horasD = filasDepto.reduce((s, f) => s + f.horasAsignadas, 0)
-      const htD = horasTrabPorDepto.get(deptoId) ?? 0
-
-      childrenDepto.push({
-        key: `${mes}-${deptoId}`,
-        label: filasDepto[0].departamentoNombre,
-        ingresosPrev: prevD,
-        ingresosReal: realD,
-        deltaRealizacion: prevD > 0 ? ((realD - prevD) / prevD) * 100 : 0,
-        horasAsignadas: horasD,
-        horasTrabajables: htD,
-        pctCarga: htD > 0 ? safeDivide(horasD, htD) * 100 : 0,
-        euroHora: horasD > 0 ? safeDivide(prevD, horasD) : 0,
-        horasNoAsignadas: Math.max(0, htD - horasD),
-        children: childrenCliente,
-      })
+      childrenDepto.push(
+        buildFila(`${mes}-${deptoId}`, filasDepto[0].departamentoNombre, filasDepto, horasTrabPorDepto.get(deptoId) ?? 0, { children: childrenCliente }),
+      )
     }
-    childrenDepto.sort((a, b) => b.ingresosPrev - a.ingresosPrev)
+    childrenDepto.sort((a, b) => b.ingresosReal - a.ingresosReal)
 
-    const prevMes = filasMes.reduce((s, f) => s + f.ingresosPrev, 0)
-    const realMes = filasMes.reduce((s, f) => s + f.ingresosReal, 0)
-    const horasMes = filasMes.reduce((s, f) => s + f.horasAsignadas, 0)
-    const htMes = horasTrabPorMes.get(mes) ?? 0
-
-    resultado.push({
-      key: mes,
-      label: formatMesLabel(mes),
-      ingresosPrev: prevMes,
-      ingresosReal: realMes,
-      deltaRealizacion: prevMes > 0 ? ((realMes - prevMes) / prevMes) * 100 : 0,
-      horasAsignadas: horasMes,
-      horasTrabajables: htMes,
-      pctCarga: htMes > 0 ? safeDivide(horasMes, htMes) * 100 : 0,
-      euroHora: horasMes > 0 ? safeDivide(prevMes, horasMes) : 0,
-      horasNoAsignadas: Math.max(0, htMes - horasMes),
-      children: childrenDepto,
-    })
+    resultado.push(
+      buildFila(mes, formatMesLabel(mes), filasMes, horasTrabPorMes.get(mes) ?? 0, { children: childrenDepto }),
+    )
   }
 
   resultado.sort((a, b) => b.key.localeCompare(a.key))
@@ -682,23 +550,24 @@ export function calcularKpis(
 ): KpisInformes {
   const totalPrev = filas.reduce((s, f) => s + f.ingresosPrev, 0)
   const totalReal = filas.reduce((s, f) => s + f.ingresosReal, 0)
+  const totalMejor = filas.reduce((s, f) => s + f.ingresosMejor, 0)
   const totalHoras = filas.reduce((s, f) => s + f.horasAsignadas, 0)
   let totalHorasTrab = 0
   for (const h of horasTrabPorMes.values()) totalHorasTrab += h
 
-  // HHI: concentración de cliente
+  // HHI: concentración de cliente — usa ingresosMejor (real con fallback a prevista)
   const ingresoPorCliente = new Map<string, number>()
   for (const f of filas) {
     const key = f.empresaId ?? '__interno__'
-    ingresoPorCliente.set(key, (ingresoPorCliente.get(key) ?? 0) + f.ingresosPrev)
+    ingresoPorCliente.set(key, (ingresoPorCliente.get(key) ?? 0) + f.ingresosMejor)
   }
 
   let hhi = 0
   let topClientePct = 0
   let topClienteKey = ''
-  if (totalPrev > 0) {
+  if (totalMejor > 0) {
     for (const [key, ingreso] of ingresoPorCliente) {
-      const share = (ingreso / totalPrev) * 100
+      const share = (ingreso / totalMejor) * 100
       hhi += share * share
       if (share > topClientePct) {
         topClientePct = share
@@ -707,7 +576,6 @@ export function calcularKpis(
     }
   }
 
-  // Nombre del top cliente
   let topClienteNombre = '—'
   if (topClienteKey) {
     const fila = filas.find((f) => (f.empresaId ?? '__interno__') === topClienteKey)
@@ -718,13 +586,13 @@ export function calcularKpis(
     hhi < 1500 ? 'diversificado' : hhi < 2500 ? 'moderado' : 'concentrado'
 
   return {
-    ingresosPrev: totalPrev,
     ingresosReal: totalReal,
-    deltaPrevReal: totalPrev > 0 ? ((totalReal - totalPrev) / totalPrev) * 100 : 0,
+    ingresosPrev: totalPrev,
+    pctRealizacion: totalPrev > 0 ? (totalReal / totalPrev) * 100 : 0,
     horasAsignadas: totalHoras,
     horasTrabajables: totalHorasTrab,
     pctCarga: totalHorasTrab > 0 ? safeDivide(totalHoras, totalHorasTrab) * 100 : 0,
-    euroHora: totalHoras > 0 ? safeDivide(totalPrev, totalHoras) : 0,
+    euroHoraEfectivo: totalHoras > 0 ? safeDivide(totalMejor, totalHoras) : 0,
     hhi: Math.round(hhi),
     hhiNivel,
     topClientePct: Math.round(topClientePct),
@@ -767,7 +635,7 @@ export function calcularSparklines(
   maps: LookupMaps,
   filtroEmpresaGrupo: string | null,
   mesActual: string,
-  filtroTipoProyecto: 'externo' | 'interno',
+  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
   filtroEstadoOT?: string | null,
   agruparPor: 'cliente' | 'depto' = 'cliente',
 ): Map<string, number[]> {
@@ -784,13 +652,13 @@ export function calcularSparklines(
 
   const filas = buildFilasCrudas(asignaciones, maps, filtroEmpresaGrupo, meses, filtroTipoProyecto, filtroEstadoOT)
 
-  // Agrupar ingresos por clave × mes
+  // Agrupar ingresos por clave × mes — usa ingresosMejor (real con fallback)
   const datosPorClave = new Map<string, Map<string, number>>()
   for (const f of filas) {
     const clave = agruparPor === 'cliente' ? (f.empresaId ?? '__interno__') : f.departamentoId
     if (!datosPorClave.has(clave)) datosPorClave.set(clave, new Map())
     const mesMap = datosPorClave.get(clave)!
-    mesMap.set(f.mesAnio, (mesMap.get(f.mesAnio) ?? 0) + f.ingresosPrev)
+    mesMap.set(f.mesAnio, (mesMap.get(f.mesAnio) ?? 0) + f.ingresosMejor)
   }
 
   // Convertir a arrays ordenados
@@ -855,7 +723,7 @@ export function calcularHeatmapCarga(
   departamentos: Departamento[],
   filtroEmpresaGrupo: string | null,
   anio: number,
-  filtroTipoProyecto: 'externo' | 'interno',
+  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
   filtroEstadoOT?: string | null,
 ): FilaHeatmap[] {
   const meses = Array.from({ length: 12 }, (_, i) => {

@@ -2,18 +2,27 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Proyecto, Empresa, EmpresaGrupo, Departamento, ProyectoDepartamento, Persona } from '@/lib/supabase/types'
+import type { Proyecto, Empresa, EmpresaGrupo, Departamento, ProyectoDepartamento, Persona, ServicioYDept } from '@/lib/supabase/types'
 import { formatMoney, formatDate } from '@/lib/helpers'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
-import { FilterPills } from '@/components/filter-pills'
 import { StatusBadge } from '@/components/status-badge'
+import { MultiSelectFilter } from '@/components/multi-select-filter'
+import type { FilterOption } from '@/components/multi-select-filter'
 import { ProyectoFormSheet } from './proyecto-form-sheet'
 import { ProyectoOtAction } from './proyecto-ot-action'
 import type { CatalogoServicio } from '@/lib/supabase/types'
-import { LayoutList, LayoutGrid } from 'lucide-react'
+import { LayoutList, LayoutGrid, X } from 'lucide-react'
 
-const ESTADO_OPTIONS = ['Todos', 'Activo', 'Propuesta', 'Confirmado', 'Pausado', 'Finalizado', 'Cancelado']
+const ESTADO_OPTIONS: FilterOption[] = [
+  { value: 'Activo', label: 'Activo' },
+  { value: 'Propuesta', label: 'Propuesta' },
+  { value: 'Confirmado', label: 'Confirmado' },
+  { value: 'Pausado', label: 'Pausado' },
+  { value: 'Finalizado', label: 'Finalizado' },
+  { value: 'Cancelado', label: 'Cancelado' },
+]
+
 const KANBAN_COLUMNS = ['Propuesta', 'Confirmado', 'Activo', 'Pausado', 'Finalizado', 'Cancelado']
 
 type Props = {
@@ -24,6 +33,7 @@ type Props = {
   proyectosDepartamentos: ProyectoDepartamento[]
   personas: Persona[]
   servicios: CatalogoServicio[]
+  serviciosYDepts: ServicioYDept[]
 }
 
 // Calcula el % de tiempo transcurrido entre activación y cierre
@@ -67,27 +77,54 @@ export default function ProyectosClient({
   proyectosDepartamentos,
   personas,
   servicios,
+  serviciosYDepts,
 }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('Todos')
   const [view, setView] = useState<'list' | 'kanban'>('list')
 
+  // ── Estado de filtros ──
+  const [filterEstado, setFilterEstado] = useState<string[]>([])
+  const [filterEmpresaGrupo, setFilterEmpresaGrupo] = useState<string[]>([])
+  const [filterEmpresa, setFilterEmpresa] = useState<string[]>([])
+  const [filterDepartamento, setFilterDepartamento] = useState<string[]>([])
+  const [filterServicio, setFilterServicio] = useState<string[]>([])
+  const [pptoMin, setPptoMin] = useState('')
+  const [pptoMax, setPptoMax] = useState('')
+
+  // ── Mapas de lookup ──
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
   const empresaGrupoMap = useMemo(() => new Map(empresasGrupo.map((eg) => [eg.id, eg])), [empresasGrupo])
   const departamentoMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
 
+  // ── Mapa: departamento_id → servicio_ids ──
+  const deptServiciosMap = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    for (const sd of serviciosYDepts) {
+      if (!map.has(sd.departamento_id)) map.set(sd.departamento_id, new Set())
+      map.get(sd.departamento_id)!.add(sd.servicio_id)
+    }
+    return map
+  }, [serviciosYDepts])
+
+  // ── Mapa: proyecto_id → departamento_ids ──
+  const proyectoDeptIds = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const pd of proyectosDepartamentos) {
+      if (!map.has(pd.proyecto_id)) map.set(pd.proyecto_id, [])
+      map.get(pd.proyecto_id)!.push(pd.departamento_id)
+    }
+    return map
+  }, [proyectosDepartamentos])
+
   function getDepartamentosProyecto(proyectoId: string) {
-    return proyectosDepartamentos
-      .filter((pd) => pd.proyecto_id === proyectoId)
-      .map((pd) => departamentoMap.get(pd.departamento_id))
+    return (proyectoDeptIds.get(proyectoId) ?? [])
+      .map((id) => departamentoMap.get(id))
       .filter(Boolean)
   }
 
   function getDepartamentoIdsProyecto(proyectoId: string) {
-    return proyectosDepartamentos
-      .filter((pd) => pd.proyecto_id === proyectoId)
-      .map((pd) => pd.departamento_id)
+    return proyectoDeptIds.get(proyectoId) ?? []
   }
 
   const getClienteNombre = (p: Proyecto) => {
@@ -95,21 +132,104 @@ export default function ProyectosClient({
     return empresa ? (empresa.nombre_interno ?? empresa.nombre_legal ?? '—') : 'Interno'
   }
 
-  const filtered = useMemo(() => proyectos.filter((p) => {
-    const clienteNombre = getClienteNombre(p)
-    const matchesSearch =
-      search === '' ||
-      p.titulo.toLowerCase().includes(search.toLowerCase()) ||
-      clienteNombre.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = filter === 'Todos' || p.estado === filter
-    return matchesSearch && matchesFilter
-  }), [proyectos, search, filter, empresaMap])
+  // ── Opciones dinámicas de filtros ──
 
+  const empresaGrupoOptions: FilterOption[] = useMemo(
+    () => empresasGrupo.map((eg) => ({ value: eg.id, label: eg.codigo || eg.nombre })),
+    [empresasGrupo]
+  )
+
+  const empresaOptions: FilterOption[] = useMemo(
+    () => empresas
+      .filter((e) => ['Cliente', 'Prospecto', 'Baja'].includes(e.estado))
+      .map((e) => ({ value: e.id, label: e.nombre_interno ?? e.nombre_legal ?? '—' })),
+    [empresas]
+  )
+
+  // Departamentos: si hay empresa_grupo seleccionada, solo los de esas empresas_grupo
+  const departamentoOptions: FilterOption[] = useMemo(() => {
+    const filtered = filterEmpresaGrupo.length > 0
+      ? departamentos.filter((d) => filterEmpresaGrupo.includes(d.empresa_grupo_id))
+      : departamentos
+    return filtered.map((d) => ({ value: d.id, label: d.nombre }))
+  }, [departamentos, filterEmpresaGrupo])
+
+  // Servicios: si hay empresa_grupo seleccionada, solo los de esas empresas_grupo
+  const servicioOptions: FilterOption[] = useMemo(() => {
+    const filtered = filterEmpresaGrupo.length > 0
+      ? servicios.filter((s) => filterEmpresaGrupo.includes(s.empresa_grupo_id))
+      : servicios
+    return filtered.map((s) => ({ value: s.id, label: s.nombre }))
+  }, [servicios, filterEmpresaGrupo])
+
+  // ── Filtrado principal ──
+  const filtered = useMemo(() => {
+    const minPpto = pptoMin !== '' ? Number(pptoMin) : null
+    const maxPpto = pptoMax !== '' ? Number(pptoMax) : null
+
+    return proyectos.filter((p) => {
+      // Búsqueda texto
+      const clienteNombre = getClienteNombre(p)
+      if (search) {
+        const q = search.toLowerCase()
+        if (!p.titulo.toLowerCase().includes(q) && !clienteNombre.toLowerCase().includes(q)) return false
+      }
+
+      // Estado (multi)
+      if (filterEstado.length > 0 && !filterEstado.includes(p.estado)) return false
+
+      // Empresa grupo
+      if (filterEmpresaGrupo.length > 0 && !filterEmpresaGrupo.includes(p.empresa_grupo_id)) return false
+
+      // Empresa (cliente)
+      if (filterEmpresa.length > 0) {
+        if (!p.empresa_id || !filterEmpresa.includes(p.empresa_id)) return false
+      }
+
+      // Departamento
+      if (filterDepartamento.length > 0) {
+        const deptIds = getDepartamentoIdsProyecto(p.id)
+        if (!filterDepartamento.some((fd) => deptIds.includes(fd))) return false
+      }
+
+      // Servicio (a través de departamentos del proyecto)
+      if (filterServicio.length > 0) {
+        const deptIds = getDepartamentoIdsProyecto(p.id)
+        const servicioIds = new Set<string>()
+        for (const dId of deptIds) {
+          const sIds = deptServiciosMap.get(dId)
+          if (sIds) sIds.forEach((id) => servicioIds.add(id))
+        }
+        if (!filterServicio.some((fs) => servicioIds.has(fs))) return false
+      }
+
+      // Presupuesto estimado
+      if (minPpto !== null && p.ppto_estimado < minPpto) return false
+      if (maxPpto !== null && p.ppto_estimado > maxPpto) return false
+
+      return true
+    })
+  }, [proyectos, search, filterEstado, filterEmpresaGrupo, filterEmpresa, filterDepartamento, filterServicio, pptoMin, pptoMax, empresaMap, proyectoDeptIds, deptServiciosMap])
+
+  // ── KPIs (sobre el total, no filtrado) ──
   const activos = proyectos.filter((p) => p.estado === 'Activo').length
   const propuestas = proyectos.filter((p) => p.estado === 'Propuesta').length
   const pptoTotal = proyectos
     .filter((p) => p.estado === 'Activo')
     .reduce((sum, p) => sum + p.ppto_estimado, 0)
+
+  // ── ¿Hay algún filtro activo? ──
+  const hasAnyFilter = filterEstado.length > 0 || filterEmpresaGrupo.length > 0 || filterEmpresa.length > 0 || filterDepartamento.length > 0 || filterServicio.length > 0 || pptoMin !== '' || pptoMax !== ''
+
+  function clearAllFilters() {
+    setFilterEstado([])
+    setFilterEmpresaGrupo([])
+    setFilterEmpresa([])
+    setFilterDepartamento([])
+    setFilterServicio([])
+    setPptoMin('')
+    setPptoMax('')
+  }
 
   function ProjectCard({ p, compact = false }: { p: Proyecto; compact?: boolean }) {
     const cliente = getClienteNombre(p)
@@ -228,18 +348,93 @@ export default function ProyectosClient({
         <KpiCard label="Ppto. activos" value={formatMoney(pptoTotal)} borderColor="border-t-amber-500" />
       </div>
 
-      {/* Search + Filters + Action */}
+      {/* Search + Action */}
       <div className="mt-5 flex items-center gap-3">
         <SearchBar placeholder="Buscar proyecto o cliente..." value={search} onChange={setSearch} />
-        {view === 'list' && (
-          <FilterPills options={ESTADO_OPTIONS} active={filter} onChange={setFilter} />
-        )}
         <ProyectoFormSheet
           empresas={empresas}
           empresasGrupo={empresasGrupo}
           personas={personas}
           departamentos={departamentos}
         />
+      </div>
+
+      {/* ── Barra de filtros ── */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <MultiSelectFilter
+          label="Estado"
+          options={ESTADO_OPTIONS}
+          selected={filterEstado}
+          onChange={setFilterEstado}
+        />
+        <MultiSelectFilter
+          label="Empresa grupo"
+          options={empresaGrupoOptions}
+          selected={filterEmpresaGrupo}
+          onChange={setFilterEmpresaGrupo}
+        />
+        <MultiSelectFilter
+          label="Empresa"
+          options={empresaOptions}
+          selected={filterEmpresa}
+          onChange={setFilterEmpresa}
+          searchable
+        />
+        <MultiSelectFilter
+          label="Departamento"
+          options={departamentoOptions}
+          selected={filterDepartamento}
+          onChange={setFilterDepartamento}
+          searchable
+        />
+        <MultiSelectFilter
+          label="Servicio"
+          options={servicioOptions}
+          selected={filterServicio}
+          onChange={setFilterServicio}
+          searchable
+        />
+
+        {/* Rango presupuesto */}
+        <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
+          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Ppto.</span>
+          <input
+            type="number"
+            placeholder="Min"
+            value={pptoMin}
+            onChange={(e) => setPptoMin(e.target.value)}
+            className="w-20 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          <span className="text-xs text-muted-foreground">–</span>
+          <input
+            type="number"
+            placeholder="Max"
+            value={pptoMax}
+            onChange={(e) => setPptoMax(e.target.value)}
+            className="w-20 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+          {(pptoMin || pptoMax) && (
+            <button onClick={() => { setPptoMin(''); setPptoMax('') }} className="text-muted-foreground hover:text-foreground">
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Limpiar todos */}
+        {hasAnyFilter && (
+          <button
+            onClick={clearAllFilters}
+            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Limpiar filtros
+          </button>
+        )}
+
+        {/* Contador de resultados */}
+        <span className="ml-auto text-xs text-muted-foreground">
+          {filtered.length} de {proyectos.length} proyectos
+        </span>
       </div>
 
       {/* ── VISTA LISTA ── */}
@@ -259,14 +454,7 @@ export default function ProyectosClient({
         <div className="mt-4 overflow-x-auto pb-4">
           <div className="flex gap-4 min-w-max">
             {KANBAN_COLUMNS.map((estado) => {
-              const colProyectos = proyectos.filter((p) => {
-                const cliente = getClienteNombre(p)
-                const matchesSearch =
-                  search === '' ||
-                  p.titulo.toLowerCase().includes(search.toLowerCase()) ||
-                  cliente.toLowerCase().includes(search.toLowerCase())
-                return p.estado === estado && matchesSearch
-              })
+              const colProyectos = filtered.filter((p) => p.estado === estado)
 
               return (
                 <div key={estado} className="w-64 shrink-0">

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type {
   Persona,
   PersonaDepartamento,
@@ -14,6 +15,8 @@ import type {
   Ciudad,
   Oficina,
   Asignacion,
+  Condicion,
+  Ausencia,
   OrdenTrabajo,
   Proyecto,
   Empresa,
@@ -23,7 +26,7 @@ import type {
 import { formatMoney, formatDate, safeDivide } from '@/lib/helpers'
 import { StatusBadge } from '@/components/status-badge'
 import { MonthNavigator } from '@/components/month-navigator'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, ExternalLink, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PersonaDeptSheet } from '../persona-dept-sheet'
 import { toggleInterinidad } from '../actions'
@@ -40,6 +43,8 @@ type Props = {
   ciudades: Ciudad[]
   oficinas: Oficina[]
   asignaciones: Asignacion[]
+  condiciones: Condicion[]
+  ausencias: Ausencia[]
   ordenesTrabajo: OrdenTrabajo[]
   proyectos: Proyecto[]
   empresas: Empresa[]
@@ -48,39 +53,43 @@ type Props = {
 }
 
 const deptColors: Record<string, string> = {
-  SEO: 'bg-emerald-100 text-emerald-700',
-  SEM: 'bg-blue-100 text-blue-700',
   'Paid Media': 'bg-blue-100 text-blue-700',
-  UX: 'bg-purple-100 text-purple-700',
-  Contenidos: 'bg-amber-100 text-amber-700',
-  Desarrollo: 'bg-indigo-100 text-indigo-700',
-  Estrategia: 'bg-pink-100 text-pink-700',
-  Operaciones: 'bg-orange-100 text-orange-700',
+  'SEO GEO': 'bg-emerald-100 text-emerald-700',
+  'Growth': 'bg-lime-100 text-lime-700',
+  'Automation': 'bg-violet-100 text-violet-700',
+  'Comunicación': 'bg-amber-100 text-amber-700',
+  'Consultoría Accounts': 'bg-orange-100 text-orange-700',
+  'Diseño': 'bg-purple-100 text-purple-700',
+  'Desarrollo': 'bg-indigo-100 text-indigo-700',
+  'Programática': 'bg-sky-100 text-sky-700',
+  'Creativo': 'bg-fuchsia-100 text-fuchsia-700',
+  'Consultoría IA': 'bg-cyan-100 text-cyan-700',
+  'Dirección': 'bg-slate-100 text-slate-700',
+  'UXUI': 'bg-teal-100 text-teal-700',
 }
 
-const servicioColors: Record<string, string> = {
-  SEO: 'bg-emerald-100 text-emerald-700',
-  SEM: 'bg-blue-100 text-blue-700',
-  'Diseño Web': 'bg-purple-100 text-purple-700',
-  Contenidos: 'bg-amber-100 text-amber-700',
-  'Social Media': 'bg-pink-100 text-pink-700',
-  Analítica: 'bg-indigo-100 text-indigo-700',
-  Estrategia: 'bg-orange-100 text-orange-700',
-}
-
-function ServicioPill({ name }: { name: string }) {
-  const color = servicioColors[name] ?? 'bg-gray-100 text-gray-700'
+function DeptPill({ name }: { name: string }) {
+  const color = deptColors[name] ?? 'bg-gray-100 text-gray-700'
   return (
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${color}`}>
-      {name.toUpperCase()}
+      {name}
     </span>
+  )
+}
+
+function InfoRow({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
+  return (
+    <div className="flex justify-between">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="font-semibold text-right">{children ?? value ?? '—'}</dd>
+    </div>
   )
 }
 
 export function PersonaDetalleClient({
   persona, personasDepts, departamentos, empresasGrupo, rangos, puestos,
-  divisiones, roles, ciudades, oficinas, asignaciones, ordenesTrabajo,
-  proyectos, empresas, servicios, cuotas,
+  divisiones, roles, ciudades, oficinas, asignaciones, condiciones, ausencias,
+  ordenesTrabajo, proyectos, empresas, servicios, cuotas,
 }: Props) {
   const router = useRouter()
   const [mes, setMes] = useState('2026-01-01')
@@ -109,7 +118,7 @@ export function PersonaDetalleClient({
   }, [personasDepts, persona.id, deptMap])
 
   // Clientes asignados para el mes
-  const clientes = useMemo(() => {
+  const clientesMes = useMemo(() => {
     const empresaAgg = new Map<
       string,
       { empresa: string; empresaId: string; servicios: { nombre: string; horas: number; ingresos: number }[] }
@@ -154,7 +163,6 @@ export function PersonaDetalleClient({
   }, [asignaciones, otMap, proyectoMap, empresaMap, servicioMap, cuotaMap, mes])
 
   const empresaGrupo = egMap.get(persona.empresa_grupo_id)
-  const departamento = deptsPersona.length > 0 ? deptsPersona[0].departamento : null
   const rango = rangoMap.get(persona.rango_id)
   const puesto = puestoMap.get(persona.puesto_id)
   const division = divisionMap.get(persona.division_id)
@@ -162,90 +170,63 @@ export function PersonaDetalleClient({
   const ciudad = ciudadMap.get(persona.ciudad_id)
   const oficina = persona.oficina_id ? oficinaMap.get(persona.oficina_id) : null
 
-  const totalHoras = clientes.reduce(
+  const totalHoras = clientesMes.reduce(
     (sum, c) => sum + c.servicios.reduce((s, sv) => s + sv.horas, 0), 0
   )
-  const totalIngresos = clientes.reduce(
+  const totalIngresos = clientesMes.reduce(
     (sum, c) => sum + c.servicios.reduce((s, sv) => s + sv.ingresos, 0), 0
   )
 
-  const deptName = departamento?.nombre ?? '—'
-  const deptColor = deptColors[deptName] ?? 'bg-gray-100 text-gray-700'
+  // Condición actual (sin fecha_fin)
+  const condicionActual = condiciones.find((c) => !c.fecha_fin)
+  const condicionesHistoricas = condiciones.filter((c) => c.fecha_fin)
 
   return (
     <div>
-      {/* Page header */}
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-foreground">{persona.persona}</h1>
-        <p className="text-sm text-muted-foreground">Ficha de miembro</p>
-      </div>
-
-      {/* Back + title bar */}
-      <div className="mt-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="outline" size="sm" onClick={() => router.back()} className="gap-1.5">
             <ArrowLeft className="h-3.5 w-3.5" />
             Volver
           </Button>
-          <span className="text-lg font-bold text-foreground">
-            {persona.nombre} {persona.apellido_primero}
-            {persona.apellido_segundo ? ` ${persona.apellido_segundo}` : ''}
-          </span>
-          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${deptColor}`}>
-            {deptName}
-          </span>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">
+              {persona.nombre} {persona.apellido_primero}
+              {persona.apellido_segundo ? ` ${persona.apellido_segundo}` : ''}
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {persona.persona} · {empresaGrupo?.codigo ?? '—'}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
+          {deptsPersona.map((d) => (
+            <DeptPill key={d.id} name={d.departamento?.nombre ?? '—'} />
+          ))}
           <StatusBadge status={persona.activo ? 'Activo' : 'Inactivo'} />
-          <button className="flex h-8 w-8 items-center justify-center rounded-lg text-red-400 hover:bg-red-50 transition-colors">
-            <Trash2 className="h-4 w-4" />
-          </button>
         </div>
       </div>
 
-      {/* 2-column info cards */}
-      <div className="mt-5 grid grid-cols-2 gap-4">
+      {/* Row 1: 3 info cards */}
+      <div className="mt-5 grid grid-cols-3 gap-4">
         {/* Datos del Miembro */}
         <div className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Datos del Miembro
-            </p>
-            <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Datos del Miembro
+          </p>
           <dl className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Nombre completo</dt>
-              <dd className="font-semibold text-right">
-                {persona.nombre} {persona.apellido_primero}
-                {persona.apellido_segundo ? ` ${persona.apellido_segundo}` : ''}
-              </dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">DNI</dt>
-              <dd className="font-semibold">{persona.dni}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Empresa Grupo</dt>
-              <dd className="font-semibold">{empresaGrupo?.nombre ?? '—'}</dd>
-            </div>
+            <InfoRow label="DNI" value={persona.dni} />
+            <InfoRow label="Empresa Grupo" value={empresaGrupo?.nombre} />
             <div className="flex justify-between items-start">
               <dt className="text-muted-foreground shrink-0">Departamentos</dt>
               <dd className="flex flex-wrap gap-1 justify-end items-center">
-                {deptsPersona.map((d) => {
-                  const name = d.departamento?.nombre ?? '—'
-                  const color = deptColors[name] ?? 'bg-gray-100 text-gray-700'
-                  return (
-                    <span key={d.id} className="flex items-center gap-0.5">
-                      <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${color}`}>
-                        {name}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground font-medium">{d.porcentaje_tiempo}%</span>
-                    </span>
-                  )
-                })}
+                {deptsPersona.map((d) => (
+                  <span key={d.id} className="flex items-center gap-0.5">
+                    <DeptPill name={d.departamento?.nombre ?? '—'} />
+                    <span className="text-[10px] text-muted-foreground font-medium">{d.porcentaje_tiempo}%</span>
+                  </span>
+                ))}
                 <PersonaDeptSheet
                   personaId={persona.id}
                   personaEmpresaGrupoId={persona.empresa_grupo_id}
@@ -254,10 +235,7 @@ export function PersonaDetalleClient({
                 />
               </dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Puesto</dt>
-              <dd className="font-semibold">{puesto?.nombre ?? '—'}</dd>
-            </div>
+            <InfoRow label="Puesto" value={puesto?.nombre} />
             <div className="flex justify-between items-center">
               <dt className="text-muted-foreground">Rango</dt>
               <dd className="flex items-center gap-2">
@@ -269,67 +247,106 @@ export function PersonaDetalleClient({
                 )}
                 <button
                   onClick={async () => { await toggleInterinidad(persona.id, !persona.rango_es_interino) }}
-                  title={persona.rango_es_interino ? 'Quitar interinidad' : 'Marcar como interino en este rango'}
+                  title={persona.rango_es_interino ? 'Quitar interinidad' : 'Marcar como interino'}
                   className="text-[10px] text-muted-foreground hover:text-amber-600 underline transition-colors"
                 >
                   {persona.rango_es_interino ? 'Quitar' : 'Interino'}
                 </button>
               </dd>
             </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Rol</dt>
-              <dd className="font-semibold">{rol?.nombre ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">División</dt>
-              <dd className="font-semibold">{division?.nombre ?? '—'}</dd>
-            </div>
+            <InfoRow label="Rol" value={rol?.nombre} />
+            <InfoRow label="División" value={division?.nombre} />
           </dl>
+        </div>
+
+        {/* Contacto y Personal */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Contacto
+          </p>
+          <dl className="space-y-2.5 text-sm">
+            {persona.email_corporativo && (
+              <div className="flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-sm truncate">{persona.email_corporativo}</span>
+              </div>
+            )}
+            {persona.email_personal && (
+              <div className="flex items-center gap-2">
+                <Mail className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+                <span className="text-sm text-muted-foreground truncate">{persona.email_personal}</span>
+              </div>
+            )}
+            {persona.telefono && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-sm">{persona.telefono}</span>
+              </div>
+            )}
+            {persona.linkedin_url && (
+              <div className="flex items-center gap-2">
+                <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <span className="text-sm text-blue-600 truncate">LinkedIn</span>
+              </div>
+            )}
+            {!persona.email_corporativo && !persona.telefono && !persona.linkedin_url && (
+              <p className="text-sm text-muted-foreground italic">Sin datos de contacto.</p>
+            )}
+          </dl>
+
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+              Personal
+            </p>
+            <dl className="space-y-2.5 text-sm">
+              {persona.fecha_nacimiento && (
+                <InfoRow label="Nacimiento" value={formatDate(persona.fecha_nacimiento)} />
+              )}
+              <InfoRow label="Modalidad" value={persona.modalidad_trabajo} />
+              <InfoRow label="Inglés" value={persona.nivel_ingles} />
+              {persona.skills_tags && persona.skills_tags.length > 0 && (
+                <div className="flex justify-between items-start">
+                  <dt className="text-muted-foreground shrink-0">Skills</dt>
+                  <dd className="flex flex-wrap gap-1 justify-end">
+                    {persona.skills_tags.map((s) => (
+                      <span key={s} className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-700">
+                        {s}
+                      </span>
+                    ))}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </div>
         </div>
 
         {/* Ubicación y Fechas */}
         <div className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Ubicación y Fechas
-            </p>
-            <button className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/50 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Ubicación y Fechas
+          </p>
           <dl className="space-y-2.5 text-sm">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Ciudad</dt>
-              <dd className="font-semibold">{ciudad?.nombre ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Oficina</dt>
-              <dd className="font-semibold">{oficina?.nombre ?? '—'}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Incorporación</dt>
-              <dd className="font-semibold">{formatDate(persona.fecha_incorporacion)}</dd>
-            </div>
+            <InfoRow label="Ciudad" value={ciudad?.nombre} />
+            <InfoRow label="Oficina" value={oficina?.nombre} />
+            <InfoRow label="Incorporación" value={formatDate(persona.fecha_incorporacion)} />
             {persona.fecha_baja && (
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Fecha baja</dt>
-                <dd className="font-semibold text-red-500">{formatDate(persona.fecha_baja)}</dd>
-              </div>
+              <InfoRow label="Fecha baja">
+                <span className="font-semibold text-red-500">{formatDate(persona.fecha_baja)}</span>
+              </InfoRow>
             )}
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Estado</dt>
-              <dd><StatusBadge status={persona.activo ? 'Activo' : 'Inactivo'} /></dd>
-            </div>
           </dl>
 
-          {/* Summary KPIs for current month */}
+          {/* Resumen mes */}
           <div className="mt-5 border-t border-border pt-4">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-              Resumen del Mes
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                Resumen del Mes
+              </p>
+              <MonthNavigator value={mes} onChange={setMes} />
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
-                <p className="text-lg font-bold text-primary">{clientes.length}</p>
+                <p className="text-lg font-bold text-primary">{clientesMes.length}</p>
                 <p className="text-[10px] text-muted-foreground">Clientes</p>
               </div>
               <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
@@ -345,10 +362,11 @@ export function PersonaDetalleClient({
         </div>
       </div>
 
-      {/* Clientes Asignados */}
-      <div className="mt-6 rounded-xl bg-white p-5 shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+      {/* Row 2: Clientes Asignados + Condición Actual */}
+      <div className="mt-4 grid grid-cols-[1fr_380px] gap-4">
+        {/* Clientes Asignados */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-3 mb-4">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Clientes Asignados
             </p>
@@ -356,53 +374,158 @@ export function PersonaDetalleClient({
               <span className="text-sm font-bold text-primary">{Math.round(totalHoras)}h totales</span>
             )}
           </div>
-          <MonthNavigator value={mes} onChange={setMes} />
-        </div>
 
-        {clientes.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            Sin asignaciones este mes.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {clientes.map((c) => {
-              const clienteHoras = c.servicios.reduce((s, sv) => s + sv.horas, 0)
-              const clienteIngresos = c.servicios.reduce((s, sv) => s + sv.ingresos, 0)
+          {clientesMes.length === 0 ? (
+            <p className="py-4 text-center text-sm text-muted-foreground">
+              Sin asignaciones este mes.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {clientesMes.map((c) => {
+                const clienteHoras = c.servicios.reduce((s, sv) => s + sv.horas, 0)
+                const clienteIngresos = c.servicios.reduce((s, sv) => s + sv.ingresos, 0)
 
-              return (
-                <div key={c.empresaId} className="rounded-lg border border-border/50 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <p className="text-sm font-bold text-foreground">{c.empresa.toUpperCase()}</p>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-medium text-primary">{formatMoney(clienteIngresos)}</span>
-                      <span className="text-sm font-bold text-primary">{Math.round(clienteHoras)}h</span>
+                return (
+                  <div key={c.empresaId} className="rounded-lg border border-border/50 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <Link
+                        href={`/empresas/${c.empresaId}`}
+                        className="text-sm font-bold text-foreground hover:text-primary transition-colors"
+                      >
+                        {c.empresa.toUpperCase()}
+                      </Link>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm text-muted-foreground">{formatMoney(clienteIngresos)}</span>
+                        <span className="text-sm font-bold text-primary">{Math.round(clienteHoras)}h</span>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {c.servicios.map((s) => (
+                        <div key={s.nombre} className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">{s.nombre}</span>
+                          <span className="font-medium">{Math.round(s.horas)}h</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    {c.servicios.map((s) => (
-                      <div key={s.nombre} className="flex items-center justify-between text-sm">
-                        <ServicioPill name={s.nombre} />
-                        <div className="flex items-center gap-4">
-                          <span className="text-muted-foreground">{formatMoney(s.ingresos)}</span>
-                          <span className="font-medium text-foreground w-12 text-right">{Math.round(s.horas)}h</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Total row */}
-            <div className="flex items-center justify-between border-t border-border pt-3 px-1">
-              <p className="text-xs font-semibold text-muted-foreground">TOTAL</p>
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-bold text-primary">{formatMoney(totalIngresos)}</span>
-                <span className="text-sm font-bold text-primary">{Math.round(totalHoras)}h</span>
-              </div>
+                )
+              })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Condición Actual */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Condición Actual
+          </p>
+          {condicionActual ? (
+            <dl className="space-y-2.5 text-sm">
+              <InfoRow label="Salario bruto anual" value={formatMoney(condicionActual.salario_bruto_anual)} />
+              <InfoRow label="Tipo contrato" value={condicionActual.tipo_contrato} />
+              <InfoRow label="Jornada" value={condicionActual.jornada} />
+              <InfoRow label="Horas/semana" value={`${condicionActual.horas_semana}h`} />
+              {condicionActual.salario_variable_anual != null && condicionActual.salario_variable_anual > 0 && (
+                <InfoRow label="Variable anual" value={formatMoney(condicionActual.salario_variable_anual)} />
+              )}
+              {condicionActual.coste_seguridad_social != null && condicionActual.coste_seguridad_social > 0 && (
+                <InfoRow label="Coste SS" value={formatMoney(condicionActual.coste_seguridad_social)} />
+              )}
+              {condicionActual.dias_vacaciones != null && (
+                <InfoRow label="Vacaciones" value={`${condicionActual.dias_vacaciones} días`} />
+              )}
+              {condicionActual.modalidad_trabajo && (
+                <InfoRow label="Modalidad" value={condicionActual.modalidad_trabajo} />
+              )}
+              <InfoRow label="Desde" value={formatDate(condicionActual.fecha_inicio)} />
+              {condicionActual.benefits && (
+                <div className="mt-2 border-t border-border pt-2">
+                  <dt className="text-[10px] uppercase text-muted-foreground mb-1">Benefits</dt>
+                  <dd className="text-sm text-foreground">{condicionActual.benefits}</dd>
+                </div>
+              )}
+              {condicionActual.notas && (
+                <div className="mt-2 border-t border-border pt-2">
+                  <dt className="text-[10px] uppercase text-muted-foreground mb-1">Notas</dt>
+                  <dd className="text-sm text-muted-foreground">{condicionActual.notas}</dd>
+                </div>
+              )}
+            </dl>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">Sin condición registrada.</p>
+          )}
+        </div>
+      </div>
+
+      {/* Row 3: Historial de Condiciones + Ausencias */}
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        {/* Historial de Condiciones */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Historial de Condiciones
+          </p>
+          {condicionesHistoricas.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Sin historial previo.</p>
+          ) : (
+            <div className="space-y-3">
+              {condicionesHistoricas.map((c) => {
+                const cRango = rangoMap.get(c.rango_id)
+                const cPuesto = puestoMap.get(c.puesto_id)
+                return (
+                  <div key={c.id} className="rounded-lg border border-border/50 p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-semibold">{cPuesto?.nombre ?? '—'} · {cRango?.nombre ?? '—'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDate(c.fecha_inicio)} → {c.fecha_fin ? formatDate(c.fecha_fin) : 'actual'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{formatMoney(c.salario_bruto_anual)}</span>
+                      <span>{c.tipo_contrato}</span>
+                      <span>{c.jornada}</span>
+                      <span>{c.horas_semana}h/sem</span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Ausencias */}
+        <div className="rounded-xl bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+            Ausencias
+          </p>
+          {ausencias.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Sin ausencias registradas.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[10px] uppercase text-muted-foreground">
+                  <th className="pb-2 font-semibold">Tipo</th>
+                  <th className="pb-2 font-semibold">Desde</th>
+                  <th className="pb-2 font-semibold">Hasta</th>
+                  <th className="pb-2 font-semibold text-right">Días</th>
+                  <th className="pb-2 font-semibold text-right">Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ausencias.map((a) => (
+                  <tr key={a.id} className="border-t border-border/50">
+                    <td className="py-2">{a.tipo}</td>
+                    <td className="py-2 text-muted-foreground">{formatDate(a.fecha_inicio)}</td>
+                    <td className="py-2 text-muted-foreground">{formatDate(a.fecha_fin)}</td>
+                    <td className="py-2 text-right">{a.dias_habiles ?? '—'}</td>
+                    <td className="py-2 text-right">
+                      <StatusBadge status={a.estado} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   )

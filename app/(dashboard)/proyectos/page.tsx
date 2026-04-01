@@ -6,11 +6,12 @@ import {
   getDepartamentos,
   getPersonas,
   getCatalogoServicios,
+  getServiciosYDepts,
 } from '@/lib/supabase/queries'
 import ProyectosClient from './proyectos-client'
 
 export default async function ProyectosPage() {
-  const [proyectos, empresas, empresasGrupo, proyectosDepts, departamentos, personas, servicios] =
+  const [proyectos, empresas, empresasGrupo, proyectosDepts, departamentos, personas, servicios, serviciosYDepts] =
     await Promise.all([
       getProyectos(),
       getEmpresas(),
@@ -19,6 +20,7 @@ export default async function ProyectosPage() {
       getDepartamentos(),
       getPersonas(),
       getCatalogoServicios(),
+      getServiciosYDepts(),
     ])
 
   return (
@@ -30,6 +32,7 @@ export default async function ProyectosPage() {
       departamentos={departamentos}
       personas={personas}
       servicios={servicios}
+      serviciosYDepts={serviciosYDepts}
     />
   )
 }

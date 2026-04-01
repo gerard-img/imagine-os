@@ -29,6 +29,9 @@ import type {
   Puesto,
   Ciudad,
   Oficina,
+  Condicion,
+  Ausencia,
+  ServicioYDept,
 } from './types'
 
 // ── Helpers internos ──
@@ -135,6 +138,27 @@ export async function getPersonasDepartamentos(): Promise<PersonaDepartamento[]>
   return query<PersonaDepartamento>('personas_departamentos')
 }
 
+// ── Condiciones (historial laboral) ──
+
+export async function getCondicionesByPersona(personaId: string): Promise<Condicion[]> {
+  return query<Condicion>('condiciones', {
+    filters: [
+      { column: 'persona_id', op: 'eq', value: personaId },
+      { column: 'deleted_at', op: 'is', value: null },
+    ],
+    order: { column: 'fecha_inicio', ascending: false },
+  })
+}
+
+// ── Ausencias ──
+
+export async function getAusenciasByPersona(personaId: string): Promise<Ausencia[]> {
+  return query<Ausencia>('ausencias', {
+    filters: [{ column: 'persona_id', op: 'eq', value: personaId }],
+    order: { column: 'fecha_inicio', ascending: false },
+  })
+}
+
 // ── Empresas (clientes) ──
 
 export async function getEmpresas(): Promise<Empresa[]> {
@@ -171,6 +195,13 @@ export async function getProyectoById(id: string): Promise<Proyecto | null> {
     .single()
   if (error) return null
   return data as Proyecto
+}
+
+export async function getProyectosByEmpresa(empresaId: string): Promise<Proyecto[]> {
+  return query<Proyecto>('proyectos', {
+    filters: [{ column: 'empresa_id', op: 'eq', value: empresaId }],
+    order: { column: 'created_at', ascending: false },
+  })
 }
 
 export async function getProyectosDepartamentos(): Promise<ProyectoDepartamento[]> {
@@ -239,6 +270,12 @@ export async function getCuotasPlanificacion(): Promise<CuotaPlanificacion[]> {
   return query<CuotaPlanificacion>('cuotas_planificacion', {
     order: { column: 'nombre' },
   })
+}
+
+// ── Servicios y departamentos (N:M) ──
+
+export async function getServiciosYDepts(): Promise<ServicioYDept[]> {
+  return query<ServicioYDept>('servicios_y_depts')
 }
 
 // ── Contactos de empresas ──

@@ -16,6 +16,8 @@ type Props = {
   empresas: Empresa[]
   /** Si se proporciona, muestra también "Generar OT del mes" para proyectos Recurrentes */
   currentMonth?: string
+  /** Callback tras crear una OT nueva (recibe el id). Permite encadenar la creación de asignaciones. */
+  onCreated?: (id: string) => void
 }
 
 function Feedback({ result, error }: { result: { creadas: number; omitidas: number; meses?: number } | null; error: string }) {
@@ -43,7 +45,7 @@ function Feedback({ result, error }: { result: { creadas: number; omitidas: numb
  *                si se pasa currentMonth (usado desde la página de detalle)
  */
 export function ProyectoOtAction({
-  proyecto, proyectos, servicios, departamentos, personas, empresas, currentMonth,
+  proyecto, proyectos, servicios, departamentos, personas, empresas, currentMonth, onCreated,
 }: Props) {
   const [loadingPuntual, setLoadingPuntual] = useState(false)
   const [resultPuntual, setResultPuntual] = useState<GenerarPuntualResult | null>(null)
@@ -109,6 +111,7 @@ export function ProyectoOtAction({
           personas={personas}
           empresas={empresas}
           preselectedProyectoId={proyecto.id}
+          onCreated={onCreated}
         />
       </div>
     )
