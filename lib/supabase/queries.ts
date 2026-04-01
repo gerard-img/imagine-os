@@ -119,7 +119,7 @@ export async function getOficinas(): Promise<Oficina[]> {
 
 export async function getPersonas(): Promise<Persona[]> {
   return query<Persona>('personas', {
-    order: { column: 'nombre' },
+    order: { column: 'persona' },
   })
 }
 

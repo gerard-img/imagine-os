@@ -148,7 +148,9 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
     [departamentos, egId]
   )
   const aprobadoresFiltrados = useMemo(
-    () => personas.filter((p) => p.empresa_grupo_id === egId && p.activo),
+    () => personas
+      .filter((p) => p.empresa_grupo_id === egId && p.activo)
+      .sort((a, b) => a.persona.localeCompare(b.persona)),
     [personas, egId]
   )
 

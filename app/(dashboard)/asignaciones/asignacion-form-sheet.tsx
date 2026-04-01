@@ -118,7 +118,9 @@ export function AsignacionFormSheet({
 
   // Filtrar personas y cuotas por empresa_grupo de la OT
   const personasFiltradas = useMemo(
-    () => personas.filter((p) => p.empresa_grupo_id === egId && p.activo),
+    () => personas
+      .filter((p) => p.empresa_grupo_id === egId && p.activo)
+      .sort((a, b) => a.persona.localeCompare(b.persona)),
     [personas, egId]
   )
   const cuotasFiltradas = useMemo(

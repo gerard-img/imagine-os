@@ -103,9 +103,9 @@ function HorasSheet(props: HorasSheetProps) {
   const deptsFiltrados = props.departamentos.filter(
     (d) => !selectedEmpresa || d.empresa_grupo_id === selectedEmpresa
   )
-  const personasFiltradas = props.personas.filter(
-    (p) => !selectedEmpresa || p.empresa_grupo_id === selectedEmpresa
-  )
+  const personasFiltradas = props.personas
+    .filter((p) => !selectedEmpresa || p.empresa_grupo_id === selectedEmpresa)
+    .sort((a, b) => a.persona.localeCompare(b.persona))
 
   async function onSubmit(data: HorasFormData) {
     setSubmitting(true)
