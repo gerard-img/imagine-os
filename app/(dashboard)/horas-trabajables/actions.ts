@@ -76,3 +76,16 @@ export async function actualizarHorasTrabajables(id: string, formData: unknown):
   revalidatePath('/horas-trabajables')
   return { success: true }
 }
+
+export async function eliminarHorasTrabajables(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('horas_trabajables')
+    .delete()
+    .eq('id', id)
+
+  if (error) return { success: false, error: `Error al eliminar: ${error.message}` }
+
+  revalidatePath('/horas-trabajables')
+  return { success: true }
+}

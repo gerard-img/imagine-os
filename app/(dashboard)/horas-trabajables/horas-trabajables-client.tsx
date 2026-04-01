@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import type { HorasTrabajables, EmpresaGrupo, Departamento, Persona } from '@/lib/supabase/types'
-import { crearHorasTrabajables, actualizarHorasTrabajables } from './actions'
+import { crearHorasTrabajables, actualizarHorasTrabajables, eliminarHorasTrabajables } from './actions'
 import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from '@/components/ui/table'
@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { KpiCard } from '@/components/kpi-card'
 import { FilterPills } from '@/components/filter-pills'
 import { MonthNavigator } from '@/components/month-navigator'
-import { Plus, Pencil, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 
 // ── Schema local ──
 
@@ -244,6 +244,42 @@ function HorasSheet(props: HorasSheetProps) {
   )
 }
 
+// ── Botón de eliminar con confirmación ──
+
+function DeleteButton({ id }: { id: string }) {
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleClick() {
+    if (!confirming) {
+      setConfirming(true)
+      setTimeout(() => setConfirming(false), 3000)
+      return
+    }
+    setDeleting(true)
+    await eliminarHorasTrabajables(id)
+    setDeleting(false)
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={`h-8 w-8 ${confirming ? 'text-destructive hover:text-destructive' : ''}`}
+      onClick={handleClick}
+      disabled={deleting}
+      aria-label="Eliminar"
+      title={confirming ? 'Haz clic de nuevo para confirmar' : 'Eliminar'}
+    >
+      {deleting ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Trash2 className="h-4 w-4" />
+      )}
+    </Button>
+  )
+}
+
 // ── Componente principal ──
 
 type Props = {
@@ -354,19 +390,22 @@ export function HorasTrabajablesClient({ horasTrabajables, empresasGrupo, depart
                   </TableCell>
                   <TableCell className="text-muted-foreground">{h.comentarios ?? '—'}</TableCell>
                   <TableCell className="text-right">
-                    <HorasSheet
-                      modo="editar"
-                      registro={h}
-                      empresas={empresasGrupo}
-                      departamentos={departamentos}
-                      personas={personas}
-                      defaultMonth={month}
-                      trigger={
-                        <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Editar">
-                          <Pencil className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      }
-                    />
+                    <div className="flex items-center justify-end gap-0.5">
+                      <HorasSheet
+                        modo="editar"
+                        registro={h}
+                        empresas={empresasGrupo}
+                        departamentos={departamentos}
+                        personas={personas}
+                        defaultMonth={month}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Editar">
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        }
+                      />
+                      <DeleteButton id={h.id} />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
