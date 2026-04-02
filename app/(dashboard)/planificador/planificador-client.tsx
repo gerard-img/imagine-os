@@ -64,11 +64,11 @@ const deptColors: Record<string, string> = {
   'Formación': 'bg-amber-100 text-amber-700',
 }
 
-function DeptPill({ name }: { name: string }) {
+function DeptPill({ name, label }: { name: string; label?: string }) {
   const color = deptColors[name] ?? 'bg-gray-100 text-gray-700'
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${color}`}>
-      {name}
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold shrink-0 ${color}`}>
+      {label ?? name}
     </span>
   )
 }
@@ -414,7 +414,7 @@ export function PlanificadorClient({
                   )}
 
                   <span
-                    className="text-sm font-bold text-foreground min-w-0 truncate hover:text-primary hover:underline transition-colors cursor-pointer"
+                    className="text-sm font-bold text-foreground min-w-0 hover:text-primary hover:underline transition-colors cursor-pointer"
                     onClick={(e) => { e.stopPropagation(); router.push(`/proyectos/${ot.proyecto_id}`) }}
                   >
                     {clienteNombre} — {proyecto?.titulo ?? '—'}
@@ -426,7 +426,7 @@ export function PlanificadorClient({
                   )}
 
                   {servicio && <ServicioPill name={servicio.nombre} />}
-                  {depto && <DeptPill name={depto.nombre} />}
+                  {depto && <DeptPill name={depto.nombre} label={depto.codigo} />}
 
                   {/* Editable % ppto mes */}
                   <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
