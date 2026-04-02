@@ -58,7 +58,29 @@ export async function middleware(request: NextRequest) {
   // --- 2. Autorización por nivel de acceso ---
 
   if (user && !isPublicRoute) {
-    const nivelAcceso = request.cookies.get('nivel_acceso')?.value
+    // Obtener nivel_acceso: primero de cookie, si no, consultar DB y guardar cookie
+    let nivelAcceso = request.cookies.get('nivel_acceso')?.value
+
+    if (!nivelAcceso) {
+      const { data: persona } = await supabase
+        .from('personas')
+        .select('roles(nivel_acceso)')
+        .eq('auth_user_id', user.id)
+        .single()
+
+      const roles = persona?.roles as unknown as { nivel_acceso: string } | null
+      nivelAcceso = roles?.nivel_acceso ?? undefined
+
+      if (nivelAcceso) {
+        supabaseResponse.cookies.set('nivel_acceso', nivelAcceso, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 60 * 60 * 24,
+        })
+      }
+    }
 
     // Si el nivel es 'personal', solo puede acceder a RUTAS_PERSONAL
     if (nivelAcceso === 'personal') {
