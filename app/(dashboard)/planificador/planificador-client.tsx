@@ -414,10 +414,10 @@ export function PlanificadorClient({
                   )}
 
                   <span
-                    className="text-sm font-bold text-foreground flex-1 min-w-0 truncate hover:text-primary hover:underline transition-colors"
+                    className="text-sm font-bold text-foreground min-w-0 truncate hover:text-primary hover:underline transition-colors cursor-pointer"
                     onClick={(e) => { e.stopPropagation(); router.push(`/proyectos/${ot.proyecto_id}`) }}
                   >
-                    {proyecto?.titulo ?? '—'}
+                    {clienteNombre} — {proyecto?.titulo ?? '—'}
                   </span>
 
                   <StatusBadge status={ot.estado} />
@@ -427,8 +427,6 @@ export function PlanificadorClient({
 
                   {servicio && <ServicioPill name={servicio.nombre} />}
                   {depto && <DeptPill name={depto.nombre} />}
-
-                  <span className="text-xs text-muted-foreground shrink-0">{clienteNombre}</span>
 
                   {/* Editable % ppto mes */}
                   <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
