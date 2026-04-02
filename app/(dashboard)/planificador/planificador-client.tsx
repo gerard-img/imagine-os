@@ -20,6 +20,7 @@ import { MonthNavigator } from '@/components/month-navigator'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { ServicioPill } from '@/components/servicio-pill'
+import { ClientePill } from '@/components/cliente-pill'
 import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
 
@@ -413,11 +414,12 @@ export function PlanificadorClient({
                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                   )}
 
+                  <ClientePill name={clienteNombre} />
                   <span
                     className="text-sm font-bold text-foreground min-w-0 hover:text-primary hover:underline transition-colors cursor-pointer"
                     onClick={(e) => { e.stopPropagation(); router.push(`/proyectos/${ot.proyecto_id}`) }}
                   >
-                    {clienteNombre} — {proyecto?.titulo ?? '—'}
+                    {proyecto?.titulo ?? '—'}
                   </span>
 
                   <StatusBadge status={ot.estado} />
