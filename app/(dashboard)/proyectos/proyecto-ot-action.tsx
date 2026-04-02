@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Zap, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { generarOTsPuntual, type GenerarPuntualResult } from '../ordenes-trabajo/generar-ots-puntual'
 import { generarOTsProyectoMes, type GenerarResult } from '../ordenes-trabajo/generar-ots-mes'
 import { OtFormSheet } from '../ordenes-trabajo/ot-form-sheet'
@@ -92,17 +93,19 @@ export function ProyectoOtAction({
       <div className="flex items-center gap-2">
         <Feedback result={resultMes} error={errorMes} />
         {currentMonth && (
-          <button
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
             onClick={handleGenerarMes}
             disabled={loadingMes}
             title={`Generar OTs de este proyecto para ${mesLabel}`}
-            className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50 transition-colors"
           >
             {loadingMes
               ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generando...</>
               : <><Zap className="h-3.5 w-3.5" />Generar OT {mesLabel}</>
             }
-          </button>
+          </Button>
         )}
         <OtFormSheet
           proyectos={proyectos}
@@ -121,17 +124,19 @@ export function ProyectoOtAction({
   return (
     <div className="flex items-center gap-2">
       <Feedback result={resultPuntual} error={errorPuntual} />
-      <button
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
         onClick={handleGenerarPuntual}
         disabled={loadingPuntual}
         title="Generar todas las OTs del rango de fechas del proyecto"
-        className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50 transition-colors"
       >
         {loadingPuntual
           ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generando...</>
           : <><Zap className="h-3.5 w-3.5" />Generar OTs</>
         }
-      </button>
+      </Button>
     </div>
   )
 }

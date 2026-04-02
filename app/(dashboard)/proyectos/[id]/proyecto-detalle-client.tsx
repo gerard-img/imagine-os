@@ -311,10 +311,10 @@ export function ProyectoDetalleClient({
               cuotas={cuotas}
               asignaciones={asignacionesProyecto}
               trigger={
-                <button className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+                <Button variant="outline" size="sm" className="gap-1.5">
                   <Users className="h-3.5 w-3.5" />
                   Nueva Asignación
-                </button>
+                </Button>
               }
             />
           </div>

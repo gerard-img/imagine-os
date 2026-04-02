@@ -152,7 +152,7 @@ export function PersonaDeptSheet({ personaId, personaEmpresaGrupoId, currentDept
             <button
               type="button"
               onClick={addEntry}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               Añadir departamento

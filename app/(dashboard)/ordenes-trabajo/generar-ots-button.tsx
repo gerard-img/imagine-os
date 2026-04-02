@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Zap, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { generarOTsMes } from './generar-ots-mes'
 
 type Props = {
@@ -48,17 +49,19 @@ export function GenerarOtsButton({ currentMonth }: Props) {
           {error}
         </span>
       )}
-      <button
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5"
         onClick={handleGenerar}
         disabled={loading}
         title={`Generar OTs recurrentes para ${mesLabel}`}
-        className="flex items-center gap-1.5 rounded-lg border border-border bg-white px-3 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary disabled:opacity-50 transition-colors"
       >
         {loading
           ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generando...</>
           : <><Zap className="h-3.5 w-3.5" />Generar OTs del mes</>
         }
-      </button>
+      </Button>
     </div>
   )
 }

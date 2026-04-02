@@ -580,7 +580,7 @@ export function PlanificadorClient({
                     {/* Add button */}
                     <button
                       onClick={() => addAsignacion(ot.id, ot.departamento_id)}
-                      className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                      className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
                       Añadir persona

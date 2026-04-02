@@ -201,10 +201,10 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
       <Pencil className="h-3.5 w-3.5" />
     </button>
   ) : preselectedProyectoId ? (
-    <button className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+    <Button variant="outline" size="sm" className="gap-1.5">
       <Plus className="h-3.5 w-3.5" />
       Añadir OT
-    </button>
+    </Button>
   ) : (
     <Button size="default" className="gap-1.5 shrink-0">
       <Plus className="h-4 w-4" />
