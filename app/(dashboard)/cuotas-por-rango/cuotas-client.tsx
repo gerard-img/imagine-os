@@ -6,8 +6,42 @@ import { formatMoney, formatDate, safeDivide } from '@/lib/helpers'
 import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/kpi-card'
 import { FilterPills } from '@/components/filter-pills'
+import { CuotaFormSheet } from './cuota-form-sheet'
+import { eliminarCuota } from './actions'
+import { Trash2, Loader2 } from 'lucide-react'
+
+function DeleteButton({ id }: { id: string }) {
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  async function handleClick() {
+    if (!confirming) {
+      setConfirming(true)
+      setTimeout(() => setConfirming(false), 3000)
+      return
+    }
+    setDeleting(true)
+    await eliminarCuota(id)
+    setDeleting(false)
+  }
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className={`h-8 w-8 ${confirming ? 'text-destructive hover:text-destructive' : ''}`}
+      onClick={handleClick}
+      disabled={deleting}
+      aria-label="Eliminar"
+      title={confirming ? 'Clic de nuevo para confirmar' : 'Eliminar'}
+    >
+      {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+    </Button>
+  )
+}
 
 type Props = {
   cuotas: CuotaPlanificacion[]
@@ -37,15 +71,20 @@ export function CuotasClient({ cuotas, empresasGrupo }: Props) {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-foreground">Cuotas de Planificación</h1>
-      <p className="mt-0.5 text-sm text-muted-foreground">
-        Tarifas horarias por categoría y empresa del grupo
-      </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Cuotas de Planificación</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Tarifas horarias por categoría y empresa del grupo
+          </p>
+        </div>
+        <CuotaFormSheet empresasGrupo={empresasGrupo} />
+      </div>
 
       <div className="mt-5 grid grid-cols-3 gap-4">
         <KpiCard label="Total cuotas" value={cuotas.length} borderColor="border-t-blue-500" />
         <KpiCard label="Vigentes" value={vigentes} borderColor="border-t-emerald-500" />
-        <KpiCard label="Precio medio/h" value={formatMoney(precioMedio)} borderColor="border-t-primary" />
+        <KpiCard label="Precio medio/h" value={formatMoney(precioMedio)} borderColor="border-t-indigo-500" />
       </div>
 
       <div className="mt-5">
@@ -67,6 +106,7 @@ export function CuotasClient({ cuotas, empresasGrupo }: Props) {
                 <TableHead className="text-xs uppercase text-muted-foreground">Inicio validez</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground">Fin validez</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground">Nota</TableHead>
+                <TableHead className="text-xs uppercase text-muted-foreground w-20 text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -86,6 +126,12 @@ export function CuotasClient({ cuotas, empresasGrupo }: Props) {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">{c.nota ?? '—'}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-0.5">
+                      <CuotaFormSheet empresasGrupo={empresasGrupo} cuota={c} />
+                      <DeleteButton id={c.id} />
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
