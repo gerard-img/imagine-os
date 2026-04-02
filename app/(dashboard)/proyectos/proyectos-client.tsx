@@ -12,6 +12,8 @@ import type { FilterOption } from '@/components/multi-select-filter'
 import { ProyectoFormSheet } from './proyecto-form-sheet'
 import { ProyectoOtAction } from './proyecto-ot-action'
 import type { CatalogoServicio } from '@/lib/supabase/types'
+import { ClientePill } from '@/components/cliente-pill'
+import { DeptPill } from '@/components/dept-pill'
 import { LayoutList, LayoutGrid, X } from 'lucide-react'
 
 const ESTADO_OPTIONS: FilterOption[] = [
@@ -244,9 +246,15 @@ export default function ProyectosClient({
       >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
-            <p className={`font-bold text-foreground truncate ${compact ? 'text-xs' : 'text-sm'}`}>
-              {cliente} — {p.titulo}
-            </p>
+            <div className={`flex items-center gap-2 ${compact ? '' : 'flex-wrap'}`}>
+              <ClientePill name={cliente} />
+              <p className={`font-bold text-foreground ${compact ? 'text-xs truncate' : 'text-sm'}`}>
+                {p.titulo}
+              </p>
+              {!compact && depts.map((d) => (
+                <DeptPill key={d!.id} name={d!.nombre} label={d!.codigo} />
+              ))}
+            </div>
             {!compact && (
               <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                 <span>{empresaGrupo?.codigo ?? '—'}</span>
@@ -270,20 +278,6 @@ export default function ProyectosClient({
             {!compact && <StatusBadge status={p.estado} />}
           </div>
         </div>
-
-        {/* Departamentos */}
-        {depts.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {depts.map((d) => (
-              <span
-                key={d!.id}
-                className="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600"
-              >
-                {d!.nombre}
-              </span>
-            ))}
-          </div>
-        )}
 
         {/* Barra de tiempo para Puntuales */}
         <BarraTiempo proyecto={p} />

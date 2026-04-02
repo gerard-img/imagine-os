@@ -21,6 +21,7 @@ import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { ServicioPill } from '@/components/servicio-pill'
 import { ClientePill } from '@/components/cliente-pill'
+import { DeptPill } from '@/components/dept-pill'
 import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
 
@@ -41,38 +42,7 @@ type PlanificadorClientProps = {
 
 // Service pill colors — centralizado en components/servicio-pill.tsx
 
-const deptColors: Record<string, string> = {
-  'Paid Media': 'bg-blue-100 text-blue-700',
-  'SEO GEO': 'bg-emerald-100 text-emerald-700',
-  'Growth': 'bg-lime-100 text-lime-700',
-  'Automation': 'bg-violet-100 text-violet-700',
-  'Comunicación': 'bg-amber-100 text-amber-700',
-  'Consultoría Accounts': 'bg-orange-100 text-orange-700',
-  'Diseño': 'bg-purple-100 text-purple-700',
-  'Desarrollo': 'bg-indigo-100 text-indigo-700',
-  'Programática': 'bg-sky-100 text-sky-700',
-  'Creativo': 'bg-fuchsia-100 text-fuchsia-700',
-  'Producción Audiovisual': 'bg-rose-100 text-rose-700',
-  'Consultoría IA': 'bg-cyan-100 text-cyan-700',
-  'Dirección': 'bg-slate-100 text-slate-700',
-  'UXUI': 'bg-teal-100 text-teal-700',
-  'Trading': 'bg-yellow-100 text-yellow-700',
-  'Administración': 'bg-stone-100 text-stone-700',
-  'Talento': 'bg-pink-100 text-pink-700',
-  'Outbound': 'bg-red-100 text-red-700',
-  'Mentoring': 'bg-emerald-100 text-emerald-700',
-  'Selección Personal': 'bg-pink-100 text-pink-700',
-  'Formación': 'bg-amber-100 text-amber-700',
-}
-
-function DeptPill({ name, label }: { name: string; label?: string }) {
-  const color = deptColors[name] ?? 'bg-gray-100 text-gray-700'
-  return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold shrink-0 ${color}`}>
-      {label ?? name}
-    </span>
-  )
-}
+// Dept pill colors — centralizado en components/dept-pill.tsx
 
 // ── Types for local editing state ──
 type AsignacionLocal = {
