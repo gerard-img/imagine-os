@@ -164,12 +164,15 @@ export function ProyectoFormSheet({
     label: `${eg.codigo} — ${eg.nombre}`,
   }))
 
-  const personaOptions = personas
-    .filter((p) => p.activo)
+  const personaOptions = useMemo(() => personas
+    .filter((p) => p.activo && (!selectedEgId || p.empresa_grupo_id === selectedEgId))
+    .sort((a, b) => a.persona.localeCompare(b.persona))
     .map((p) => ({
       value: p.id,
       label: p.persona,
-    }))
+    })),
+    [personas, selectedEgId]
+  )
 
   async function onSubmit(data: ProyectoFormData) {
     setSubmitting(true)
