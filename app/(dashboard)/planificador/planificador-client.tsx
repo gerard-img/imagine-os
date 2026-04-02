@@ -443,7 +443,7 @@ export function PlanificadorClient({
                     <span className="text-[10px] text-muted-foreground">% ppto</span>
                   </span>
 
-                  <span className="text-sm font-semibold text-primary shrink-0 w-24 text-right">
+                  <span className="text-sm font-semibold text-blue-600 shrink-0 w-24 text-right">
                     {formatMoney(ot.partida_prevista)}
                   </span>
 
@@ -550,7 +550,7 @@ export function PlanificadorClient({
                               />
 
                               {/* Ingresos asignados (read-only) */}
-                              <span className="text-xs font-medium text-primary text-right">
+                              <span className="text-xs font-medium text-blue-600 text-right">
                                 {formatMoney(ingresosAsignados)}
                               </span>
 
@@ -611,7 +611,7 @@ export function PlanificadorClient({
                         <span className="text-[10px] font-bold uppercase text-muted-foreground">TOTAL</span>
                         <span />
                         <span className={`text-xs font-bold text-right ${pctColor}`}>{totalPctAsig}%</span>
-                        <span className="text-xs font-bold text-primary text-right">
+                        <span className="text-xs font-bold text-blue-600 text-right">
                           {formatMoney(asignaciones.reduce((sum, a) => sum + ot.partida_prevista * (a.porcentaje_ppto_tm / 100), 0))}
                         </span>
                         <span className="text-xs font-bold text-right">

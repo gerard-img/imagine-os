@@ -88,7 +88,7 @@ export default async function DashboardPage() {
                   <div>
                     <p className="text-sm font-medium text-foreground">{p.cliente} - {p.titulo}</p>
                   </div>
-                  <span className="text-sm font-bold text-primary">{formatMoney(p.presupuesto)}</span>
+                  <span className="text-sm font-bold text-blue-600">{formatMoney(p.presupuesto)}</span>
                 </div>
               ))}
             </div>
@@ -129,13 +129,13 @@ export default async function DashboardPage() {
               <dt className="flex items-center gap-2 text-muted-foreground">
                 <TrendingUp className="h-4 w-4" /> Ingresos previstos
               </dt>
-              <dd className="font-bold text-primary">{formatMoney(ingresosMensuales)}</dd>
+              <dd className="font-bold text-blue-600">{formatMoney(ingresosMensuales)}</dd>
             </div>
             <div className="flex items-center justify-between">
               <dt className="flex items-center gap-2 text-muted-foreground">
                 <Clock className="h-4 w-4" /> Horas asignadas
               </dt>
-              <dd className="font-bold text-primary">{Math.round(horasTotales)}h</dd>
+              <dd className="font-bold text-blue-600">{Math.round(horasTotales)}h</dd>
             </div>
           </dl>
         </div>

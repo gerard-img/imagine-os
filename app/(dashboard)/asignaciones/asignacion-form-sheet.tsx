@@ -237,7 +237,7 @@ export function AsignacionFormSheet({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">% disponible</span>
-                  <span className="font-semibold text-primary">{pctDisponible}%</span>
+                  <span className="font-semibold text-blue-600">{pctDisponible}%</span>
                 </div>
               </div>
             )}
@@ -304,7 +304,7 @@ export function AsignacionFormSheet({
               <div className="rounded-lg bg-[#F9FAFB] px-3 py-2 text-xs space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Ingresos asignados</span>
-                  <span className="font-semibold text-primary">{formatMoney(ingresosEstimados)}</span>
+                  <span className="font-semibold text-blue-600">{formatMoney(ingresosEstimados)}</span>
                 </div>
                 {selectedCuota && (
                   <div className="flex justify-between">

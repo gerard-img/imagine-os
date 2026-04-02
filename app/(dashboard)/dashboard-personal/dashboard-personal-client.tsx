@@ -181,7 +181,7 @@ export default function DashboardPersonalClient({
                   {/* Cliente header */}
                   <div className="mb-2 flex items-center gap-3">
                     <span className="text-sm font-bold text-foreground">{cliente}</span>
-                    <span className="text-xs font-semibold text-primary">
+                    <span className="text-xs font-semibold text-blue-600">
                       {Math.round(horasCliente)}h
                     </span>
                     <div className="flex-1 border-t border-border/50" />
@@ -210,7 +210,7 @@ export default function DashboardPersonalClient({
                           <td className="py-2.5 text-right text-muted-foreground">
                             {r.porcentaje}%
                           </td>
-                          <td className="py-2.5 text-right font-semibold text-primary">
+                          <td className="py-2.5 text-right font-semibold text-blue-600">
                             {r.horas.toFixed(1)}h
                           </td>
                         </tr>
@@ -229,7 +229,7 @@ export default function DashboardPersonalClient({
             <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Total
             </span>
-            <span className="text-sm font-bold text-primary">
+            <span className="text-sm font-bold text-blue-600">
               {Math.round(totalHoras)}h / {horasDisponibles}h disponibles
             </span>
           </div>

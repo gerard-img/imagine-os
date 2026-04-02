@@ -346,7 +346,7 @@ export function PersonaDetalleClient({
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
-                <p className="text-lg font-bold text-primary">{clientesMes.length}</p>
+                <p className="text-lg font-bold text-blue-600">{clientesMes.length}</p>
                 <p className="text-[10px] text-muted-foreground">Clientes</p>
               </div>
               <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
@@ -371,7 +371,7 @@ export function PersonaDetalleClient({
               Clientes Asignados
             </p>
             {totalHoras > 0 && (
-              <span className="text-sm font-bold text-primary">{Math.round(totalHoras)}h totales</span>
+              <span className="text-sm font-bold text-blue-600">{Math.round(totalHoras)}h totales</span>
             )}
           </div>
 
@@ -396,7 +396,7 @@ export function PersonaDetalleClient({
                       </Link>
                       <div className="flex items-center gap-4">
                         <span className="text-sm text-muted-foreground">{formatMoney(clienteIngresos)}</span>
-                        <span className="text-sm font-bold text-primary">{Math.round(clienteHoras)}h</span>
+                        <span className="text-sm font-bold text-blue-600">{Math.round(clienteHoras)}h</span>
                       </div>
                     </div>
                     <div className="space-y-1">

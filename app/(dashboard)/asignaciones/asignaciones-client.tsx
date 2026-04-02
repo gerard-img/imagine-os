@@ -150,9 +150,9 @@ export function AsignacionesClient({
                   <TableCell>{r.personaNombre}</TableCell>
                   <TableCell className="text-muted-foreground">{r.cuotaNombre}</TableCell>
                   <TableCell className="text-right">{r.porcentaje}%</TableCell>
-                  <TableCell className="text-right font-medium text-primary">{formatMoney(r.ingresosAsignados)}</TableCell>
+                  <TableCell className="text-right font-medium text-blue-600">{formatMoney(r.ingresosAsignados)}</TableCell>
                   <TableCell className="text-right">{r.ingresosReales !== null ? formatMoney(r.ingresosReales) : '—'}</TableCell>
-                  <TableCell className="text-right font-medium text-primary">{r.horasDedicar.toFixed(1)}h</TableCell>
+                  <TableCell className="text-right font-medium text-blue-600">{r.horasDedicar.toFixed(1)}h</TableCell>
                   <TableCell className="text-right">
                     {r.horasDisponibles > 0 ? (() => {
                       const pct = (r.horasPersonaMes / r.horasDisponibles) * 100

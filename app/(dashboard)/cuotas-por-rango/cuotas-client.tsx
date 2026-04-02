@@ -74,7 +74,7 @@ export function CuotasClient({ cuotas, empresasGrupo }: Props) {
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{egMap.get(c.empresa_grupo_id)?.codigo ?? '—'}</TableCell>
                   <TableCell>{c.nombre}</TableCell>
-                  <TableCell className="text-right font-medium text-primary">{formatMoney(c.precio_hora)}</TableCell>
+                  <TableCell className="text-right font-medium text-blue-600">{formatMoney(c.precio_hora)}</TableCell>
                   <TableCell className="text-muted-foreground">{formatDate(c.inicio_validez)}</TableCell>
                   <TableCell>
                     {c.fin_validez ? (

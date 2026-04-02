@@ -123,8 +123,8 @@ const limitedSections: NavSection[] = [
   },
 ]
 
-// Roles que solo ven el dashboard personal
-const ROLES_LIMITADOS = ['Responsable', 'Miembro', 'Intern', 'Externo', 'Implant']
+// Roles que solo ven el dashboard personal (nivel 'personal')
+const ROLES_LIMITADOS = ['Miembro', 'Intern', 'Externo', 'Implant']
 
 type SidebarProps = {
   rolNombre?: string

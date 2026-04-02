@@ -1,6 +1,12 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Rutas permitidas para nivel 'personal' (Miembro, Intern, Externo, Implant)
+const RUTAS_PERSONAL = ['/dashboard-personal']
+
+// Rutas que no requieren comprobación de nivel (login, sin-acceso, etc.)
+const RUTAS_PUBLICAS = ['/login', '/sin-acceso']
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -13,7 +19,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
           supabaseResponse = NextResponse.next({ request })
@@ -30,20 +36,39 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isLoginPage = request.nextUrl.pathname === '/login'
+  const pathname = request.nextUrl.pathname
+  const isPublicRoute = RUTAS_PUBLICAS.some((r) => pathname.startsWith(r))
 
-  // Si no hay usuario y no está en /login → redirigir a /login
-  if (!user && !isLoginPage) {
+  // --- 1. Autenticación ---
+
+  // Si no hay usuario y no está en ruta pública → redirigir a /login
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
   // Si hay usuario y está en /login → redirigir al dashboard
-  if (user && isLoginPage) {
+  if (user && pathname === '/login') {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
+  }
+
+  // --- 2. Autorización por nivel de acceso ---
+
+  if (user && !isPublicRoute) {
+    const nivelAcceso = request.cookies.get('nivel_acceso')?.value
+
+    // Si el nivel es 'personal', solo puede acceder a RUTAS_PERSONAL
+    if (nivelAcceso === 'personal') {
+      const permitida = RUTAS_PERSONAL.some((r) => pathname.startsWith(r))
+      if (!permitida) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard-personal'
+        return NextResponse.redirect(url)
+      }
+    }
   }
 
   return supabaseResponse
@@ -51,12 +76,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Protege todas las rutas excepto:
-     * - _next/static, _next/image (archivos de Next.js)
-     * - favicon.ico, images, etc.
-     * - api routes públicas si las hubiera
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

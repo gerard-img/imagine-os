@@ -262,7 +262,7 @@ export function OrdenesTrabajoClient({
                       </span>
                     </TableCell>
                     <TableCell className="text-right">{r.porcentaje_ppto_mes}%</TableCell>
-                    <TableCell className="text-right font-medium text-primary">{formatMoney(r.partida_prevista)}</TableCell>
+                    <TableCell className="text-right font-medium text-blue-600">{formatMoney(r.partida_prevista)}</TableCell>
                     <TableCell className="text-right">{r.partida_real !== null ? formatMoney(r.partida_real) : '—'}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">

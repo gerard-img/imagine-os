@@ -264,7 +264,7 @@ export default function ProyectosClient({
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <span className={`font-bold text-primary ${compact ? 'text-xs' : 'text-sm'}`}>
+            <span className={`font-bold text-blue-600 ${compact ? 'text-xs' : 'text-sm'}`}>
               {formatMoney(p.ppto_estimado)}
             </span>
             {!compact && <StatusBadge status={p.estado} />}

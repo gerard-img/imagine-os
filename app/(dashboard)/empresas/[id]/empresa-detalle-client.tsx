@@ -280,7 +280,7 @@ export function EmpresaDetalleClient({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
-              <p className="text-lg font-bold text-primary">{formatMoney(feeTotal)}</p>
+              <p className="text-lg font-bold text-blue-600">{formatMoney(feeTotal)}</p>
               <p className="text-[10px] text-muted-foreground">Fee mensual</p>
             </div>
             <div className="rounded-lg bg-[#F9FAFB] p-3 text-center">
@@ -315,7 +315,7 @@ export function EmpresaDetalleClient({
               Servicios
             </p>
             {feeTotal > 0 && (
-              <span className="text-sm font-bold text-primary">{formatMoney(feeTotal)}/mes</span>
+              <span className="text-sm font-bold text-blue-600">{formatMoney(feeTotal)}/mes</span>
             )}
           </div>
 
@@ -339,7 +339,7 @@ export function EmpresaDetalleClient({
                   return (
                     <tr key={s.nombre} className="border-t border-border/50">
                       <td className="py-2.5 font-medium">{s.nombre}</td>
-                      <td className="py-2.5 text-right text-primary font-medium">{formatMoney(s.fee)}</td>
+                      <td className="py-2.5 text-right text-blue-600 font-medium">{formatMoney(s.fee)}</td>
                       <td className="py-2.5 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="h-1.5 w-16 rounded-full bg-gray-100">
@@ -364,7 +364,7 @@ export function EmpresaDetalleClient({
               Equipo Asignado
             </p>
             {horasEquipoTotal > 0 && (
-              <span className="text-sm font-bold text-primary">{Math.round(horasEquipoTotal)}h totales</span>
+              <span className="text-sm font-bold text-blue-600">{Math.round(horasEquipoTotal)}h totales</span>
             )}
           </div>
 
@@ -392,7 +392,7 @@ export function EmpresaDetalleClient({
                     </td>
                     <td className="py-2.5 text-muted-foreground">{e.departamento}</td>
                     <td className="py-2.5 text-muted-foreground">{e.puesto}</td>
-                    <td className="py-2.5 text-right font-medium text-primary">{Math.round(e.horas)}h</td>
+                    <td className="py-2.5 text-right font-medium text-blue-600">{Math.round(e.horas)}h</td>
                   </tr>
                 ))}
               </tbody>
@@ -491,7 +491,7 @@ export function EmpresaDetalleClient({
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-sm font-medium text-primary">{formatMoney(p.ppto_estimado)}</span>
+                      <span className="text-sm font-medium text-blue-600">{formatMoney(p.ppto_estimado)}</span>
                       <StatusBadge status={p.estado} />
                     </div>
                   </Link>

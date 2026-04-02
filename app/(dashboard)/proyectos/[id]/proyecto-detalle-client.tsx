@@ -229,7 +229,7 @@ export function ProyectoDetalleClient({
             )}
             <div className="flex justify-between">
               <dt className="text-muted-foreground">Ppto. estimado</dt>
-              <dd className="font-bold text-primary">{formatMoney(proyecto.ppto_estimado)}</dd>
+              <dd className="font-bold text-blue-600">{formatMoney(proyecto.ppto_estimado)}</dd>
             </div>
             {proyecto.fecha_activacion && (
               <div className="flex justify-between">
@@ -285,7 +285,7 @@ export function ProyectoDetalleClient({
               {equipoProyecto.map((p) => (
                 <span
                   key={p.id}
-                  className="inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
+                  className="inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700"
                 >
                   {p.persona}
                 </span>
@@ -342,7 +342,7 @@ export function ProyectoDetalleClient({
                     <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700 uppercase tracking-wide">
                       {dept?.nombre ?? '—'}
                     </span>
-                    <span className="text-xs font-semibold text-primary">
+                    <span className="text-xs font-semibold text-blue-600">
                       {formatMoney(deptoTotal)}
                     </span>
                     <div className="flex-1 border-t border-border/50" />
@@ -469,7 +469,7 @@ function OTRowWithAsignaciones({
             )}
           </div>
         </td>
-        <td className="py-2.5 text-right font-medium text-primary">
+        <td className="py-2.5 text-right font-medium text-blue-600">
           {formatMoney(ot.partida_prevista)}
         </td>
         <td className="py-2.5 text-right text-muted-foreground">
@@ -533,7 +533,7 @@ function OTRowWithAsignaciones({
             <td className="py-1.5 pl-6">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-muted-foreground/50">└</span>
-                <span className="inline-flex rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                <span className="inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
                   {persona?.persona ?? '—'}
                 </span>
                 <span className="text-[11px] text-muted-foreground">

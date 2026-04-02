@@ -380,7 +380,7 @@ export function HorasTrabajablesClient({ horasTrabajables, empresasGrupo, depart
               {filtered.map((h) => (
                 <TableRow key={h.id}>
                   <TableCell className="font-medium">{egMap.get(h.empresa_grupo_id)?.codigo ?? '—'}</TableCell>
-                  <TableCell className="text-right font-medium text-primary">{h.horas}h</TableCell>
+                  <TableCell className="text-right font-medium text-blue-600">{h.horas}h</TableCell>
                   <TableCell><OverrideBadge row={h} /></TableCell>
                   <TableCell className="text-muted-foreground">
                     {h.departamento_id ? deptMap.get(h.departamento_id)?.nombre ?? '—' : '—'}
