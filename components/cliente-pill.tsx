@@ -21,6 +21,11 @@ const PALETTE: string[] = [
   'bg-red-100 text-red-700',
 ]
 
+// Overrides manuales para colisiones de hash
+const OVERRIDES: Record<string, string> = {
+  'Globalvia': 'bg-violet-100 text-violet-700',
+}
+
 function hashName(name: string): number {
   let hash = 0
   for (let i = 0; i < name.length; i++) {
@@ -30,7 +35,7 @@ function hashName(name: string): number {
 }
 
 export function getClienteColor(name: string): string {
-  return PALETTE[hashName(name) % PALETTE.length]
+  return OVERRIDES[name] ?? PALETTE[hashName(name) % PALETTE.length]
 }
 
 export function ClientePill({ name }: { name: string }) {
