@@ -38,7 +38,7 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
       search === '' ||
       (e.nombre_interno ?? '').toLowerCase().includes(search.toLowerCase()) ||
       e.nombre_legal.toLowerCase().includes(search.toLowerCase()) ||
-      e.cif.toLowerCase().includes(search.toLowerCase())
+      (e.cif ?? '').toLowerCase().includes(search.toLowerCase())
     const matchesFilter = filter === 'Todos' || e.estado === filter
     return matchesSearch && matchesFilter
   })

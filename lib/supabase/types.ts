@@ -216,10 +216,10 @@ export type Database = {
         Row: {
           id: string
           nombre_legal: string
-          cif: string
+          cif: string | null
           nombre_interno: string | null
           estado: 'Conocido' | 'Prospecto' | 'Cliente' | 'Baja' | 'Otros'
-          tipo: 'Marca' | 'Fabricante' | 'Fondo' | 'Agencia' | 'Tecnología'
+          tipo: 'Marca' | 'Fabricante' | 'Fondo' | 'Agencia' | 'Tecnología' | null
           tipo_conocido: string | null
           tipo_cliente: string | null
           estado_prospecto: string | null

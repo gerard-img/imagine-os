@@ -22,6 +22,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { MonthNavigator } from '@/components/month-navigator'
 import { ArrowLeft, Globe, Phone, Mail, ExternalLink, Crown, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { EmpresaEditSheet } from './empresa-edit-sheet'
 
 type Props = {
   empresa: Empresa
@@ -176,7 +177,7 @@ export function EmpresaDetalleClient({
               {(empresa.nombre_interno ?? empresa.nombre_legal).toUpperCase()}
             </h1>
             <p className="text-sm text-muted-foreground">
-              {empresa.nombre_legal} · {empresa.cif}
+              {empresa.nombre_legal}{empresa.cif ? ` · ${empresa.cif}` : ''}
             </p>
           </div>
         </div>
@@ -190,6 +191,7 @@ export function EmpresaDetalleClient({
           {subestado && (
             <span className="text-xs text-muted-foreground">({subestado})</span>
           )}
+          <EmpresaEditSheet empresa={empresa} personas={personas} />
         </div>
       </div>
 

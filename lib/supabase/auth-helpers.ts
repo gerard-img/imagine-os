@@ -32,11 +32,12 @@ export async function getPersonaAutenticada() {
 
   if (!personaPorEmail) return null // No tiene acceso
 
-  // 3. Vincular auth_user_id a la persona encontrada
-  await supabase
-    .from('personas')
-    .update({ auth_user_id: user.id })
-    .eq('id', personaPorEmail.id)
+  // 3. Vincular auth_user_id a la persona encontrada (vía función SECURITY DEFINER
+  //    para evitar el problema huevo/gallina con RLS)
+  await supabase.rpc('vincular_persona_por_email', {
+    p_auth_user_id: user.id,
+    p_email: user.email,
+  })
 
   return personaPorEmail
 }
