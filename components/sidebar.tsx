@@ -26,6 +26,7 @@ import {
   Tag,
   BookOpen,
   Home,
+  KeyRound,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 
@@ -95,6 +96,7 @@ const allSections: NavSection[] = [
           { name: 'Oficinas', href: '/oficinas', icon: MapPin },
           { name: 'Puestos', href: '/puestos', icon: Tag },
           { name: 'Rangos', href: '/rangos', icon: Crown },
+          { name: 'Usuarios', href: '/usuarios', icon: KeyRound },
         ],
       },
       {
