@@ -6,6 +6,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { AlertTriangle } from 'lucide-react'
 import { safeDivide, formatMoney, resolverHoras } from '@/lib/helpers'
 import { MonthNavigator } from '@/components/month-navigator'
+import { getClienteColor } from '@/components/cliente-pill'
 import { KpiCard } from '@/components/kpi-card'
 import type {
   OrdenTrabajo, Asignacion, Persona, Proyecto, Empresa,
@@ -402,11 +403,11 @@ export function CargasClient({
                         <Link
                           key={i}
                           href={`/proyectos/${p.proyectoId}`}
-                          className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-[11px] text-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-opacity hover:opacity-80 ${getClienteColor(p.clienteNombre)}`}
                           title={`${p.titulo} · ${p.servicioNombre}`}
                         >
-                          <span className="max-w-[100px] truncate font-medium">{p.clienteNombre}</span>
-                          <span className="text-muted-foreground shrink-0">{Math.round(p.horas)}h</span>
+                          <span className="max-w-[100px] truncate">{p.clienteNombre}</span>
+                          <span className="opacity-70 shrink-0">{Math.round(p.horas)}h</span>
                         </Link>
                       ))
                     )}
