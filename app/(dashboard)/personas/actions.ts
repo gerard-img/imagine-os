@@ -13,10 +13,11 @@ export async function crearPersona(data: PersonaFormData): Promise<ActionResult>
   }
 
   const d = parsed.data
-  const persona = [d.nombre, d.apellido_primero, d.apellido_segundo].filter(Boolean).join(' ')
+  const autoNombre = [d.nombre, d.apellido_primero, d.apellido_segundo].filter(Boolean).join(' ')
+  const persona = d.nombre_interno?.trim() || autoNombre
 
   const supabase = await createClient()
-  const { error } = await supabase.from('personas').insert({
+  const { data: nueva, error } = await supabase.from('personas').insert({
     persona,
     nombre: d.nombre,
     apellido_primero: d.apellido_primero,
@@ -34,13 +35,96 @@ export async function crearPersona(data: PersonaFormData): Promise<ActionResult>
     email_personal: d.email_personal || null,
     telefono: d.telefono || null,
     modalidad_trabajo: d.modalidad_trabajo || null,
-    activo: true,
+    activo: d.activo,
     rango_es_interino: false,
-  })
+    fecha_baja: d.fecha_baja || null,
+    linkedin_url: d.linkedin_url || null,
+    fecha_nacimiento: d.fecha_nacimiento || null,
+    nivel_ingles: d.nivel_ingles || null,
+    skills_tags: d.skills_tags ? d.skills_tags.split(',').map((s: string) => s.trim()).filter(Boolean) : null,
+    foto_url: d.foto_url || null,
+  }).select('id').single()
+
+  if (error || !nueva) return { success: false, error: error?.message ?? 'Error al crear' }
+
+  // Guardar departamentos si se indicaron
+  if (d.departamentos.length > 0) {
+    const { error: deptError } = await supabase
+      .from('personas_departamentos')
+      .insert(d.departamentos.map((e) => ({
+        persona_id: nueva.id,
+        departamento_id: e.departamento_id,
+        porcentaje_tiempo: e.porcentaje_tiempo,
+      })))
+    if (deptError) return { success: false, error: `Error al asignar departamentos: ${deptError.message}` }
+  }
+
+  revalidatePath('/personas')
+  return { success: true }
+}
+
+export async function actualizarPersona(id: string, data: PersonaFormData): Promise<ActionResult> {
+  const parsed = personaSchema.safeParse(data)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
+  }
+
+  const d = parsed.data
+  const autoNombre = [d.nombre, d.apellido_primero, d.apellido_segundo].filter(Boolean).join(' ')
+  const persona = d.nombre_interno?.trim() || autoNombre
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('personas').update({
+    persona,
+    nombre: d.nombre,
+    apellido_primero: d.apellido_primero,
+    apellido_segundo: d.apellido_segundo || null,
+    dni: d.dni,
+    empresa_grupo_id: d.empresa_grupo_id,
+    rol_id: d.rol_id,
+    division_id: d.division_id,
+    puesto_id: d.puesto_id,
+    rango_id: d.rango_id,
+    ciudad_id: d.ciudad_id,
+    oficina_id: d.oficina_id || null,
+    fecha_incorporacion: d.fecha_incorporacion,
+    email_corporativo: d.email_corporativo || null,
+    email_personal: d.email_personal || null,
+    telefono: d.telefono || null,
+    modalidad_trabajo: d.modalidad_trabajo || null,
+    activo: d.activo,
+    fecha_baja: d.fecha_baja || null,
+    linkedin_url: d.linkedin_url || null,
+    fecha_nacimiento: d.fecha_nacimiento || null,
+    nivel_ingles: d.nivel_ingles || null,
+    skills_tags: d.skills_tags ? d.skills_tags.split(',').map((s: string) => s.trim()).filter(Boolean) : null,
+    foto_url: d.foto_url || null,
+  }).eq('id', id)
 
   if (error) return { success: false, error: error.message }
 
+  // Actualizar departamentos: delete + insert
+  if (d.departamentos.length > 0) {
+    const total = d.departamentos.reduce((sum, e) => sum + e.porcentaje_tiempo, 0)
+    if (Math.abs(total - 100) > 0.01) {
+      return { success: false, error: `La suma de departamentos debe ser 100%. Actualmente: ${total}%` }
+    }
+
+    await supabase.from('personas_departamentos').delete().eq('persona_id', id)
+    const { error: deptError } = await supabase
+      .from('personas_departamentos')
+      .insert(d.departamentos.map((e) => ({
+        persona_id: id,
+        departamento_id: e.departamento_id,
+        porcentaje_tiempo: e.porcentaje_tiempo,
+      })))
+    if (deptError) return { success: false, error: `Error al actualizar departamentos: ${deptError.message}` }
+  }
+
+  revalidatePath(`/personas/${id}`)
   revalidatePath('/personas')
+  revalidatePath('/cargas-trabajo')
+  revalidatePath('/planificador')
   return { success: true }
 }
 

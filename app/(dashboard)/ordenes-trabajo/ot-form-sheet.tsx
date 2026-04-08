@@ -18,37 +18,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Loader2, Pencil } from 'lucide-react'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatMoney } from '@/lib/helpers'
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="text-xs text-destructive mt-1">{message}</p>
-}
-
-function NativeSelect({
-  options, placeholder, value, onChange, error, disabled,
-}: {
-  options: { value: string; label: string }[]
-  placeholder: string
-  value: string
-  onChange: (v: string) => void
-  error?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      aria-invalid={error}
-      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  )
 }
 
 function SimpleSelect({
@@ -101,6 +76,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
     proyecto_id: preselectedProyectoId ?? '',
     servicio_id: '', departamento_id: '', mes_anio: '',
     titulo: '', porcentaje_ppto_mes: 100, partida_prevista: 0,
+    partida_real: '',
     aprobador_id: '', estado: 'Propuesto' as OrdenTrabajoFormData['estado'],
     notas: '',
   }
@@ -117,6 +93,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
       titulo: ot.titulo ?? '',
       porcentaje_ppto_mes: ot.porcentaje_ppto_mes,
       partida_prevista: ot.partida_prevista,
+      partida_real: ot.partida_real?.toString() ?? '',
       aprobador_id: ot.aprobador_id,
       estado: ot.estado as OrdenTrabajoFormData['estado'],
       notas: ot.notas ?? '',
@@ -229,7 +206,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
           {/* Proyecto */}
           <div className="space-y-1.5">
             <Label>Proyecto *</Label>
-            <NativeSelect
+            <SearchableSelect
               options={proyectoOptions}
               placeholder="Seleccionar proyecto..."
               value={watch('proyecto_id')}
@@ -256,7 +233,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Servicio <span className="text-muted-foreground font-normal">(opcional)</span></Label>
-              <NativeSelect
+              <SearchableSelect
                 options={serviciosFiltrados.map((s) => ({ value: s.id, label: s.nombre }))}
                 placeholder={egId ? 'Sin servicio' : 'Primero elige proyecto'}
                 value={watch('servicio_id')}
@@ -268,7 +245,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
             </div>
             <div className="space-y-1.5">
               <Label>Departamento *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={deptosFiltrados.map((d) => ({ value: d.id, label: d.nombre }))}
                 placeholder={egId ? 'Seleccionar...' : 'Primero elige proyecto'}
                 value={watch('departamento_id')}
@@ -352,6 +329,22 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
             </div>
           </div>
 
+          {/* Partida real (facturación) */}
+          <div className="space-y-1.5">
+            <Label htmlFor="partida_real">Partida real (€)</Label>
+            <Input
+              id="partida_real"
+              type="number"
+              min={0}
+              step={1}
+              placeholder="Importe facturado"
+              {...register('partida_real')}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Importe real facturado. Dejar vacío si aún no se ha facturado.
+            </p>
+          </div>
+
           {/* Estado + Aprobador */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -367,7 +360,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
             </div>
             <div className="space-y-1.5">
               <Label>Aprobador *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={aprobadoresFiltrados.map((p) => ({ value: p.id, label: p.persona }))}
                 placeholder={egId ? 'Seleccionar...' : 'Primero elige proyecto'}
                 value={watch('aprobador_id')}

@@ -28,6 +28,7 @@ import type {
   Departamento,
   Empresa,
   EmpresaGrupo,
+  ContactoEmpresa,
 } from '@/lib/supabase/types'
 
 type Props = {
@@ -43,12 +44,13 @@ type Props = {
   departamentos: Departamento[]
   empresas: Empresa[]
   empresasGrupo: EmpresaGrupo[]
+  contactos: ContactoEmpresa[]
 }
 
 export function ProyectoDetalleClient({
   proyecto, proyectos, proyDepts, ordenes, ordenesPersonas,
   asignaciones, servicios, cuotas, personas,
-  departamentos, empresas, empresasGrupo,
+  departamentos, empresas, empresasGrupo, contactos,
 }: Props) {
   const router = useRouter()
 
@@ -172,6 +174,7 @@ export function ProyectoDetalleClient({
             empresasGrupo={empresasGrupo}
             personas={personas}
             departamentos={departamentos}
+            contactos={contactos}
             proyecto={proyecto}
             proyectoDepartamentoIds={proyDepts.map((pd) => pd.departamento_id)}
           />
@@ -231,6 +234,33 @@ export function ProyectoDetalleClient({
               <dt className="text-muted-foreground">Ppto. estimado</dt>
               <dd className="font-bold text-blue-600">{formatMoney(proyecto.ppto_estimado)}</dd>
             </div>
+            {proyecto.valor_estimado_total != null && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Valor total est.</dt>
+                <dd className="font-semibold text-blue-600">{formatMoney(proyecto.valor_estimado_total)}</dd>
+              </div>
+            )}
+            {proyecto.probabilidad_cierre != null && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Prob. cierre</dt>
+                <dd className="font-semibold">{proyecto.probabilidad_cierre}%</dd>
+              </div>
+            )}
+            {proyecto.contacto_principal_id && (() => {
+              const contacto = contactos.find((c) => c.id === proyecto.contacto_principal_id)
+              return contacto ? (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Contacto cliente</dt>
+                  <dd className="font-semibold">{contacto.nombre} {contacto.apellidos ?? ''}</dd>
+                </div>
+              ) : null
+            })()}
+            {proyecto.fecha_propuesta && (
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Propuesta</dt>
+                <dd className="font-semibold">{formatDate(proyecto.fecha_propuesta)}</dd>
+              </div>
+            )}
             {proyecto.fecha_activacion && (
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Activación</dt>
@@ -310,6 +340,8 @@ export function ProyectoDetalleClient({
               personas={personas}
               cuotas={cuotas}
               asignaciones={asignacionesProyecto}
+              servicios={servicios}
+              departamentos={departamentos}
               trigger={
                 <Button variant="outline" size="sm" className="gap-1.5">
                   <Users className="h-3.5 w-3.5" />
@@ -355,7 +387,8 @@ export function ProyectoDetalleClient({
                         <th className="pb-2 font-semibold">Servicio</th>
                         <th className="pb-2 font-semibold text-right">Prevista</th>
                         <th className="pb-2 font-semibold text-right">Real</th>
-                        <th className="pb-2 font-semibold">% Ppto</th>
+                        <th className="pb-2 font-semibold text-right">H. Plan.</th>
+                        <th className="pb-2 font-semibold text-right">H. Real</th>
                         <th className="pb-2 font-semibold">Estado</th>
                         <th className="pb-2 font-semibold text-right">Acciones</th>
                       </tr>
@@ -410,6 +443,8 @@ export function ProyectoDetalleClient({
           personas={personas}
           cuotas={cuotas}
           asignaciones={asignacionesProyecto}
+          servicios={servicios}
+          departamentos={departamentos}
         />
       )}
     </div>
@@ -475,8 +510,22 @@ function OTRowWithAsignaciones({
         <td className="py-2.5 text-right text-muted-foreground">
           {ot.partida_real !== null ? formatMoney(ot.partida_real) : '—'}
         </td>
-        <td className="py-2.5 text-muted-foreground">
-          {ot.porcentaje_ppto_mes}%
+        <td className="py-2.5 text-right text-muted-foreground">
+          {(() => {
+            const hPlan = otAsignaciones.reduce((sum, a) => {
+              const cuota = cuotaMap.get(a.cuota_planificacion_id)
+              if (!cuota || cuota.precio_hora <= 0) return sum
+              const ingresos = ot.partida_prevista * (a.porcentaje_ppto_tm / 100)
+              return sum + safeDivide(ingresos, cuota.precio_hora)
+            }, 0)
+            return hPlan > 0 ? `${Math.round(hPlan)}h` : '—'
+          })()}
+        </td>
+        <td className="py-2.5 text-right font-medium text-emerald-600">
+          {(() => {
+            const hReal = otAsignaciones.reduce((sum, a) => sum + (a.horas_reales ?? 0), 0)
+            return hReal > 0 ? `${hReal}h` : '—'
+          })()}
         </td>
         <td className="py-2.5">
           <div className="flex items-center gap-2">
@@ -507,6 +556,8 @@ function OTRowWithAsignaciones({
               personas={personas}
               cuotas={cuotas}
               asignaciones={asignacionesProyecto}
+              servicios={servicios}
+              departamentos={departamentos}
               preselectedOrdenId={ot.id}
               trigger={
                 <button
@@ -545,17 +596,13 @@ function OTRowWithAsignaciones({
               {formatMoney(ingresos)}
             </td>
             <td className="py-1.5 text-right text-[11px] text-muted-foreground">
-              {horas.toFixed(1)}h
-            </td>
-            <td className="py-1.5 text-[11px] text-muted-foreground">
               {a.porcentaje_ppto_tm}%
             </td>
-            <td className="py-1.5">
-              {cuota && (
-                <span className="text-[11px] text-muted-foreground">
-                  {formatMoney(cuota.precio_hora)}/h
-                </span>
-              )}
+            <td className="py-1.5 text-right text-[11px] text-muted-foreground">
+              {horas.toFixed(1)}h
+            </td>
+            <td className="py-1.5 text-right text-[11px] font-medium text-emerald-600">
+              {a.horas_reales != null ? `${a.horas_reales}h` : '—'}
             </td>
             <td className="py-1.5">
               <div className="flex items-center justify-end">
@@ -566,6 +613,8 @@ function OTRowWithAsignaciones({
                   personas={personas}
                   cuotas={cuotas}
                   asignaciones={asignacionesProyecto}
+                  servicios={servicios}
+                  departamentos={departamentos}
                   asignacion={a}
                   trigger={
                     <button className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-muted transition-colors">
@@ -582,7 +631,7 @@ function OTRowWithAsignaciones({
       {/* Indicador de % asignado */}
       {otAsignaciones.length > 0 && (
         <tr className="border-t border-dashed border-border/30 bg-[#F9FAFB]">
-          <td colSpan={6} className="py-1 pl-6">
+          <td colSpan={8} className="py-1 pl-6">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted-foreground/50">└</span>
               <div className="flex items-center gap-3">
@@ -603,7 +652,7 @@ function OTRowWithAsignaciones({
       {/* Mensaje si no hay asignaciones */}
       {otAsignaciones.length === 0 && (
         <tr className="border-t border-dashed border-border/30 bg-[#F9FAFB]">
-          <td colSpan={6} className="py-1.5 pl-6">
+          <td colSpan={8} className="py-1.5 pl-6">
             <span className="text-[11px] text-muted-foreground/60 italic">Sin asignaciones</span>
           </td>
         </tr>

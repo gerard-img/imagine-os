@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { personaSchema, type PersonaFormData, MODALIDADES_TRABAJO } from '@/lib/schemas/persona'
-import { crearPersona } from './actions'
+import { personaSchema, type PersonaFormData, MODALIDADES_TRABAJO, NIVELES_INGLES } from '@/lib/schemas/persona'
+import { crearPersona, actualizarPersona } from './actions'
 import type {
-  EmpresaGrupo, Rol, Division, Puesto, RangoInterno, Ciudad, Oficina,
+  EmpresaGrupo, Rol, Division, Puesto, RangoInterno, Ciudad, Oficina, Persona,
+  Departamento, PersonaDepartamento,
 } from '@/lib/supabase/types'
 import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
@@ -14,7 +15,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
@@ -55,32 +57,76 @@ type Props = {
   rangos: RangoInterno[]
   ciudades: Ciudad[]
   oficinas: Oficina[]
+  departamentos?: Departamento[]
+  personasDepts?: PersonaDepartamento[]
+  persona?: Persona
+  trigger?: React.ReactElement
 }
 
 export function PersonaFormSheet({
   empresasGrupo, roles, divisiones, puestos, rangos, ciudades, oficinas,
+  departamentos = [], personasDepts = [],
+  persona, trigger,
 }: Props) {
+  const isEditMode = !!persona
   const [open, setOpen] = useState(false)
   const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const defaults: PersonaFormData = {
-    nombre: '', apellido_primero: '', apellido_segundo: '', dni: '',
+  const currentDepts = isEditMode
+    ? personasDepts
+        .filter((pd) => pd.persona_id === persona.id)
+        .map((pd) => ({ departamento_id: pd.departamento_id, porcentaje_tiempo: pd.porcentaje_tiempo }))
+    : []
+
+  const createDefaults: PersonaFormData = {
+    nombre: '', apellido_primero: '', apellido_segundo: '', nombre_interno: '', dni: '',
     empresa_grupo_id: '', rol_id: '', division_id: '', puesto_id: '',
     rango_id: '', ciudad_id: '', oficina_id: '', fecha_incorporacion: '',
     email_corporativo: '', email_personal: '', telefono: '', modalidad_trabajo: '',
+    departamentos: [],
+    fecha_baja: '', activo: true, linkedin_url: '', fecha_nacimiento: '',
+    nivel_ingles: '', skills_tags: '', foto_url: '',
   }
 
   const {
-    register, handleSubmit, watch, setValue, reset, formState: { errors },
+    register, handleSubmit, watch, setValue, reset, control, formState: { errors },
   } = useForm<PersonaFormData>({
     resolver: zodResolver(personaSchema),
-    defaultValues: defaults,
+    defaultValues: isEditMode ? {
+      nombre: persona.nombre,
+      apellido_primero: persona.apellido_primero,
+      apellido_segundo: persona.apellido_segundo ?? '',
+      nombre_interno: persona.persona ?? '',
+      dni: persona.dni,
+      empresa_grupo_id: persona.empresa_grupo_id,
+      rol_id: persona.rol_id,
+      division_id: persona.division_id,
+      puesto_id: persona.puesto_id,
+      rango_id: persona.rango_id,
+      ciudad_id: persona.ciudad_id,
+      oficina_id: persona.oficina_id ?? '',
+      fecha_incorporacion: persona.fecha_incorporacion,
+      email_corporativo: persona.email_corporativo ?? '',
+      email_personal: persona.email_personal ?? '',
+      telefono: persona.telefono ?? '',
+      modalidad_trabajo: persona.modalidad_trabajo ?? '',
+      departamentos: currentDepts,
+      fecha_baja: persona.fecha_baja ?? '',
+      activo: persona.activo,
+      linkedin_url: persona.linkedin_url ?? '',
+      fecha_nacimiento: persona.fecha_nacimiento ?? '',
+      nivel_ingles: persona.nivel_ingles ?? '',
+      skills_tags: persona.skills_tags?.join(', ') ?? '',
+      foto_url: persona.foto_url ?? '',
+    } : createDefaults,
   })
 
-  const egId = watch('empresa_grupo_id')
+  const { fields, append, remove } = useFieldArray({ control, name: 'departamentos' })
 
-  // Filtrar puestos y rangos por empresa_grupo seleccionada
+  const egId = watch('empresa_grupo_id')
+  const deptEntries = watch('departamentos')
+
   const puestosFiltrados = useMemo(
     () => egId ? puestos.filter((p) => p.empresa_grupo_id === egId) : puestos,
     [puestos, egId]
@@ -89,13 +135,33 @@ export function PersonaFormSheet({
     () => egId ? rangos.filter((r) => r.empresa_grupo_id === egId) : rangos,
     [rangos, egId]
   )
+  const deptsFiltrados = useMemo(
+    () => egId ? departamentos.filter((d) => d.empresa_grupo_id === egId) : departamentos,
+    [departamentos, egId]
+  )
+
+  const deptTotal = deptEntries.reduce((sum, e) => sum + (e.porcentaje_tiempo || 0), 0)
+  const deptTotalOk = Math.abs(deptTotal - 100) <= 0.01
+
+  function addDept() {
+    const usedIds = new Set(deptEntries.map((e) => e.departamento_id))
+    const available = deptsFiltrados.find((d) => !usedIds.has(d.id))
+    if (!available) return
+    append({ departamento_id: available.id, porcentaje_tiempo: 0 })
+  }
 
   async function onSubmit(data: PersonaFormData) {
+    if (data.departamentos.length > 0 && !deptTotalOk) {
+      setServerError(`La suma de departamentos debe ser 100%. Actualmente: ${deptTotal}%`)
+      return
+    }
     setSubmitting(true)
     setServerError('')
-    const result = await crearPersona(data)
+    const result = isEditMode
+      ? await actualizarPersona(persona!.id, data)
+      : await crearPersona(data)
     if (result.success) {
-      reset(defaults)
+      if (!isEditMode) reset(createDefaults)
       setOpen(false)
     } else {
       setServerError(result.error ?? 'Error desconocido')
@@ -105,25 +171,33 @@ export function PersonaFormSheet({
 
   function handleOpenChange(next: boolean) {
     setOpen(next)
-    if (!next) { reset(defaults); setServerError('') }
+    if (!next) {
+      if (!isEditMode) reset(createDefaults)
+      setServerError('')
+    }
   }
+
+  const defaultTrigger = isEditMode ? (
+    <Button variant="outline" size="sm" className="gap-1.5">
+      <Pencil className="h-3.5 w-3.5" />
+      Editar
+    </Button>
+  ) : (
+    <Button size="default" className="gap-1.5 shrink-0">
+      <Plus className="h-4 w-4" />
+      Nuevo Miembro
+    </Button>
+  )
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
-      <SheetTrigger
-        render={
-          <Button size="default" className="gap-1.5 shrink-0">
-            <Plus className="h-4 w-4" />
-            Nuevo Miembro
-          </Button>
-        }
-      />
+      <SheetTrigger render={trigger ?? defaultTrigger} />
 
       <SheetContent side="right" className="w-[500px] overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>Nuevo Miembro</SheetTitle>
+          <SheetTitle>{isEditMode ? 'Editar Miembro' : 'Nuevo Miembro'}</SheetTitle>
           <SheetDescription>
-            Rellena los datos para añadir una persona al equipo.
+            {isEditMode ? 'Modifica los datos de esta persona.' : 'Rellena los datos para añadir una persona al equipo.'}
           </SheetDescription>
         </SheetHeader>
 
@@ -156,10 +230,23 @@ export function PersonaFormSheet({
             </div>
           </div>
 
+          {/* Nombre interno */}
+          <div className="space-y-1.5">
+            <Label htmlFor="nombre_interno">Nombre interno</Label>
+            <Input
+              id="nombre_interno"
+              placeholder="Se genera automáticamente si lo dejas vacío"
+              {...register('nombre_interno')}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              El nombre que aparece en listados y asignaciones. Por defecto: nombre + apellidos.
+            </p>
+          </div>
+
           {/* Empresa Grupo */}
           <div className="space-y-1.5">
             <Label>Empresa grupo *</Label>
-            <NativeSelect
+            <SearchableSelect
               options={empresasGrupo.map((eg) => ({ value: eg.id, label: `${eg.codigo} — ${eg.nombre}` }))}
               placeholder="Seleccionar empresa grupo..."
               value={egId}
@@ -177,7 +264,7 @@ export function PersonaFormSheet({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Rol *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={roles.map((r) => ({ value: r.id, label: r.nombre }))}
                 placeholder="Seleccionar..."
                 value={watch('rol_id')}
@@ -188,7 +275,7 @@ export function PersonaFormSheet({
             </div>
             <div className="space-y-1.5">
               <Label>División *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={divisiones.map((d) => ({ value: d.id, label: d.nombre }))}
                 placeholder="Seleccionar..."
                 value={watch('division_id')}
@@ -203,7 +290,7 @@ export function PersonaFormSheet({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Puesto *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={puestosFiltrados.map((p) => ({ value: p.id, label: p.nombre }))}
                 placeholder={egId ? 'Seleccionar...' : 'Elige empresa primero'}
                 value={watch('puesto_id')}
@@ -215,7 +302,7 @@ export function PersonaFormSheet({
             </div>
             <div className="space-y-1.5">
               <Label>Rango *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={rangosFiltrados.map((r) => ({ value: r.id, label: r.nombre }))}
                 placeholder={egId ? 'Seleccionar...' : 'Elige empresa primero'}
                 value={watch('rango_id')}
@@ -227,11 +314,84 @@ export function PersonaFormSheet({
             </div>
           </div>
 
+          {/* Departamentos */}
+          {egId && deptsFiltrados.length > 0 && (
+            <div className="space-y-2">
+              <Label>Departamentos</Label>
+              {fields.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-2">
+                  Sin departamentos asignados.
+                </p>
+              )}
+              {fields.map((field, idx) => {
+                const usedIds = new Set(deptEntries.filter((_, i) => i !== idx).map((e) => e.departamento_id))
+                const availableForRow = deptsFiltrados.filter((d) => !usedIds.has(d.id))
+                const deptNombre = departamentos.find((d) => d.id === deptEntries[idx]?.departamento_id)?.nombre ?? ''
+
+                return (
+                  <div key={field.id} className="flex items-center gap-2">
+                    <select
+                      value={deptEntries[idx]?.departamento_id ?? ''}
+                      onChange={(e) => setValue(`departamentos.${idx}.departamento_id`, e.target.value)}
+                      className="h-8 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                    >
+                      {deptEntries[idx]?.departamento_id && !availableForRow.find((d) => d.id === deptEntries[idx].departamento_id) && (
+                        <option value={deptEntries[idx].departamento_id}>{deptNombre}</option>
+                      )}
+                      {availableForRow.map((d) => (
+                        <option key={d.id} value={d.id}>{d.nombre}</option>
+                      ))}
+                    </select>
+                    <div className="relative w-20 shrink-0">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={deptEntries[idx]?.porcentaje_tiempo ?? ''}
+                        onChange={(e) => setValue(`departamentos.${idx}.porcentaje_tiempo`, parseFloat(e.target.value) || 0)}
+                        className="h-8 pr-6 text-right text-sm"
+                      />
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">%</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => remove(idx)}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )
+              })}
+              {deptsFiltrados.length > fields.length && (
+                <button
+                  type="button"
+                  onClick={addDept}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Añadir departamento
+                </button>
+              )}
+              {fields.length > 0 && (
+                <div className={`flex items-center justify-between rounded-lg px-3 py-2 text-sm ${deptTotalOk ? 'bg-emerald-50' : 'bg-amber-50'}`}>
+                  <span className={`font-medium ${deptTotalOk ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    Total dedicación
+                  </span>
+                  <span className={`font-bold tabular-nums ${deptTotalOk ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {deptTotal}% {deptTotalOk ? '✓' : `— faltan ${100 - deptTotal}%`}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Ciudad + Oficina */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Ciudad *</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={ciudades.map((c) => ({ value: c.id, label: c.nombre }))}
                 placeholder="Seleccionar..."
                 value={watch('ciudad_id')}
@@ -242,7 +402,7 @@ export function PersonaFormSheet({
             </div>
             <div className="space-y-1.5">
               <Label>Oficina</Label>
-              <NativeSelect
+              <SearchableSelect
                 options={oficinas.map((o) => ({ value: o.id, label: o.nombre }))}
                 placeholder="Sin oficina"
                 value={watch('oficina_id')}
@@ -290,6 +450,57 @@ export function PersonaFormSheet({
             </div>
           </div>
 
+          {/* Estado + Fecha baja */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Activo</Label>
+              <NativeSelect
+                options={[{ value: 'true', label: 'Sí' }, { value: 'false', label: 'No (Baja)' }]}
+                placeholder=""
+                value={watch('activo') ? 'true' : 'false'}
+                onChange={(v) => setValue('activo', v === 'true')}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha_baja">Fecha baja</Label>
+              <Input id="fecha_baja" type="date" {...register('fecha_baja')} />
+            </div>
+          </div>
+
+          {/* Fecha nacimiento + Nivel inglés */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="fecha_nacimiento">Fecha nacimiento</Label>
+              <Input id="fecha_nacimiento" type="date" {...register('fecha_nacimiento')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nivel inglés</Label>
+              <NativeSelect
+                options={NIVELES_INGLES.map((n) => ({ value: n, label: n }))}
+                placeholder="Sin especificar"
+                value={watch('nivel_ingles')}
+                onChange={(v) => setValue('nivel_ingles', v)}
+              />
+            </div>
+          </div>
+
+          {/* LinkedIn + Foto URL */}
+          <div className="space-y-1.5">
+            <Label htmlFor="linkedin_url">LinkedIn URL</Label>
+            <Input id="linkedin_url" placeholder="https://linkedin.com/in/..." {...register('linkedin_url')} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="foto_url">URL foto</Label>
+            <Input id="foto_url" placeholder="https://..." {...register('foto_url')} />
+          </div>
+
+          {/* Skills / Tags */}
+          <div className="space-y-1.5">
+            <Label htmlFor="skills_tags">Skills / Tags</Label>
+            <Input id="skills_tags" placeholder="SEO, PPC, Diseño..." {...register('skills_tags')} />
+            <p className="text-[11px] text-muted-foreground">Separar con comas</p>
+          </div>
+
           {serverError && (
             <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2">
               <p className="text-sm text-destructive">{serverError}</p>
@@ -302,7 +513,7 @@ export function PersonaFormSheet({
             </Button>
             <Button type="submit" disabled={submitting} className="gap-1.5">
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {submitting ? 'Guardando...' : 'Crear Miembro'}
+              {submitting ? 'Guardando...' : isEditMode ? 'Guardar cambios' : 'Crear Miembro'}
             </Button>
           </SheetFooter>
         </form>

@@ -14,6 +14,7 @@ export const ordenTrabajoSchema = z.object({
     .min(0.01, 'El porcentaje debe ser mayor que 0')
     .max(100, 'El porcentaje no puede superar 100'),
   partida_prevista: z.number().min(0, 'La partida no puede ser negativa'),
+  partida_real: z.string(),
   aprobador_id: z.string().min(1, 'Selecciona un aprobador'),
   estado: z.enum(ESTADOS_OT, { message: 'Selecciona un estado' }),
   notas: z.string(),

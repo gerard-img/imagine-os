@@ -24,7 +24,6 @@ import {
 } from '@/components/ui/table'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
-import { FilterPills } from '@/components/filter-pills'
 import { MonthNavigator } from '@/components/month-navigator'
 import { StatusBadge, UrgenciaIndicador } from '@/components/status-badge'
 import { getUrgenciaPlanificado } from '@/lib/helpers'
@@ -36,7 +35,27 @@ import { AsignacionFormSheet } from '../asignaciones/asignacion-form-sheet'
 import { CheckCheck, X, Loader2, Users } from 'lucide-react'
 import { ServicioPill } from '@/components/servicio-pill'
 
-const ESTADO_OPTIONS = ['Todos', 'Facturado', 'Confirmado', 'Planificado', 'Propuesto']
+// ── Filter dropdown component ──
+function FilterSelect({
+  label, value, options, onChange,
+}: {
+  label: string; value: string; options: string[]; onChange: (v: string) => void
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+      aria-label={label}
+    >
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt === 'Todos' ? `${label}: Todos` : opt}
+        </option>
+      ))}
+    </select>
+  )
+}
 
 interface OrdenesTrabajoClientProps {
   ordenesTrabajo: OrdenTrabajo[]
@@ -76,7 +95,10 @@ export function OrdenesTrabajoClient({
 
   const [month, setMonth] = useState(availableMonths[0])
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState('Todos')
+  const [estadoFilter, setEstadoFilter] = useState('Todos')
+  const [deptoFilter, setDeptoFilter] = useState('Todos')
+  const [servicioFilter, setServicioFilter] = useState('Todos')
+  const [tipoPartidaFilter, setTipoPartidaFilter] = useState('Todos')
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -86,8 +108,16 @@ export function OrdenesTrabajoClient({
   const [pendingOtId, setPendingOtId] = useState<string | null>(null)
 
   function handleMonthChange(m: string) { setMonth(m); setSelectedIds([]) }
-  function handleFilterChange(f: string) { setFilter(f); setSelectedIds([]) }
   function handleSearchChange(s: string) { setSearch(s) }
+
+  // Build filter options from data
+  const filterOptions = useMemo(() => {
+    const estados = ['Todos', ...new Set(ordenesTrabajo.map((o) => o.estado))]
+    const deptos = ['Todos', ...new Set(departamentos.map((d) => d.nombre))]
+    const srvs = ['Todos', ...new Set(servicios.map((s) => s.nombre))]
+    const tiposPartida = ['Todos', 'Puntual', 'Recurrente']
+    return { estados, deptos, servicios: srvs, tiposPartida }
+  }, [ordenesTrabajo, departamentos, servicios])
 
   const rows = useMemo(() => {
     return ordenesTrabajo.map((ot) => {
@@ -113,14 +143,24 @@ export function OrdenesTrabajoClient({
   }, [ordenesTrabajo, ordenesPersonas, proyectoMap, servicioMap, empresaMap, departamentoMap, personaMap])
 
   const filtered = rows.filter((r) => {
-    const matchesMonth = r.mes_anio === month
-    const matchesSearch =
-      search === '' ||
-      r.proyectoTitulo.toLowerCase().includes(search.toLowerCase()) ||
-      (r.servicioNombre ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      r.clienteNombre.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = filter === 'Todos' || r.estado === filter
-    return matchesMonth && matchesSearch && matchesFilter
+    if (r.mes_anio !== month) return false
+    if (estadoFilter !== 'Todos' && r.estado !== estadoFilter) return false
+    if (deptoFilter !== 'Todos' && r.departamentoNombre !== deptoFilter) return false
+    if (servicioFilter !== 'Todos' && r.servicioNombre !== servicioFilter) return false
+    if (tipoPartidaFilter !== 'Todos') {
+      const proyecto = proyectoMap.get(r.proyecto_id)
+      if (proyecto?.tipo_partida !== tipoPartidaFilter) return false
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      const hayMatch =
+        r.proyectoTitulo.toLowerCase().includes(q) ||
+        (r.servicioNombre ?? '').toLowerCase().includes(q) ||
+        r.clienteNombre.toLowerCase().includes(q) ||
+        r.departamentoNombre.toLowerCase().includes(q)
+      if (!hayMatch) return false
+    }
+    return true
   })
 
   const totalPrevisto = filtered.reduce((sum, r) => sum + r.partida_prevista, 0)
@@ -161,7 +201,15 @@ export function OrdenesTrabajoClient({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <GenerarOtsButton currentMonth={month} />
+          <GenerarOtsButton
+              currentMonth={month}
+              ordenesTrabajo={ordenesTrabajo}
+              proyectos={proyectos}
+              servicios={servicios}
+              empresas={empresas}
+              departamentos={departamentos}
+              deptoFilter={deptoFilter}
+            />
           <OtFormSheet
             proyectos={proyectos}
             servicios={servicios}
@@ -182,9 +230,14 @@ export function OrdenesTrabajoClient({
       </div>
 
       {/* Search + Filters */}
-      <div className="mt-5 flex items-center gap-3">
-        <SearchBar placeholder="Buscar por proyecto, servicio o cliente..." value={search} onChange={handleSearchChange} />
-        <FilterPills options={ESTADO_OPTIONS} active={filter} onChange={handleFilterChange} />
+      <div className="mt-5 flex flex-wrap items-center gap-3">
+        <div className="w-64">
+          <SearchBar placeholder="Buscar proyecto, servicio, cliente..." value={search} onChange={handleSearchChange} />
+        </div>
+        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={setEstadoFilter} />
+        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={setDeptoFilter} />
+        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={setServicioFilter} />
+        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={setTipoPartidaFilter} />
       </div>
 
       {/* Table */}
@@ -195,7 +248,15 @@ export function OrdenesTrabajoClient({
               No hay órdenes de trabajo para este mes con esos filtros.
             </p>
             <div className="flex justify-center">
-              <GenerarOtsButton currentMonth={month} />
+              <GenerarOtsButton
+              currentMonth={month}
+              ordenesTrabajo={ordenesTrabajo}
+              proyectos={proyectos}
+              servicios={servicios}
+              empresas={empresas}
+              departamentos={departamentos}
+              deptoFilter={deptoFilter}
+            />
             </div>
           </div>
         ) : (
@@ -337,6 +398,8 @@ export function OrdenesTrabajoClient({
           personas={personas}
           cuotas={cuotas}
           asignaciones={asignaciones}
+          servicios={servicios}
+          departamentos={departamentos}
         />
       )}
     </div>

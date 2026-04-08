@@ -190,6 +190,7 @@ export function RolesClient({ roles }: Props) {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-xs uppercase text-muted-foreground">Nombre</TableHead>
+                <TableHead className="text-xs uppercase text-muted-foreground">Nivel acceso</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground">Descripción</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground w-20 text-right">
                   Acciones
@@ -200,6 +201,15 @@ export function RolesClient({ roles }: Props) {
               {roles.map((rol) => (
                 <TableRow key={rol.id}>
                   <TableCell className="font-medium">{rol.nombre}</TableCell>
+                  <TableCell>
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${
+                      rol.nivel_acceso === 'global' ? 'bg-emerald-50 text-emerald-700' :
+                      rol.nivel_acceso === 'empresa' ? 'bg-blue-50 text-blue-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {rol.nivel_acceso}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{rol.descripcion ?? '-'}</TableCell>
                   <TableCell className="text-right">
                     <RolSheet

@@ -6,8 +6,8 @@ import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { FilterPills } from '@/components/filter-pills'
 import { StatusBadge } from '@/components/status-badge'
-import { Plus, Mail, Phone, Star, ShieldCheck } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Mail, Phone, Star, ShieldCheck } from 'lucide-react'
+import { ContactoFormSheet } from './contacto-form-sheet'
 
 type Props = {
   contactos: ContactoEmpresa[]
@@ -64,10 +64,7 @@ export function ContactosClient({ contactos, empresas }: Props) {
       <div className="mt-5 flex items-center gap-3">
         <SearchBar placeholder="Buscar contacto, empresa o cargo..." value={search} onChange={setSearch} />
         <FilterPills options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
-        <Button size="default" className="gap-1.5 shrink-0">
-          <Plus className="h-4 w-4" />
-          Nuevo Contacto
-        </Button>
+        <ContactoFormSheet empresas={empresas} />
       </div>
 
       <div className="mt-4 space-y-2">
@@ -111,7 +108,10 @@ export function ContactosClient({ contactos, empresas }: Props) {
                   {(c.telefono_directo || c.movil) && (<span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {c.movil ?? c.telefono_directo}</span>)}
                 </div>
               </div>
-              <StatusBadge status={c.activo ? 'Activo' : 'Inactivo'} />
+              <div className="flex items-center gap-2">
+                <ContactoFormSheet empresas={empresas} contacto={c} />
+                <StatusBadge status={c.activo ? 'Activo' : 'Inactivo'} />
+              </div>
             </div>
           )
         })}

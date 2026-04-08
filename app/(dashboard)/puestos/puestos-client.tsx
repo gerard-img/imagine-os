@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Plus, Pencil, Loader2 } from 'lucide-react'
 
 // ── Schema local ──
@@ -23,6 +24,7 @@ const puestoSchema = z.object({
   empresa_grupo_id: z.string().uuid('La empresa es obligatoria'),
   nombre: z.string().min(1, 'El nombre es obligatorio').max(200, 'El nombre no puede superar los 200 caracteres'),
   codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
+  descripcion: z.string().max(500).optional(),
 })
 type PuestoFormData = z.infer<typeof puestoSchema>
 
@@ -59,6 +61,7 @@ function PuestoSheet(props: PuestoSheetProps) {
       empresa_grupo_id: esEdicion ? props.puesto.empresa_grupo_id : '',
       nombre: esEdicion ? props.puesto.nombre : '',
       codigo: esEdicion ? props.puesto.codigo : '',
+      descripcion: esEdicion ? (props.puesto.descripcion ?? '') : '',
     },
   })
 
@@ -143,6 +146,15 @@ function PuestoSheet(props: PuestoSheetProps) {
               {...register('codigo')}
             />
             <FieldError message={errors.codigo?.message} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="descripcion">Descripción</Label>
+            <Textarea
+              id="descripcion"
+              placeholder="Descripción del puesto..."
+              {...register('descripcion')}
+            />
           </div>
 
           {serverError && (
@@ -251,6 +263,7 @@ export function PuestosClient({ puestos, empresas }: Props) {
                 <TableHead className="text-xs uppercase text-muted-foreground">Empresa</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground">Nombre</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground">Codigo</TableHead>
+                <TableHead className="text-xs uppercase text-muted-foreground">Descripción</TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground w-20 text-right">
                   Acciones
                 </TableHead>
@@ -264,6 +277,7 @@ export function PuestosClient({ puestos, empresas }: Props) {
                     <TableCell className="font-medium">{empresa?.nombre ?? '—'}</TableCell>
                     <TableCell className="font-medium">{puesto.nombre}</TableCell>
                     <TableCell>{puesto.codigo}</TableCell>
+                    <TableCell className="text-muted-foreground">{puesto.descripcion ?? '—'}</TableCell>
                     <TableCell className="text-right">
                       <PuestoSheet
                         modo="editar"

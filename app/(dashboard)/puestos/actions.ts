@@ -10,6 +10,7 @@ const puestoSchema = z.object({
   empresa_grupo_id: z.string().uuid('La empresa es obligatoria'),
   nombre: z.string().min(1, 'El nombre es obligatorio').max(200, 'El nombre no puede superar los 200 caracteres'),
   codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
+  descripcion: z.string().max(500).optional(),
 })
 
 // ── Tipo de respuesta ──
@@ -32,6 +33,7 @@ export async function crearPuesto(formData: unknown): Promise<ActionResult> {
     empresa_grupo_id: parsed.data.empresa_grupo_id,
     nombre: parsed.data.nombre,
     codigo: parsed.data.codigo,
+    descripcion: parsed.data.descripcion || null,
   })
 
   if (error) {
@@ -61,6 +63,7 @@ export async function actualizarPuesto(id: string, formData: unknown): Promise<A
     .update({
       nombre: parsed.data.nombre,
       codigo: parsed.data.codigo,
+      descripcion: parsed.data.descripcion || null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

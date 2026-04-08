@@ -73,6 +73,12 @@ export async function getEmpresasGrupo(): Promise<EmpresaGrupo[]> {
   })
 }
 
+export async function getEmpresaGrupoById(id: string): Promise<EmpresaGrupo | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.from('empresas_grupo').select('*').eq('id', id).single()
+  return data
+}
+
 // ── Catálogo Servicios ──
 
 export async function getCatalogoServicios(): Promise<CatalogoServicio[]> {

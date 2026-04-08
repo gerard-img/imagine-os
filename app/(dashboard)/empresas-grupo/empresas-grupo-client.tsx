@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useMemo } from 'react'
+import Link from 'next/link'
+import { EGFormSheet } from './eg-form-sheet'
 import type {
   EmpresaGrupo,
   CatalogoServicio,
@@ -40,8 +42,13 @@ export function EmpresasGrupoClient({
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-foreground">Empresas del Grupo</h1>
-      <p className="mt-0.5 text-sm text-muted-foreground">Empresas del holding y sus catálogos asociados</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-foreground">Empresas del Grupo</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Empresas del holding y sus catálogos asociados</p>
+        </div>
+        <EGFormSheet />
+      </div>
 
       <div className="mt-5 grid grid-cols-4 gap-4">
         <KpiCard label="Empresas" value={empresasGrupo.length} borderColor="border-t-primary" />
@@ -64,9 +71,13 @@ export function EmpresasGrupoClient({
             </TableRow></TableHeader>
             <TableBody>
               {empresasGrupo.map((eg) => (
-                <TableRow key={eg.id}>
-                  <TableCell className="font-medium">{eg.codigo}</TableCell>
-                  <TableCell>{eg.nombre}</TableCell>
+                <TableRow key={eg.id} className="cursor-pointer hover:bg-muted/30">
+                  <TableCell className="font-medium">
+                    <Link href={`/empresas-grupo/${eg.id}`} className="hover:text-primary">{eg.codigo}</Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/empresas-grupo/${eg.id}`} className="hover:text-primary">{eg.nombre}</Link>
+                  </TableCell>
                   <TableCell className="text-muted-foreground">{eg.cif}</TableCell>
                 </TableRow>
               ))}

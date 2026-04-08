@@ -7,6 +7,7 @@ import { asignacionSchema, type AsignacionFormData } from '@/lib/schemas/asignac
 import { crearAsignacion, actualizarAsignacion, eliminarAsignacion } from './actions'
 import type {
   OrdenTrabajo, Proyecto, Persona, CuotaPlanificacion, Asignacion, Empresa,
+  CatalogoServicio, Departamento,
 } from '@/lib/supabase/types'
 import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
@@ -14,38 +15,14 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Plus, Loader2, Trash2 } from 'lucide-react'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatMoney, formatMonth, safeDivide } from '@/lib/helpers'
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="text-xs text-destructive mt-1">{message}</p>
-}
-
-function NativeSelect({
-  options, placeholder, value, onChange, error, disabled,
-}: {
-  options: { value: string; label: string }[]
-  placeholder: string
-  value: string
-  onChange: (v: string) => void
-  error?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      aria-invalid={error}
-      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive disabled:cursor-not-allowed disabled:opacity-50"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  )
 }
 
 type Props = {
@@ -55,6 +32,8 @@ type Props = {
   personas: Persona[]
   cuotas: CuotaPlanificacion[]
   asignaciones: Asignacion[]
+  servicios?: CatalogoServicio[]
+  departamentos?: Departamento[]
   // Para edición: pasar la asignación existente
   asignacion?: Asignacion
   // Trigger personalizado (ej: icono de editar por fila)
@@ -68,6 +47,7 @@ type Props = {
 
 export function AsignacionFormSheet({
   ordenesTrabajo, proyectos, empresas, personas, cuotas, asignaciones,
+  servicios = [], departamentos = [],
   asignacion, trigger, preselectedOrdenId, externalOpen, onExternalOpenChange,
 }: Props) {
   const isEditMode = !!asignacion
@@ -81,6 +61,8 @@ export function AsignacionFormSheet({
 
   const proyectoMap = useMemo(() => new Map(proyectos.map((p) => [p.id, p])), [proyectos])
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
+  const servicioMap = useMemo(() => new Map(servicios.map((s) => [s.id, s])), [servicios])
+  const departamentoMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
 
   const {
     register, handleSubmit, watch, setValue, reset, formState: { errors },
@@ -91,6 +73,8 @@ export function AsignacionFormSheet({
       persona_id: asignacion?.persona_id ?? '',
       porcentaje_ppto_tm: asignacion?.porcentaje_ppto_tm ?? 100,
       cuota_planificacion_id: asignacion?.cuota_planificacion_id ?? '',
+      horas_reales: asignacion?.horas_reales?.toString() ?? '',
+      notas: asignacion?.notas ?? '',
     },
   })
 
@@ -116,16 +100,20 @@ export function AsignacionFormSheet({
 
   const pctDisponible = Math.max(0, 100 - pctAsignado)
 
-  // Filtrar personas y cuotas por empresa_grupo de la OT
+  // Filtrar personas por empresa_grupo de la OT
   const personasFiltradas = useMemo(
     () => personas
       .filter((p) => p.empresa_grupo_id === egId && p.activo)
       .sort((a, b) => a.persona.localeCompare(b.persona)),
     [personas, egId]
   )
+
+  // Filtrar cuotas por empresa_grupo de la persona seleccionada
+  const selectedPersona = personas.find((p) => p.id === selectedPersonaId)
+  const personaEgId = selectedPersona?.empresa_grupo_id
   const cuotasFiltradas = useMemo(
-    () => cuotas.filter((c) => c.empresa_grupo_id === egId && !c.fin_validez),
-    [cuotas, egId]
+    () => cuotas.filter((c) => c.empresa_grupo_id === personaEgId && !c.fin_validez),
+    [cuotas, personaEgId]
   )
 
   // Preview de horas calculadas
@@ -135,7 +123,7 @@ export function AsignacionFormSheet({
     : 0
   const horasEstimadas = safeDivide(ingresosEstimados, selectedCuota?.precio_hora ?? 0)
 
-  // Opciones de OT: agrupadas por mes con contexto de proyecto y servicio
+  // Opciones de OT: mes · proyecto — servicio · depto · cliente
   const otOptions = useMemo(() => {
     return ordenesTrabajo.map((ot) => {
       const proyecto = proyectoMap.get(ot.proyecto_id)
@@ -144,12 +132,21 @@ export function AsignacionFormSheet({
             ?? empresaMap.get(proyecto.empresa_id)?.nombre_legal
             ?? '?')
         : 'Interno'
+      const servicio = ot.servicio_id ? servicioMap.get(ot.servicio_id)?.nombre : null
+      const depto = ot.departamento_id ? departamentoMap.get(ot.departamento_id)?.nombre : null
+      const parts = [
+        formatMonth(ot.mes_anio),
+        proyecto?.titulo ?? '?',
+        servicio,
+        depto,
+        cliente,
+      ].filter(Boolean)
       return {
         value: ot.id,
-        label: `${formatMonth(ot.mes_anio)} · ${cliente} — ${proyecto?.titulo ?? '?'} (${ot.estado})`,
+        label: parts.join(' · '),
       }
     })
-  }, [ordenesTrabajo, proyectoMap, empresaMap])
+  }, [ordenesTrabajo, proyectoMap, empresaMap, servicioMap, departamentoMap])
 
   async function onSubmit(data: AsignacionFormData) {
     setSubmitting(true)
@@ -209,7 +206,7 @@ export function AsignacionFormSheet({
           {/* Orden de Trabajo */}
           <div className="space-y-1.5">
             <Label>Orden de trabajo *</Label>
-            <NativeSelect
+            <SearchableSelect
               options={otOptions}
               placeholder="Seleccionar OT..."
               value={watch('orden_trabajo_id')}
@@ -246,7 +243,7 @@ export function AsignacionFormSheet({
           {/* Persona */}
           <div className="space-y-1.5">
             <Label>Persona *</Label>
-            <NativeSelect
+            <SearchableSelect
               options={personasFiltradas.map((p) => ({ value: p.id, label: p.persona }))}
               placeholder={egId ? 'Seleccionar...' : 'Primero elige una OT'}
               value={watch('persona_id')}
@@ -260,7 +257,7 @@ export function AsignacionFormSheet({
           {/* Cuota */}
           <div className="space-y-1.5">
             <Label>Cuota de planificación *</Label>
-            <NativeSelect
+            <SearchableSelect
               options={cuotasFiltradas.map((c) => ({
                 value: c.id,
                 label: `${c.nombre} — ${formatMoney(c.precio_hora)}/h`,
@@ -314,6 +311,28 @@ export function AsignacionFormSheet({
                 )}
               </div>
             )}
+          </div>
+
+          {/* Horas reales */}
+          <div className="space-y-1.5">
+            <Label htmlFor="horas_reales">Horas reales</Label>
+            <Input
+              id="horas_reales"
+              type="number"
+              min={0}
+              step={0.5}
+              placeholder="0"
+              {...register('horas_reales')}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Horas reales dedicadas por esta persona a esta OT.
+            </p>
+          </div>
+
+          {/* Notas */}
+          <div className="space-y-1.5">
+            <Label htmlFor="asig_notas">Notas</Label>
+            <Textarea id="asig_notas" placeholder="Observaciones..." {...register('notas')} />
           </div>
 
           {serverError && (

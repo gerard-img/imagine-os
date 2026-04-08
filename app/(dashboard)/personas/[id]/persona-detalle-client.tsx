@@ -29,6 +29,7 @@ import { MonthNavigator } from '@/components/month-navigator'
 import { ArrowLeft, Mail, Phone, ExternalLink, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PersonaDeptSheet } from '../persona-dept-sheet'
+import { PersonaFormSheet } from '../persona-form-sheet'
 import { toggleInterinidad } from '../actions'
 
 type Props = {
@@ -205,6 +206,18 @@ export function PersonaDetalleClient({
             <DeptPill key={d.id} name={d.departamento?.nombre ?? '—'} />
           ))}
           <StatusBadge status={persona.activo ? 'Activo' : 'Inactivo'} />
+          <PersonaFormSheet
+            empresasGrupo={empresasGrupo}
+            roles={roles}
+            divisiones={divisiones}
+            puestos={puestos}
+            rangos={rangos}
+            ciudades={ciudades}
+            oficinas={oficinas}
+            departamentos={departamentos}
+            personasDepts={personasDepts}
+            persona={persona}
+          />
         </div>
       </div>
 

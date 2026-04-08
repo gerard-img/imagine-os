@@ -20,18 +20,23 @@ export async function crearProyecto(formData: unknown): Promise<ActionResult> {
 
   const insert = {
     titulo: data.titulo,
-    empresa_id: data.empresa_id || null,
+    empresa_id: data.empresa_id,
     empresa_grupo_id: data.empresa_grupo_id,
     tipo_proyecto: data.tipo_proyecto,
     tipo_partida: data.tipo_partida,
     estado: data.estado,
-    aprobador_final_id: data.aprobador_final_id,
+    responsable_id: data.responsable_id,
     ppto_estimado: data.ppto_estimado,
     descripcion: data.descripcion || null,
     explicacion_presupuestos: data.explicacion_presupuestos || null,
     fecha_activacion: data.fecha_activacion || null,
     fecha_cierre: data.fecha_cierre || null,
     notas: data.notas || null,
+    tipo_facturacion: data.tipo_facturacion || null,
+    contacto_principal_id: data.contacto_principal_id || null,
+    probabilidad_cierre: data.probabilidad_cierre ? parseInt(data.probabilidad_cierre, 10) : null,
+    valor_estimado_total: data.valor_estimado_total ? parseFloat(data.valor_estimado_total) : null,
+    fecha_propuesta: data.fecha_propuesta || null,
   }
 
   const supabase = await createClient()
@@ -79,18 +84,23 @@ export async function actualizarProyecto(id: string, formData: unknown): Promise
     .from('proyectos')
     .update({
       titulo: data.titulo,
-      empresa_id: data.empresa_id || null,
+      empresa_id: data.empresa_id,
       empresa_grupo_id: data.empresa_grupo_id,
       tipo_proyecto: data.tipo_proyecto,
       tipo_partida: data.tipo_partida,
       estado: data.estado,
-      aprobador_final_id: data.aprobador_final_id,
+      responsable_id: data.responsable_id,
       ppto_estimado: data.ppto_estimado,
       descripcion: data.descripcion || null,
       explicacion_presupuestos: data.explicacion_presupuestos || null,
       fecha_activacion: data.fecha_activacion || null,
       fecha_cierre: data.fecha_cierre || null,
       notas: data.notas || null,
+      tipo_facturacion: data.tipo_facturacion || null,
+      contacto_principal_id: data.contacto_principal_id || null,
+      probabilidad_cierre: data.probabilidad_cierre ? parseInt(data.probabilidad_cierre, 10) : null,
+      valor_estimado_total: data.valor_estimado_total ? parseFloat(data.valor_estimado_total) : null,
+      fecha_propuesta: data.fecha_propuesta || null,
     })
     .eq('id', id)
 

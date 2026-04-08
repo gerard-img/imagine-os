@@ -23,6 +23,7 @@ import { MonthNavigator } from '@/components/month-navigator'
 import { ArrowLeft, Globe, Phone, Mail, ExternalLink, Crown, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmpresaEditSheet } from './empresa-edit-sheet'
+import { ContactoFormSheet } from '../../contactos/contacto-form-sheet'
 
 type Props = {
   empresa: Empresa
@@ -412,6 +413,18 @@ export function EmpresaDetalleClient({
               Contactos
             </p>
             <span className="text-xs text-muted-foreground">{contactosActivos.length} activos</span>
+            <div className="ml-auto">
+              <ContactoFormSheet
+                empresas={[empresa]}
+                preselectedEmpresaId={empresa.id}
+                trigger={
+                  <button className="rounded-full bg-primary/10 p-1.5 text-primary hover:bg-primary/20 transition-colors" title="Nuevo contacto">
+                    <span className="sr-only">Nuevo contacto</span>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" d="M12 5v14m-7-7h14" /></svg>
+                  </button>
+                }
+              />
+            </div>
           </div>
 
           {contactosActivos.length === 0 ? (
@@ -434,9 +447,12 @@ export function EmpresaDetalleClient({
                         <Crown className="h-3.5 w-3.5 text-purple-500" />
                       )}
                     </div>
-                    {c.rol_influencia && (
-                      <span className="text-[10px] text-muted-foreground">{c.rol_influencia}</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {c.rol_influencia && (
+                        <span className="text-[10px] text-muted-foreground">{c.rol_influencia}</span>
+                      )}
+                      <ContactoFormSheet empresas={[empresa]} contacto={c} />
+                    </div>
                   </div>
                   {c.cargo && (
                     <p className="text-xs text-muted-foreground mb-1">{c.cargo}{c.departamento ? ` · ${c.departamento}` : ''}</p>

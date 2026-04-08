@@ -7,6 +7,7 @@ import type {
   Asignacion,
   Persona,
   Proyecto,
+  ProyectoDepartamento,
   Departamento,
   CatalogoServicio,
   Empresa,
@@ -24,6 +25,9 @@ import { ClientePill } from '@/components/cliente-pill'
 import { DeptPill } from '@/components/dept-pill'
 import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
+import { OtFormSheet } from '../ordenes-trabajo/ot-form-sheet'
+import { GenerarOtsButton } from '../ordenes-trabajo/generar-ots-button'
+import { AvanzarEstadoButton } from '../ordenes-trabajo/avanzar-estado-button'
 
 // ── Props del servidor ──
 type PlanificadorClientProps = {
@@ -31,6 +35,7 @@ type PlanificadorClientProps = {
   asignaciones: Asignacion[]
   personas: Persona[]
   proyectos: Proyecto[]
+  proyectosDepartamentos: ProyectoDepartamento[]
   departamentos: Departamento[]
   catalogoServicios: CatalogoServicio[]
   empresas: Empresa[]
@@ -99,6 +104,7 @@ export function PlanificadorClient({
   asignaciones: allAsignaciones,
   personas,
   proyectos,
+  proyectosDepartamentos,
   departamentos,
   catalogoServicios,
   empresas,
@@ -325,7 +331,25 @@ export function PlanificadorClient({
             Gestiona órdenes de trabajo y asignaciones del mes
           </p>
         </div>
-        <MonthNavigator value={month} onChange={setMonth} />
+        <div className="flex items-center gap-3">
+          <GenerarOtsButton
+            currentMonth={month}
+            ordenesTrabajo={ordenesTrabajo}
+            proyectos={proyectos}
+            servicios={catalogoServicios}
+            empresas={empresas}
+            departamentos={departamentos}
+            deptoFilter={deptoFilter}
+          />
+          <OtFormSheet
+            proyectos={proyectos}
+            servicios={catalogoServicios}
+            departamentos={departamentos}
+            personas={personas}
+            empresas={empresas}
+          />
+          <MonthNavigator value={month} onChange={setMonth} />
+        </div>
       </div>
 
       {/* KPIs */}
@@ -393,6 +417,9 @@ export function PlanificadorClient({
                   </span>
 
                   <StatusBadge status={ot.estado} />
+                  <span onClick={(e) => e.stopPropagation()}>
+                    <AvanzarEstadoButton otId={ot.id} estadoActual={ot.estado} />
+                  </span>
                   {hasLocalEdits(ot.id) && (
                     <span className="inline-flex h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Cambios sin guardar" />
                   )}
@@ -496,17 +523,22 @@ export function PlanificadorClient({
                                 )}
                               </select>
 
-                              {/* Cuota selector */}
+                              {/* Cuota selector — filtrado por empresa_grupo de la persona */}
                               <select
                                 value={a.cuota_planificacion_id}
                                 onChange={(e) => updateAsignacion(ot.id, a.id, 'cuota_planificacion_id', e.target.value)}
                                 className="rounded border border-border bg-white px-2 py-1 text-xs outline-none focus:border-primary"
                               >
-                                {cuotasVigentes.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.nombre} ({c.precio_hora}€/h)
-                                  </option>
-                                ))}
+                                {(() => {
+                                  const pEgId = personasMap.get(a.persona_id)?.empresa_grupo_id
+                                  return cuotasVigentes
+                                    .filter((c) => c.empresa_grupo_id === pEgId)
+                                    .map((c) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.nombre} ({c.precio_hora}€/h)
+                                      </option>
+                                    ))
+                                })()}
                               </select>
 
                               {/* % asignación */}

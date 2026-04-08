@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { Pencil, AlertTriangle } from 'lucide-react'
 import { formatMoney } from '@/lib/helpers'
 import type { AsignacionRow } from './page'
-import type { OrdenTrabajo, Proyecto, Empresa, Persona, CuotaPlanificacion, Asignacion } from '@/lib/supabase/types'
+import type { OrdenTrabajo, Proyecto, Empresa, Persona, CuotaPlanificacion, Asignacion, CatalogoServicio, Departamento } from '@/lib/supabase/types'
 import { AsignacionFormSheet } from './asignacion-form-sheet'
 import {
   Table,
@@ -30,11 +30,14 @@ interface AsignacionesClientProps {
   personas: Persona[]
   cuotas: CuotaPlanificacion[]
   asignaciones: Asignacion[]
+  servicios: CatalogoServicio[]
+  departamentos: Departamento[]
 }
 
 export function AsignacionesClient({
   rows, availableMonths,
   ordenesTrabajo, proyectos, empresas, personas, cuotas, asignaciones,
+  servicios, departamentos,
 }: AsignacionesClientProps) {
   const [month, setMonth] = useState(availableMonths[0])
   const [search, setSearch] = useState('')
@@ -80,6 +83,8 @@ export function AsignacionesClient({
             personas={personas}
             cuotas={cuotas}
             asignaciones={asignaciones}
+            servicios={servicios}
+            departamentos={departamentos}
           />
           <MonthNavigator value={month} onChange={setMonth} />
         </div>
@@ -180,6 +185,8 @@ export function AsignacionesClient({
                       personas={personas}
                       cuotas={cuotas}
                       asignaciones={asignaciones}
+                      servicios={servicios}
+                      departamentos={departamentos}
                       asignacion={asignaciones.find((a) => a.id === r.id)}
                       trigger={
                         <button className="rounded p-1 text-muted-foreground hover:text-primary hover:bg-muted transition-colors">

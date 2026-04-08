@@ -93,6 +93,9 @@ export default function ProyectosClient({
   const [filterServicio, setFilterServicio] = useState<string[]>([])
   const [pptoMin, setPptoMin] = useState('')
   const [pptoMax, setPptoMax] = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
+  const [sinFecha, setSinFecha] = useState(false)
 
   // ── Mapas de lookup ──
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
@@ -209,9 +212,30 @@ export default function ProyectosClient({
       if (minPpto !== null && p.ppto_estimado < minPpto) return false
       if (maxPpto !== null && p.ppto_estimado > maxPpto) return false
 
+      // Fecha de activación
+      if (sinFecha || fechaDesde || fechaHasta) {
+        const tieneFecha = !!p.fecha_activacion
+        if (sinFecha && (fechaDesde || fechaHasta)) {
+          // Checkbox + rango: incluir sin fecha OR dentro del rango
+          if (tieneFecha) {
+            if (fechaDesde && p.fecha_activacion! < fechaDesde) return false
+            if (fechaHasta && p.fecha_activacion! > fechaHasta) return false
+          }
+          // sin fecha pasa siempre en modo OR
+        } else if (sinFecha) {
+          // Solo checkbox: solo los que no tienen fecha
+          if (tieneFecha) return false
+        } else {
+          // Solo rango: excluir los sin fecha
+          if (!tieneFecha) return false
+          if (fechaDesde && p.fecha_activacion! < fechaDesde) return false
+          if (fechaHasta && p.fecha_activacion! > fechaHasta) return false
+        }
+      }
+
       return true
     })
-  }, [proyectos, search, filterEstado, filterEmpresaGrupo, filterEmpresa, filterDepartamento, filterServicio, pptoMin, pptoMax, empresaMap, proyectoDeptIds, deptServiciosMap])
+  }, [proyectos, search, filterEstado, filterEmpresaGrupo, filterEmpresa, filterDepartamento, filterServicio, pptoMin, pptoMax, fechaDesde, fechaHasta, sinFecha, empresaMap, proyectoDeptIds, deptServiciosMap])
 
   // ── KPIs (sobre el total, no filtrado) ──
   const activos = proyectos.filter((p) => p.estado === 'Activo').length
@@ -221,7 +245,7 @@ export default function ProyectosClient({
     .reduce((sum, p) => sum + p.ppto_estimado, 0)
 
   // ── ¿Hay algún filtro activo? ──
-  const hasAnyFilter = filterEstado.length > 0 || filterEmpresaGrupo.length > 0 || filterEmpresa.length > 0 || filterDepartamento.length > 0 || filterServicio.length > 0 || pptoMin !== '' || pptoMax !== ''
+  const hasAnyFilter = filterEstado.length > 0 || filterEmpresaGrupo.length > 0 || filterEmpresa.length > 0 || filterDepartamento.length > 0 || filterServicio.length > 0 || pptoMin !== '' || pptoMax !== '' || fechaDesde !== '' || fechaHasta !== '' || sinFecha
 
   function clearAllFilters() {
     setFilterEstado([])
@@ -231,6 +255,9 @@ export default function ProyectosClient({
     setFilterServicio([])
     setPptoMin('')
     setPptoMax('')
+    setFechaDesde('')
+    setFechaHasta('')
+    setSinFecha(false)
   }
 
   function ProjectCard({ p, compact = false }: { p: Proyecto; compact?: boolean }) {
@@ -409,6 +436,38 @@ export default function ProyectosClient({
           />
           {(pptoMin || pptoMax) && (
             <button onClick={() => { setPptoMin(''); setPptoMax('') }} className="text-muted-foreground hover:text-foreground">
+              <X className="h-3 w-3" />
+            </button>
+          )}
+        </div>
+
+        {/* Rango fecha activación */}
+        <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
+          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Inicio</span>
+          <input
+            type="date"
+            value={fechaDesde}
+            onChange={(e) => setFechaDesde(e.target.value)}
+            className="w-[120px] bg-transparent text-xs outline-none text-foreground"
+          />
+          <span className="text-xs text-muted-foreground">–</span>
+          <input
+            type="date"
+            value={fechaHasta}
+            onChange={(e) => setFechaHasta(e.target.value)}
+            className="w-[120px] bg-transparent text-xs outline-none text-foreground"
+          />
+          <label className="flex items-center gap-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={sinFecha}
+              onChange={(e) => setSinFecha(e.target.checked)}
+              className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">Sin fecha</span>
+          </label>
+          {(fechaDesde || fechaHasta || sinFecha) && (
+            <button onClick={() => { setFechaDesde(''); setFechaHasta(''); setSinFecha(false) }} className="text-muted-foreground hover:text-foreground">
               <X className="h-3 w-3" />
             </button>
           )}

@@ -41,6 +41,8 @@ export async function crearAsignacion(formData: unknown): Promise<ActionResult> 
     persona_id: data.persona_id,
     porcentaje_ppto_tm: data.porcentaje_ppto_tm,
     cuota_planificacion_id: data.cuota_planificacion_id,
+    horas_reales: data.horas_reales ? parseFloat(data.horas_reales) : null,
+    notas: data.notas || null,
   })
 
   if (error) {
@@ -84,6 +86,8 @@ export async function actualizarAsignacion(id: string, formData: unknown): Promi
       persona_id: data.persona_id,
       porcentaje_ppto_tm: data.porcentaje_ppto_tm,
       cuota_planificacion_id: data.cuota_planificacion_id,
+      horas_reales: data.horas_reales ? parseFloat(data.horas_reales) : null,
+      notas: data.notas || null,
     })
     .eq('id', id)
     .is('deleted_at', null)

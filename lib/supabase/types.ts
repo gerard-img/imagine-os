@@ -178,7 +178,7 @@ export type Database = {
           division_id: string
           rol_id: string
           salario_bruto_anual: number
-          tipo_contrato: 'Indefinido' | 'Temporal' | 'Prácticas' | 'Autónomo' | 'Becario'
+          tipo_contrato: 'Indefinido' | 'Temporal' | 'Prácticas' | 'Autónomo' | 'Becario' | 'Sustitución'
           jornada: 'Completa' | 'Parcial' | 'Media jornada'
           horas_semana: number
           benefits: string | null
@@ -285,14 +285,13 @@ export type Database = {
           tipo_proyecto: 'Interno' | 'Externo' | 'Facturable'
           tipo_partida: 'Puntual' | 'Recurrente'
           estado: 'Propuesta' | 'Confirmado' | 'Activo' | 'Pausado' | 'Finalizado' | 'Cancelado'
-          aprobador_final_id: string
+          responsable_id: string
           ppto_estimado: number
           explicacion_presupuestos: string | null
           fecha_activacion: string | null
           fecha_cierre: string | null
           notas: string | null
           // Nuevos — migración 017
-          codigo_proyecto: string | null
           contacto_principal_id: string | null
           probabilidad_cierre: number | null
           valor_estimado_total: number | null
@@ -331,7 +330,6 @@ export type Database = {
           titulo: string | null
           horas_planificadas: number | null
           horas_reales: number | null
-          notas_cierre: string | null
           deleted_at: string | null
           created_at: string
           updated_at: string

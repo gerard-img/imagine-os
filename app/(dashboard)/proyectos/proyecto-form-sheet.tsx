@@ -9,9 +9,10 @@ import {
   TIPOS_PROYECTO,
   TIPOS_PARTIDA,
   ESTADOS_PROYECTO,
+  TIPOS_FACTURACION,
 } from '@/lib/schemas/proyecto'
 import { crearProyecto, actualizarProyecto } from './actions'
-import type { Empresa, EmpresaGrupo, Persona, Departamento, Proyecto } from '@/lib/supabase/types'
+import type { Empresa, EmpresaGrupo, Persona, Departamento, Proyecto, ContactoEmpresa } from '@/lib/supabase/types'
 import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
 } from '@/components/ui/sheet'
@@ -20,38 +21,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Plus, Loader2, Pencil } from 'lucide-react'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
   return <p className="text-xs text-destructive mt-1">{message}</p>
-}
-
-function NativeSelect({
-  options,
-  placeholder,
-  value,
-  onChange,
-  error,
-}: {
-  options: { value: string; label: string }[]
-  placeholder: string
-  value: string
-  onChange: (v: string) => void
-  error?: boolean
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      aria-invalid={error}
-      className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  )
 }
 
 function SimpleSelect({
@@ -87,6 +61,7 @@ type Props = {
   empresasGrupo: EmpresaGrupo[]
   personas: Persona[]
   departamentos: Departamento[]
+  contactos?: ContactoEmpresa[]
   // Edición: pasar proyecto existente + sus departamento_ids actuales
   proyecto?: Proyecto
   proyectoDepartamentoIds?: string[]
@@ -94,7 +69,7 @@ type Props = {
 }
 
 export function ProyectoFormSheet({
-  empresas, empresasGrupo, personas, departamentos,
+  empresas, empresasGrupo, personas, departamentos, contactos = [],
   proyecto, proyectoDepartamentoIds, trigger,
 }: Props) {
   const isEditMode = !!proyecto
@@ -118,7 +93,7 @@ export function ProyectoFormSheet({
       tipo_proyecto: proyecto.tipo_proyecto as ProyectoFormData['tipo_proyecto'],
       tipo_partida: proyecto.tipo_partida as ProyectoFormData['tipo_partida'],
       estado: proyecto.estado as ProyectoFormData['estado'],
-      aprobador_final_id: proyecto.aprobador_final_id ?? '',
+      responsable_id: proyecto.responsable_id ?? '',
       ppto_estimado: proyecto.ppto_estimado,
       descripcion: proyecto.descripcion ?? '',
       explicacion_presupuestos: proyecto.explicacion_presupuestos ?? '',
@@ -126,6 +101,11 @@ export function ProyectoFormSheet({
       fecha_cierre: proyecto.fecha_cierre ?? '',
       notas: proyecto.notas ?? '',
       departamento_ids: proyectoDepartamentoIds ?? [],
+      tipo_facturacion: proyecto.tipo_facturacion ?? '',
+      contacto_principal_id: proyecto.contacto_principal_id ?? '',
+      probabilidad_cierre: proyecto.probabilidad_cierre?.toString() ?? '',
+      valor_estimado_total: proyecto.valor_estimado_total?.toString() ?? '',
+      fecha_propuesta: proyecto.fecha_propuesta ?? '',
     } : {
       titulo: '',
       empresa_id: '',
@@ -133,7 +113,7 @@ export function ProyectoFormSheet({
       tipo_proyecto: undefined,
       tipo_partida: undefined,
       estado: 'Propuesta' as ProyectoFormData['estado'],
-      aprobador_final_id: '',
+      responsable_id: '',
       ppto_estimado: 0,
       descripcion: '',
       explicacion_presupuestos: '',
@@ -141,6 +121,11 @@ export function ProyectoFormSheet({
       fecha_cierre: '',
       notas: '',
       departamento_ids: [],
+      tipo_facturacion: '',
+      contacto_principal_id: '',
+      probabilidad_cierre: '',
+      valor_estimado_total: '',
+      fecha_propuesta: '',
     },
   })
 
@@ -237,22 +222,23 @@ export function ProyectoFormSheet({
             <FieldError message={errors.titulo?.message} />
           </div>
 
-          {/* Empresa cliente (opcional para internos) */}
+          {/* Empresa cliente */}
           <div className="space-y-1.5">
-            <Label>Empresa cliente</Label>
-            <NativeSelect
+            <Label>Empresa cliente *</Label>
+            <SearchableSelect
               options={empresaOptions}
-              placeholder={tipoProyecto === 'Interno' ? 'N/A — Proyecto interno' : 'Seleccionar empresa...'}
+              placeholder="Seleccionar empresa..."
               value={watch('empresa_id')}
-              onChange={(v) => setValue('empresa_id', v)}
+              onChange={(v) => setValue('empresa_id', v, { shouldValidate: true })}
+              error={!!errors.empresa_id}
             />
-            <p className="text-[11px] text-muted-foreground">Déjalo vacío para proyectos internos</p>
+            <FieldError message={errors.empresa_id?.message} />
           </div>
 
           {/* Empresa grupo (quién ejecuta) */}
           <div className="space-y-1.5">
             <Label>Empresa del grupo *</Label>
-            <NativeSelect
+            <SearchableSelect
               options={egOptions}
               placeholder="Quién ejecuta..."
               value={watch('empresa_grupo_id')}
@@ -324,7 +310,7 @@ export function ProyectoFormSheet({
             </div>
           </div>
 
-          {/* Estado + Aprobador */}
+          {/* Estado + Contacto principal */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Estado *</Label>
@@ -338,34 +324,95 @@ export function ProyectoFormSheet({
               <FieldError message={errors.estado?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label>Aprobador *</Label>
-              <NativeSelect
+              <Label>Contacto principal *</Label>
+              <SearchableSelect
                 options={personaOptions}
                 placeholder="Seleccionar..."
-                value={watch('aprobador_final_id')}
-                onChange={(v) => setValue('aprobador_final_id', v, { shouldValidate: true })}
-                error={!!errors.aprobador_final_id}
+                value={watch('responsable_id')}
+                onChange={(v) => setValue('responsable_id', v, { shouldValidate: true })}
+                error={!!errors.responsable_id}
               />
-              <FieldError message={errors.aprobador_final_id?.message} />
+              <FieldError message={errors.responsable_id?.message} />
             </div>
           </div>
 
-          {/* Presupuesto */}
+          {/* Tipo facturación + Probabilidad cierre */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Tipo facturación</Label>
+              <SimpleSelect
+                options={TIPOS_FACTURACION}
+                placeholder="Seleccionar..."
+                value={watch('tipo_facturacion') ?? ''}
+                onChange={(v) => setValue('tipo_facturacion', v)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="probabilidad_cierre">Probabilidad cierre (%)</Label>
+              <Input
+                id="probabilidad_cierre"
+                type="number"
+                min={0}
+                max={100}
+                placeholder="0–100"
+                {...register('probabilidad_cierre')}
+              />
+            </div>
+          </div>
+
+          {/* Contacto principal del cliente */}
+          {contactos.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>Contacto principal (cliente)</Label>
+              <SearchableSelect
+                options={contactos
+                  .filter((c) => c.activo)
+                  .map((c) => ({ value: c.id, label: `${c.nombre} ${c.apellidos ?? ''}`.trim() }))}
+                placeholder="Sin contacto asignado"
+                value={watch('contacto_principal_id')}
+                onChange={(v) => setValue('contacto_principal_id', v)}
+              />
+            </div>
+          )}
+
+          {/* Fecha propuesta */}
           <div className="space-y-1.5">
-            <Label htmlFor="ppto_estimado">Presupuesto estimado (€) *</Label>
-            <Input
-              id="ppto_estimado"
-              type="number"
-              min={0}
-              step={100}
-              placeholder="0"
-              aria-invalid={!!errors.ppto_estimado}
-              {...register('ppto_estimado', { valueAsNumber: true })}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Mensual para partidas recurrentes, total para puntuales
-            </p>
-            <FieldError message={errors.ppto_estimado?.message} />
+            <Label htmlFor="fecha_propuesta">Fecha propuesta</Label>
+            <Input id="fecha_propuesta" type="date" {...register('fecha_propuesta')} />
+          </div>
+
+          {/* Presupuesto + Valor estimado total */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="ppto_estimado">Presupuesto estimado (€) *</Label>
+              <Input
+                id="ppto_estimado"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="0"
+                aria-invalid={!!errors.ppto_estimado}
+                {...register('ppto_estimado', { valueAsNumber: true })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Mensual o total
+              </p>
+              <FieldError message={errors.ppto_estimado?.message} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="valor_estimado_total">Valor total estimado (€)</Label>
+              <Input
+                id="valor_estimado_total"
+                type="number"
+                min={0}
+                step={1}
+                placeholder="0"
+                {...register('valor_estimado_total')}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Valor total del proyecto
+              </p>
+            </div>
           </div>
 
           {/* Descripción */}

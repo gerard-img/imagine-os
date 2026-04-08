@@ -48,7 +48,7 @@ export async function generarOTsPuntual(proyectoId: string): Promise<GenerarPunt
   // 1. Proyecto
   const { data: proyecto, error: errP } = await supabase
     .from('proyectos')
-    .select('id, empresa_grupo_id, ppto_estimado, aprobador_final_id, fecha_activacion, fecha_cierre, tipo_partida, estado')
+    .select('id, empresa_grupo_id, ppto_estimado, responsable_id, fecha_activacion, fecha_cierre, tipo_partida, estado')
     .eq('id', proyectoId)
     .single()
 
@@ -124,7 +124,7 @@ export async function generarOTsPuntual(proyectoId: string): Promise<GenerarPunt
         mes_anio: mes,
         porcentaje_ppto_mes: pctPorOT,
         partida_prevista: pptoPorOT,
-        aprobador_id: proyecto.aprobador_final_id,
+        aprobador_id: proyecto.responsable_id,
         estado: 'Propuesto',
         fecha_inicio: mes,
         fecha_fin: fechaFin,

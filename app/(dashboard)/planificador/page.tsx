@@ -3,6 +3,7 @@ import {
   getAsignaciones,
   getPersonas,
   getProyectos,
+  getProyectosDepartamentos,
   getDepartamentos,
   getCatalogoServicios,
   getEmpresas,
@@ -23,6 +24,7 @@ export default async function PlanificadorPage({
     asignaciones,
     personas,
     proyectos,
+    proyectosDepartamentos,
     departamentos,
     catalogoServicios,
     empresas,
@@ -34,6 +36,7 @@ export default async function PlanificadorPage({
     getAsignaciones(),
     getPersonas(),
     getProyectos(),
+    getProyectosDepartamentos(),
     getDepartamentos(),
     getCatalogoServicios(),
     getEmpresas(),
@@ -48,6 +51,7 @@ export default async function PlanificadorPage({
       asignaciones={asignaciones}
       personas={personas}
       proyectos={proyectos}
+      proyectosDepartamentos={proyectosDepartamentos}
       departamentos={departamentos}
       catalogoServicios={catalogoServicios}
       empresas={empresas}

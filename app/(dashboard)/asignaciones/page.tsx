@@ -3,6 +3,7 @@ import {
   getOrdenesTrabajo,
   getProyectos,
   getCatalogoServicios,
+  getDepartamentos,
   getPersonas,
   getCuotasPlanificacion,
   getEmpresas,
@@ -33,7 +34,7 @@ export type AsignacionRow = {
 
 export default async function AsignacionesPage() {
   // Fetch all data in parallel from Supabase
-  const [asignaciones, ordenes, proyectos, servicios, personas, cuotas, empresas, persDepts, horasTrab] =
+  const [asignaciones, ordenes, proyectos, servicios, personas, cuotas, empresas, persDepts, horasTrab, departamentos] =
     await Promise.all([
       getAsignaciones(),
       getOrdenesTrabajo(),
@@ -44,6 +45,7 @@ export default async function AsignacionesPage() {
       getEmpresas(),
       getPersonasDepartamentos(),
       getHorasTrabajables(),
+      getDepartamentos(),
     ])
 
   // Build lookup maps for fast access
@@ -130,6 +132,8 @@ export default async function AsignacionesPage() {
       personas={personas}
       cuotas={cuotas}
       asignaciones={asignaciones}
+      servicios={servicios}
+      departamentos={departamentos}
     />
   )
 }

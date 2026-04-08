@@ -12,6 +12,7 @@ import {
   getEmpresas,
   getEmpresasGrupo,
   getOrdenesTrabajoPersonas,
+  getContactosEmpresas,
 } from '@/lib/supabase/queries'
 import { ProyectoDetalleClient } from './proyecto-detalle-client'
 
@@ -27,6 +28,7 @@ export default async function ProyectoDetallePage({
   const [
     proyectos, proyDepts, ordenes, asignaciones, servicios, cuotas,
     personas, departamentos, empresas, empresasGrupo, ordenesPersonas,
+    contactos,
   ] = await Promise.all([
     getProyectos(),
     getProyectosDepartamentosByProyecto(id),
@@ -39,6 +41,7 @@ export default async function ProyectoDetallePage({
     getEmpresas(),
     getEmpresasGrupo(),
     getOrdenesTrabajoPersonas(),
+    getContactosEmpresas(),
   ])
 
   return (
@@ -55,6 +58,7 @@ export default async function ProyectoDetallePage({
       empresas={empresas}
       empresasGrupo={empresasGrupo}
       ordenesPersonas={ordenesPersonas}
+      contactos={contactos}
     />
   )
 }
