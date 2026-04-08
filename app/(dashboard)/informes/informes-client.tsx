@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useState, useMemo } from 'react'
 import { ChevronRight, ChevronDown, TrendingUp, TrendingDown, ChevronsUpDown, ChevronsDownUp, Info } from 'lucide-react'
+import { useTableState } from '@/hooks/use-table-state'
+import type { SortDir } from '@/hooks/use-table-state'
+import { SortableHeader } from '@/components/sortable-header'
 import { formatMoney } from '@/lib/helpers'
 import { MonthNavigator } from '@/components/month-navigator'
 import { FilterPills } from '@/components/filter-pills'
@@ -49,9 +51,8 @@ type Props = {
 
 type VistaTab = 'cliente' | 'mes' | 'depto'
 type TipoProyecto = 'todos' | 'facturable' | 'externo' | 'interno'
-type EstadoOTFilter = 'Todos' | 'Planificado' | 'Confirmado' | 'Facturado'
+type EstadoOTFilter = 'Todos' | 'Planificado' | 'Realizado' | 'Confirmado' | 'Facturado'
 type SortColumn = 'label' | 'ingresosReal' | 'ingresosPrev' | 'pctRealizacion' | 'horasAsignadas' | 'pctCarga' | 'euroHoraEfectivo' | 'horasNoAsignadas'
-type SortDir = 'asc' | 'desc'
 
 // ── Helpers de formato ────────────────────────────────────────
 
@@ -321,9 +322,10 @@ export function InformesClient({
   )
 
   // ── URL searchParams como fuente de verdad para filtros ──────
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
+  const { sortCol: sortColRaw, sortDir, setParams, searchParams } = useTableState({
+    defaultSort: { col: 'ingresosReal', dir: 'desc' },
+  })
+  const sortCol = (sortColRaw ?? 'ingresosReal') as SortColumn
 
   const mesInicial = useMemo(() => detectarUltimoMesConDatos(ordenesTrabajo), [ordenesTrabajo])
 
@@ -333,21 +335,9 @@ export function InformesClient({
   const vistaTab = (searchParams.get('vista') as VistaTab) || 'cliente'
   const tipoProyecto = (searchParams.get('tipo') as TipoProyecto) || 'facturable'
   const estadoOT = (searchParams.get('estadoOT') as EstadoOTFilter) || 'Todos'
-  const sortCol = (searchParams.get('orden') as SortColumn) || 'ingresosReal'
-  const sortDir = (searchParams.get('dir') as SortDir) || 'desc'
 
   // Estado puramente de UI (no va a la URL)
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
-
-  /** Actualiza uno o más parámetros de URL sin recargar la página */
-  const setParams = useCallback((updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString())
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === '') params.delete(key)
-      else params.set(key, value)
-    }
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
-  }, [searchParams, router, pathname])
 
   const setMonth = (v: string) => { setParams({ mes: v }); setExpandedKeys(new Set()) }
   const setEgFilter = (v: string) => { setParams({ empresa: v === 'Todos' ? null : v }); setExpandedKeys(new Set()) }
@@ -532,11 +522,15 @@ export function InformesClient({
         <select
           value={egFilter}
           onChange={(e) => setEgFilter(e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+            egFilter !== 'Todos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
         >
-          <option value="Todos">Empresa: Todas</option>
+          <option value="Todos" className="bg-white text-foreground">Empresa: Todas</option>
           {empresasGrupo.map((eg) => (
-            <option key={eg.id} value={eg.id}>{eg.nombre}</option>
+            <option key={eg.id} value={eg.id} className="bg-white text-foreground">{eg.nombre}</option>
           ))}
         </select>
 
@@ -552,12 +546,17 @@ export function InformesClient({
         <select
           value={estadoOT}
           onChange={(e) => setEstadoOT(e.target.value as EstadoOTFilter)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+            estadoOT !== 'Todos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
         >
-          <option value="Todos">Estado OT: Todos</option>
-          <option value="Planificado">Planificado</option>
-          <option value="Confirmado">Confirmado</option>
-          <option value="Facturado">Facturado</option>
+          <option value="Todos" className="bg-white text-foreground">Estado OT: Todos</option>
+          <option value="Planificado" className="bg-white text-foreground">Planificado</option>
+          <option value="Realizado" className="bg-white text-foreground">Realizado</option>
+          <option value="Confirmado" className="bg-white text-foreground">Confirmado</option>
+          <option value="Facturado" className="bg-white text-foreground">Facturado</option>
         </select>
       </div>
 
@@ -725,26 +724,24 @@ export function InformesClient({
             <thead className="sticky top-0 z-10 bg-muted/40 backdrop-blur-sm">
               <tr className="border-b border-border">
                 {([
-                  { key: 'label' as SortColumn, label: vistaTab === 'cliente' ? 'Cliente' : 'Periodo', align: 'left', className: 'pl-4 pr-2 w-[220px]' },
-                  { key: 'ingresosReal' as SortColumn, label: 'Facturado', align: 'right', className: 'px-3' },
-                  { key: 'ingresosPrev' as SortColumn, label: 'Planificado', align: 'right', className: 'px-3' },
-                  { key: 'pctRealizacion' as SortColumn, label: '% Realiz.', align: 'right', className: 'px-3' },
-                  { key: 'horasAsignadas' as SortColumn, label: 'Horas', align: 'right', className: 'px-3' },
-                  { key: 'pctCarga' as SortColumn, label: '% Carga', align: 'right', className: 'px-3' },
-                  { key: 'euroHoraEfectivo' as SortColumn, label: '€/h efect.', align: 'right', className: 'px-3' },
-                  { key: 'horasNoAsignadas' as SortColumn, label: 'H. no asig.', align: 'right', className: 'px-3' },
-                ] as const).map((col) => (
-                  <th
-                    key={col.key}
-                    className={`py-2.5 ${col.className} text-${col.align} text-[10px] font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors`}
-                    onClick={() => toggleSort(col.key)}
-                  >
-                    <span className="inline-flex items-center gap-0.5">
-                      {col.label}
-                      {sortCol === col.key && (
-                        <span className="text-foreground">{sortDir === 'asc' ? '↑' : '↓'}</span>
-                      )}
-                    </span>
+                  { key: 'label' as SortColumn, label: vistaTab === 'cliente' ? 'Cliente' : 'Periodo', align: 'left' as const, className: 'pl-4 pr-2 w-[220px]' },
+                  { key: 'ingresosReal' as SortColumn, label: 'Facturado', align: 'right' as const, className: 'px-3' },
+                  { key: 'ingresosPrev' as SortColumn, label: 'Planificado', align: 'right' as const, className: 'px-3' },
+                  { key: 'pctRealizacion' as SortColumn, label: '% Realiz.', align: 'right' as const, className: 'px-3' },
+                  { key: 'horasAsignadas' as SortColumn, label: 'Horas', align: 'right' as const, className: 'px-3' },
+                  { key: 'pctCarga' as SortColumn, label: '% Carga', align: 'right' as const, className: 'px-3' },
+                  { key: 'euroHoraEfectivo' as SortColumn, label: '€/h efect.', align: 'right' as const, className: 'px-3' },
+                  { key: 'horasNoAsignadas' as SortColumn, label: 'H. no asig.', align: 'right' as const, className: 'px-3' },
+                ]).map((col) => (
+                  <th key={col.key} className={`py-2.5 ${col.className}`}>
+                    <SortableHeader
+                      label={col.label}
+                      column={col.key}
+                      currentCol={sortCol}
+                      currentDir={sortDir}
+                      onToggle={(c) => toggleSort(c as SortColumn)}
+                      align={col.align}
+                    />
                   </th>
                 ))}
               </tr>

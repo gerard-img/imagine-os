@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import Link from 'next/link'
+import { useTableState, sortData } from '@/hooks/use-table-state'
+import { SortControl } from '@/components/sortable-header'
 import type {
   Persona,
   PersonaDepartamento,
@@ -79,15 +81,20 @@ function FilterSelect({
   options: string[]
   onChange: (v: string) => void
 }) {
+  const isActive = value !== 'Todos'
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+      className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+        isActive
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+      }`}
       aria-label={label}
     >
       {options.map((opt) => (
-        <option key={opt} value={opt}>
+        <option key={opt} value={opt} className="bg-white text-foreground">
           {opt === 'Todos' ? `${label}: Todos` : opt}
         </option>
       ))}
@@ -95,7 +102,21 @@ function FilterSelect({
   )
 }
 
-export default function PersonasClient({
+const SORT_OPTIONS = [
+  { value: 'nombre', label: 'Nombre' },
+  { value: 'empresa', label: 'Empresa' },
+  { value: 'horas', label: 'Horas' },
+]
+
+export default function PersonasClient(props: PersonasClientProps) {
+  return (
+    <Suspense>
+      <PersonasContent {...props} />
+    </Suspense>
+  )
+}
+
+function PersonasContent({
   personas,
   personasDepartamentos,
   departamentos,
@@ -112,10 +133,13 @@ export default function PersonasClient({
   proyectos,
   cuotasPlanificacion,
 }: PersonasClientProps) {
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'nombre', dir: 'asc' },
+  })
+  const rolFilter = getParam('rol', 'Todos')!
+  const divisionFilter = getParam('division', 'Todos')!
+  const empresaFilter = getParam('empresa', 'Todos')!
   const [search, setSearch] = useState('')
-  const [rolFilter, setRolFilter] = useState('Todos')
-  const [divisionFilter, setDivisionFilter] = useState('Todos')
-  const [empresaFilter, setEmpresaFilter] = useState('Todos')
 
   // Build lookup maps for efficient access
   const deptsMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
@@ -206,6 +230,12 @@ export default function PersonasClient({
     return matchesSearch && matchesRol && matchesDivision && matchesEmpresa
   })
 
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    nombre: (p) => p.persona.toLowerCase(),
+    empresa: (p) => empresasGrupoMap.get(p.empresa_grupo_id)?.codigo ?? '',
+    horas: (p) => getHorasTotales(p.id),
+  }), [filtered, sortCol, sortDir, empresasGrupoMap, getHorasTotales])
+
   const activos = personas.filter((p) => p.activo).length
   const clientesVinculados = new Set(
     asignaciones
@@ -237,10 +267,11 @@ export default function PersonasClient({
         <div className="w-56">
           <SearchBar placeholder="Buscar miembro..." value={search} onChange={setSearch} />
         </div>
-        <FilterSelect label="Rol" value={rolFilter} options={rolOptions} onChange={setRolFilter} />
-        <FilterSelect label="División" value={divisionFilter} options={divisionOptions} onChange={setDivisionFilter} />
-        <FilterSelect label="Empresa" value={empresaFilter} options={empresaOptions} onChange={setEmpresaFilter} />
-        <div className="ml-auto">
+        <FilterSelect label="Rol" value={rolFilter} options={rolOptions} onChange={(v) => setParams({ rol: v === 'Todos' ? null : v })} />
+        <FilterSelect label="División" value={divisionFilter} options={divisionOptions} onChange={(v) => setParams({ division: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Empresa" value={empresaFilter} options={empresaOptions} onChange={(v) => setParams({ empresa: v === 'Todos' ? null : v })} />
+        <div className="ml-auto flex items-center gap-3">
+          <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
           <PersonaFormSheet
             empresasGrupo={empresasGrupo}
             roles={roles}
@@ -255,12 +286,12 @@ export default function PersonasClient({
 
       {/* Person cards */}
       <div className="mt-4 space-y-2">
-        {filtered.length === 0 && (
+        {sorted.length === 0 && (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-muted-foreground">No se encontraron miembros.</p>
           </div>
         )}
-        {filtered.map((p) => {
+        {sorted.map((p) => {
           const depts = getDepartamentosPersona(p.id)
           const puesto = puestosMap.get(p.puesto_id)
           const clientes = getClientesAsignados(p.id)

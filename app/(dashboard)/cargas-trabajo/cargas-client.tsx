@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import Link from 'next/link'
-import { ArrowUpRight } from 'lucide-react'
-import { AlertTriangle } from 'lucide-react'
+import { ArrowUpRight, AlertTriangle } from 'lucide-react'
+import { useTableState, sortData } from '@/hooks/use-table-state'
+import { SortControl } from '@/components/sortable-header'
 import { safeDivide, formatMoney, resolverHoras } from '@/lib/helpers'
 import { MonthNavigator } from '@/components/month-navigator'
 import { getClienteColor } from '@/components/cliente-pill'
@@ -81,7 +82,22 @@ function BarraCarga({ pct, horas, disponibles }: { pct: number; horas: number; d
 
 // ── Componente principal ───────────────────────────────────────────────────────
 
-export function CargasClient({
+const SORT_OPTIONS = [
+  { value: 'pctCarga', label: '% Carga' },
+  { value: 'personaNombre', label: 'Nombre' },
+  { value: 'horasAsignadas', label: 'Horas asign.' },
+  { value: 'horasDisponibles', label: 'Horas disp.' },
+]
+
+export function CargasClient(props: Props) {
+  return (
+    <Suspense>
+      <CargasContent {...props} />
+    </Suspense>
+  )
+}
+
+function CargasContent({
   ordenesTrabajo, asignaciones, personas, proyectos, empresas,
   cuotas, horasTrabajables, personasDepartamentos, empresasGrupo, servicios, departamentos,
 }: Props) {
@@ -99,13 +115,15 @@ export function CargasClient({
     return meses.length > 0 ? meses : ['2026-01-01']
   }, [ordenesTrabajo])
 
-  const [month, setMonth] = useState(mesesDisponibles[mesesDisponibles.length - 1])
-  const [egFilter, setEgFilter] = useState('Todos')
-  const [deptFilter, setDeptFilter] = useState('Todos')
-  const [estadoCargaFilter, setEstadoCargaFilter] = useState<EstadoCarga>('Todos')
-  const [estadoOTFilter, setEstadoOTFilter] = useState('Todos')
-  const [soloConAsignacion, setSoloConAsignacion] = useState(false)
-  const [ordenarPor, setOrdenarPor] = useState<'carga' | 'nombre'>('carga')
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'pctCarga', dir: 'desc' },
+  })
+  const month = getParam('mes', mesesDisponibles[mesesDisponibles.length - 1])!
+  const egFilter = getParam('eg', 'Todos')!
+  const deptFilter = getParam('depto', 'Todos')!
+  const estadoCargaFilter = (getParam('estadoCarga', 'Todos') as EstadoCarga)
+  const estadoOTFilter = getParam('estadoOT', 'Todos')!
+  const soloConAsignacion = getParam('soloAsig') === '1'
 
   // Departamentos filtrados por empresa seleccionada
   const deptosFiltrados = useMemo(() => {
@@ -117,7 +135,7 @@ export function CargasClient({
   const deptMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
 
   // Cálculo principal: una fila por persona × departamento
-  const cargas = useMemo<CargaPersona[]>(() => {
+  const cargasBase = useMemo<CargaPersona[]>(() => {
     const activas = personas.filter((p) => p.activo)
 
     // Función auxiliar que construye una CargaPersona
@@ -213,14 +231,19 @@ export function CargasClient({
         if (soloConAsignacion && c.horasAsignadas === 0) return false
         return true
       })
-      .sort((a, b) =>
-        ordenarPor === 'carga' ? b.pctCarga - a.pctCarga : a.personaNombre.localeCompare(b.personaNombre)
-      )
   }, [
     personas, month, asignaciones, ordenMap, cuotaMap, proyectoMap, empresaMap, servicioMap,
     personasDepartamentos, horasTrabajables, egMap, deptMap,
-    egFilter, deptFilter, estadoCargaFilter, estadoOTFilter, soloConAsignacion, ordenarPor,
+    egFilter, deptFilter, estadoCargaFilter, estadoOTFilter, soloConAsignacion,
   ])
+
+  // Aplicar ordenación separada
+  const cargas = useMemo(() => sortData(cargasBase, sortCol, sortDir, {
+    pctCarga: (c) => c.pctCarga,
+    personaNombre: (c) => c.personaNombre.toLowerCase(),
+    horasAsignadas: (c) => c.horasAsignadas,
+    horasDisponibles: (c) => c.horasDisponibles,
+  }), [cargasBase, sortCol, sortDir])
 
   // KPIs
   const kpis = useMemo(() => {
@@ -244,7 +267,7 @@ export function CargasClient({
             Ocupación y disponibilidad de cada persona por mes
           </p>
         </div>
-        <MonthNavigator value={month} onChange={setMonth} />
+        <MonthNavigator value={month} onChange={(v) => setParams({ mes: v })} />
       </div>
 
       {/* KPIs */}
@@ -260,61 +283,68 @@ export function CargasClient({
         {/* Empresa grupo */}
         <select
           value={egFilter}
-          onChange={(e) => { setEgFilter(e.target.value); setDeptFilter('Todos') }}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          onChange={(e) => setParams({ eg: e.target.value === 'Todos' ? null : e.target.value, depto: null })}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+            egFilter !== 'Todos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
         >
-          <option value="Todos">Empresa: Todas</option>
+          <option value="Todos" className="bg-white text-foreground">Empresa: Todas</option>
           {empresasGrupo.map((eg) => (
-            <option key={eg.id} value={eg.id}>{eg.nombre}</option>
+            <option key={eg.id} value={eg.id} className="bg-white text-foreground">{eg.nombre}</option>
           ))}
         </select>
 
         {/* Departamento / Equipo */}
         <select
           value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          onChange={(e) => setParams({ depto: e.target.value === 'Todos' ? null : e.target.value })}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+            deptFilter !== 'Todos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
         >
-          <option value="Todos">Equipo: Todos</option>
+          <option value="Todos" className="bg-white text-foreground">Equipo: Todos</option>
           {deptosFiltrados.map((d) => (
-            <option key={d.id} value={d.id}>{d.nombre}</option>
+            <option key={d.id} value={d.id} className="bg-white text-foreground">{d.nombre}</option>
           ))}
         </select>
 
         {/* Estado OT */}
         <select
           value={estadoOTFilter}
-          onChange={(e) => setEstadoOTFilter(e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          onChange={(e) => setParams({ estadoOT: e.target.value === 'Todos' ? null : e.target.value })}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+            estadoOTFilter !== 'Todos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
         >
-          <option value="Todos">OT: Todas</option>
-          <option value="Propuesto">Propuesto</option>
-          <option value="Planificado">Planificado</option>
-          <option value="Confirmado">Confirmado</option>
-          <option value="Facturado">Facturado</option>
+          <option value="Todos" className="bg-white text-foreground">OT: Todas</option>
+          <option value="Propuesto" className="bg-white text-foreground">Propuesto</option>
+          <option value="Planificado" className="bg-white text-foreground">Planificado</option>
+          <option value="Realizado" className="bg-white text-foreground">Realizado</option>
+          <option value="Confirmado" className="bg-white text-foreground">Confirmado</option>
+          <option value="Facturado" className="bg-white text-foreground">Facturado</option>
         </select>
 
         {/* Estado de carga */}
         <select
           value={estadoCargaFilter}
-          onChange={(e) => setEstadoCargaFilter(e.target.value as EstadoCarga)}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
+          onChange={(e) => setParams({ estadoCarga: e.target.value === 'Todos' ? null : e.target.value })}
+          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+            estadoCargaFilter !== 'Todos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
         >
-          <option value="Todos">Estado: Todos</option>
-          <option value="Sobrecargado">Sobrecargado (&gt;100%)</option>
-          <option value="En límite">En límite (80–100%)</option>
-          <option value="Disponible">Disponible (&lt;80%)</option>
-          <option value="Sin asignar">Sin asignar</option>
-        </select>
-
-        {/* Ordenar */}
-        <select
-          value={ordenarPor}
-          onChange={(e) => setOrdenarPor(e.target.value as 'carga' | 'nombre')}
-          className="rounded-lg border border-border bg-white px-3 py-2 text-sm outline-none focus:border-primary"
-        >
-          <option value="carga">Ordenar: Mayor carga</option>
-          <option value="nombre">Ordenar: Nombre</option>
+          <option value="Todos" className="bg-white text-foreground">Estado: Todos</option>
+          <option value="Sobrecargado" className="bg-white text-foreground">Sobrecargado (&gt;100%)</option>
+          <option value="En límite" className="bg-white text-foreground">En límite (80–100%)</option>
+          <option value="Disponible" className="bg-white text-foreground">Disponible (&lt;80%)</option>
+          <option value="Sin asignar" className="bg-white text-foreground">Sin asignar</option>
         </select>
 
         {/* Solo con asignaciones */}
@@ -322,11 +352,15 @@ export function CargasClient({
           <input
             type="checkbox"
             checked={soloConAsignacion}
-            onChange={(e) => setSoloConAsignacion(e.target.checked)}
-            className="h-4 w-4 rounded border-border accent-primary"
+            onChange={(e) => setParams({ soloAsig: e.target.checked ? '1' : null })}
+            className="h-3.5 w-3.5 rounded border-border accent-primary"
           />
-          <span className="text-sm text-muted-foreground">Solo con asignaciones</span>
+          <span className="text-xs text-muted-foreground">Solo con asignaciones</span>
         </label>
+
+        <div className="ml-auto">
+          <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
+        </div>
       </div>
 
       {/* Tabla */}

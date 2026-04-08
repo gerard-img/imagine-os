@@ -1,20 +1,25 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTableState, sortData } from '@/hooks/use-table-state'
+import { SortControl } from '@/components/sortable-header'
 import type { Proyecto, Empresa, EmpresaGrupo, Departamento, ProyectoDepartamento, Persona, ServicioYDept } from '@/lib/supabase/types'
 import { formatMoney, formatDate } from '@/lib/helpers'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
+import { CambiarEstadoProyecto } from '@/components/cambiar-estado-proyecto'
 import { MultiSelectFilter } from '@/components/multi-select-filter'
 import type { FilterOption } from '@/components/multi-select-filter'
 import { ProyectoFormSheet } from './proyecto-form-sheet'
 import { ProyectoOtAction } from './proyecto-ot-action'
+import { archivarProyecto, desarchivarProyecto, eliminarProyecto, restaurarProyecto } from './actions'
 import type { CatalogoServicio } from '@/lib/supabase/types'
 import { ClientePill } from '@/components/cliente-pill'
 import { DeptPill } from '@/components/dept-pill'
-import { LayoutList, LayoutGrid, X } from 'lucide-react'
+import { NumberInput } from '@/components/number-input'
+import { LayoutList, LayoutGrid, X, Archive, ArchiveRestore, Trash2, RotateCcw, Loader2 } from 'lucide-react'
 
 const ESTADO_OPTIONS: FilterOption[] = [
   { value: 'Activo', label: 'Activo' },
@@ -71,7 +76,23 @@ function BarraTiempo({ proyecto }: { proyecto: Proyecto }) {
   )
 }
 
-export default function ProyectosClient({
+const SORT_OPTIONS = [
+  { value: 'titulo', label: 'Título' },
+  { value: 'cliente', label: 'Cliente' },
+  { value: 'ppto', label: 'Presupuesto' },
+  { value: 'estado', label: 'Estado' },
+  { value: 'fecha', label: 'Fecha inicio' },
+]
+
+export default function ProyectosClient(props: Props) {
+  return (
+    <Suspense>
+      <ProyectosContent {...props} />
+    </Suspense>
+  )
+}
+
+function ProyectosContent({
   proyectos,
   empresas,
   empresasGrupo,
@@ -82,20 +103,37 @@ export default function ProyectosClient({
   serviciosYDepts,
 }: Props) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
-  const [view, setView] = useState<'list' | 'kanban'>('list')
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'titulo', dir: 'asc' },
+  })
 
-  // ── Estado de filtros ──
-  const [filterEstado, setFilterEstado] = useState<string[]>([])
-  const [filterEmpresaGrupo, setFilterEmpresaGrupo] = useState<string[]>([])
-  const [filterEmpresa, setFilterEmpresa] = useState<string[]>([])
-  const [filterDepartamento, setFilterDepartamento] = useState<string[]>([])
-  const [filterServicio, setFilterServicio] = useState<string[]>([])
-  const [pptoMin, setPptoMin] = useState('')
-  const [pptoMax, setPptoMax] = useState('')
-  const [fechaDesde, setFechaDesde] = useState('')
-  const [fechaHasta, setFechaHasta] = useState('')
-  const [sinFecha, setSinFecha] = useState(false)
+  // ── Vista archivo ──
+  type ArchivoVista = 'activos' | 'archivados' | 'eliminados'
+  const archivoVista = (getParam('archivo', 'activos') as ArchivoVista)
+
+  // ── State for action buttons ──
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  // ── Filtros desde URL params (persistentes) ──
+  const view = (getParam('vista', 'list') as 'list' | 'kanban')
+  const filterEstado = useMemo(() => { const v = getParam('estado'); return v ? v.split(',') : [] }, [getParam])
+  const filterEmpresaGrupo = useMemo(() => { const v = getParam('eg'); return v ? v.split(',') : [] }, [getParam])
+  const filterEmpresa = useMemo(() => { const v = getParam('empresa'); return v ? v.split(',') : [] }, [getParam])
+  const filterDepartamento = useMemo(() => { const v = getParam('depto'); return v ? v.split(',') : [] }, [getParam])
+  const filterServicio = useMemo(() => { const v = getParam('servicio'); return v ? v.split(',') : [] }, [getParam])
+  const pptoMin = getParam('pptoMin', '')!
+  const pptoMax = getParam('pptoMax', '')!
+  const fechaDesde = getParam('desde', '')!
+  const fechaHasta = getParam('hasta', '')!
+  const sinFecha = getParam('sinFecha') === '1'
+
+  // Search permanece local (evitar ruido en URL al teclear)
+  const [search, setSearch] = useState('')
+
+  // Helpers para arrays en URL
+  const setArrayParam = (key: string, values: string[]) => setParams({ [key]: values.length > 0 ? values.join(',') : null })
 
   // ── Mapas de lookup ──
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
@@ -172,7 +210,20 @@ export default function ProyectosClient({
     const minPpto = pptoMin !== '' ? Number(pptoMin) : null
     const maxPpto = pptoMax !== '' ? Number(pptoMax) : null
 
+    // Ventana de 7 días para eliminados
+    const sieteDiasAtras = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
     return proyectos.filter((p) => {
+      // Filtro por vista de archivo
+      if (archivoVista === 'activos') {
+        if (p.deleted_at || p.archivado_at) return false
+      } else if (archivoVista === 'archivados') {
+        if (p.deleted_at || !p.archivado_at) return false
+      } else if (archivoVista === 'eliminados') {
+        if (!p.deleted_at) return false
+        if (p.deleted_at < sieteDiasAtras) return false
+      }
+
       // Búsqueda texto
       const clienteNombre = getClienteNombre(p)
       if (search) {
@@ -235,29 +286,67 @@ export default function ProyectosClient({
 
       return true
     })
-  }, [proyectos, search, filterEstado, filterEmpresaGrupo, filterEmpresa, filterDepartamento, filterServicio, pptoMin, pptoMax, fechaDesde, fechaHasta, sinFecha, empresaMap, proyectoDeptIds, deptServiciosMap])
+  }, [proyectos, archivoVista, search, filterEstado, filterEmpresaGrupo, filterEmpresa, filterDepartamento, filterServicio, pptoMin, pptoMax, fechaDesde, fechaHasta, sinFecha, empresaMap, proyectoDeptIds, deptServiciosMap])
 
-  // ── KPIs (sobre el total, no filtrado) ──
-  const activos = proyectos.filter((p) => p.estado === 'Activo').length
-  const propuestas = proyectos.filter((p) => p.estado === 'Propuesta').length
-  const pptoTotal = proyectos
+  // ── KPIs (sobre proyectos no eliminados, archivados sí cuentan) ──
+  const proyectosVivos = proyectos.filter((p) => !p.deleted_at)
+  const activos = proyectosVivos.filter((p) => p.estado === 'Activo').length
+  const propuestas = proyectosVivos.filter((p) => p.estado === 'Propuesta').length
+  const pptoTotal = proyectosVivos
     .filter((p) => p.estado === 'Activo')
     .reduce((sum, p) => sum + p.ppto_estimado, 0)
+
+  // Aplicar ordenación (solo en vista lista)
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    titulo: (p) => p.titulo.toLowerCase(),
+    cliente: (p) => getClienteNombre(p).toLowerCase(),
+    ppto: (p) => p.ppto_estimado,
+    estado: (p) => p.estado,
+    fecha: (p) => p.fecha_activacion ?? '',
+  }), [filtered, sortCol, sortDir])
 
   // ── ¿Hay algún filtro activo? ──
   const hasAnyFilter = filterEstado.length > 0 || filterEmpresaGrupo.length > 0 || filterEmpresa.length > 0 || filterDepartamento.length > 0 || filterServicio.length > 0 || pptoMin !== '' || pptoMax !== '' || fechaDesde !== '' || fechaHasta !== '' || sinFecha
 
   function clearAllFilters() {
-    setFilterEstado([])
-    setFilterEmpresaGrupo([])
-    setFilterEmpresa([])
-    setFilterDepartamento([])
-    setFilterServicio([])
-    setPptoMin('')
-    setPptoMax('')
-    setFechaDesde('')
-    setFechaHasta('')
-    setSinFecha(false)
+    setParams({
+      estado: null, eg: null, empresa: null, depto: null, servicio: null,
+      pptoMin: null, pptoMax: null, desde: null, hasta: null, sinFecha: null,
+    })
+  }
+
+  async function handleArchivar(id: string) {
+    setActionLoading(id)
+    setActionError(null)
+    const result = await archivarProyecto(id)
+    if (!result.success) setActionError(result.error ?? 'Error al archivar')
+    setActionLoading(null)
+  }
+
+  async function handleDesarchivar(id: string) {
+    setActionLoading(id)
+    setActionError(null)
+    const result = await desarchivarProyecto(id)
+    if (!result.success) setActionError(result.error ?? 'Error al desarchivar')
+    setActionLoading(null)
+  }
+
+  async function handleEliminar(id: string) {
+    if (confirmDeleteId !== id) { setConfirmDeleteId(id); return }
+    setActionLoading(id)
+    setActionError(null)
+    setConfirmDeleteId(null)
+    const result = await eliminarProyecto(id)
+    if (!result.success) setActionError(result.error ?? 'Error al eliminar')
+    setActionLoading(null)
+  }
+
+  async function handleRestaurar(id: string) {
+    setActionLoading(id)
+    setActionError(null)
+    const result = await restaurarProyecto(id)
+    if (!result.success) setActionError(result.error ?? 'Error al restaurar')
+    setActionLoading(null)
   }
 
   function ProjectCard({ p, compact = false }: { p: Proyecto; compact?: boolean }) {
@@ -302,7 +391,7 @@ export default function ProyectosClient({
             <span className={`font-bold text-blue-600 ${compact ? 'text-xs' : 'text-sm'}`}>
               {formatMoney(p.ppto_estimado)}
             </span>
-            {!compact && <StatusBadge status={p.estado} />}
+            {!compact && <CambiarEstadoProyecto proyectoId={p.id} estadoActual={p.estado} />}
           </div>
         </div>
 
@@ -312,22 +401,76 @@ export default function ProyectosClient({
         {/* Acciones — solo en modo lista */}
         {!compact && (
           <div className="mt-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <ProyectoOtAction
-              proyecto={p}
-              proyectos={proyectos}
-              servicios={servicios}
-              departamentos={departamentos}
-              personas={personas}
-              empresas={empresas}
-            />
-            <ProyectoFormSheet
-              empresas={empresas}
-              empresasGrupo={empresasGrupo}
-              personas={personas}
-              departamentos={departamentos}
-              proyecto={p}
-              proyectoDepartamentoIds={deptIds}
-            />
+            {archivoVista === 'activos' && (
+              <>
+                <ProyectoOtAction
+                  proyecto={p}
+                  proyectos={proyectos}
+                  servicios={servicios}
+                  departamentos={departamentos}
+                  personas={personas}
+                  empresas={empresas}
+                />
+                <ProyectoFormSheet
+                  empresas={empresas}
+                  empresasGrupo={empresasGrupo}
+                  personas={personas}
+                  departamentos={departamentos}
+                  proyecto={p}
+                  proyectoDepartamentoIds={deptIds}
+                />
+                <button
+                  onClick={() => handleArchivar(p.id)}
+                  disabled={actionLoading === p.id}
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                  Archivar
+                </button>
+                <button
+                  onClick={() => handleEliminar(p.id)}
+                  disabled={actionLoading === p.id}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    confirmDeleteId === p.id ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50'
+                  }`}
+                >
+                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {confirmDeleteId === p.id ? '¿Eliminar proyecto, OTs y asignaciones?' : 'Eliminar'}
+                </button>
+              </>
+            )}
+            {archivoVista === 'archivados' && (
+              <>
+                <button
+                  onClick={() => handleDesarchivar(p.id)}
+                  disabled={actionLoading === p.id}
+                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
+                  Desarchivar
+                </button>
+                <button
+                  onClick={() => handleEliminar(p.id)}
+                  disabled={actionLoading === p.id}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    confirmDeleteId === p.id ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50'
+                  }`}
+                >
+                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                  {confirmDeleteId === p.id ? '¿Eliminar proyecto, OTs y asignaciones?' : 'Eliminar'}
+                </button>
+              </>
+            )}
+            {archivoVista === 'eliminados' && (
+              <button
+                onClick={() => handleRestaurar(p.id)}
+                disabled={actionLoading === p.id}
+                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+              >
+                {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                Restaurar
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -343,24 +486,56 @@ export default function ProyectosClient({
             Proyectos activos, propuestas y proyectos internos
           </p>
         </div>
-        {/* Toggle vista */}
-        <div className="flex items-center gap-1 rounded-lg border border-border p-1">
-          <button
-            onClick={() => setView('list')}
-            className={`rounded-md p-1.5 transition-colors ${view === 'list' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
-            title="Vista lista"
-          >
-            <LayoutList className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setView('kanban')}
-            className={`rounded-md p-1.5 transition-colors ${view === 'kanban' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
-            title="Vista kanban"
-          >
-            <LayoutGrid className="h-4 w-4" />
-          </button>
+        <div className="flex items-center gap-3">
+          {/* Pills archivo */}
+          <div className="flex items-center gap-1 rounded-lg border border-border p-1">
+            {([
+              { key: 'activos', label: 'Activos' },
+              { key: 'archivados', label: 'Archivados' },
+              { key: 'eliminados', label: 'Eliminados' },
+            ] as const).map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setParams({ archivo: key === 'activos' ? null : key })}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                  archivoVista === key
+                    ? key === 'eliminados' ? 'bg-red-600 text-white' : key === 'archivados' ? 'bg-amber-500 text-white' : 'bg-primary text-white'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Toggle vista */}
+          <div className="flex items-center gap-1 rounded-lg border border-border p-1">
+            <button
+              onClick={() => setParams({ vista: null })}
+              className={`rounded-md p-1.5 transition-colors ${view === 'list' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+              title="Vista lista"
+            >
+              <LayoutList className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setParams({ vista: 'kanban' })}
+              className={`rounded-md p-1.5 transition-colors ${view === 'kanban' ? 'bg-primary text-white' : 'text-muted-foreground hover:text-foreground'}`}
+              title="Vista kanban"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Error de acción */}
+      {actionError && (
+        <div className="mt-3 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 flex items-center justify-between">
+          <p className="text-sm text-destructive">{actionError}</p>
+          <button onClick={() => setActionError(null)} className="text-destructive hover:text-destructive/70">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="mt-5 grid grid-cols-3 gap-4">
@@ -386,56 +561,54 @@ export default function ProyectosClient({
           label="Estado"
           options={ESTADO_OPTIONS}
           selected={filterEstado}
-          onChange={setFilterEstado}
+          onChange={(v) => setArrayParam('estado', v)}
         />
         <MultiSelectFilter
           label="Empresa grupo"
           options={empresaGrupoOptions}
           selected={filterEmpresaGrupo}
-          onChange={setFilterEmpresaGrupo}
+          onChange={(v) => setArrayParam('eg', v)}
         />
         <MultiSelectFilter
           label="Empresa"
           options={empresaOptions}
           selected={filterEmpresa}
-          onChange={setFilterEmpresa}
+          onChange={(v) => setArrayParam('empresa', v)}
           searchable
         />
         <MultiSelectFilter
           label="Departamento"
           options={departamentoOptions}
           selected={filterDepartamento}
-          onChange={setFilterDepartamento}
+          onChange={(v) => setArrayParam('depto', v)}
           searchable
         />
         <MultiSelectFilter
           label="Servicio"
           options={servicioOptions}
           selected={filterServicio}
-          onChange={setFilterServicio}
+          onChange={(v) => setArrayParam('servicio', v)}
           searchable
         />
 
         {/* Rango presupuesto */}
         <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
           <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Ppto.</span>
-          <input
-            type="number"
+          <NumberInput
             placeholder="Min"
             value={pptoMin}
-            onChange={(e) => setPptoMin(e.target.value)}
-            className="w-20 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            onChange={(e) => setParams({ pptoMin: e.target.value || null })}
+            className="w-20 border-0 bg-transparent"
           />
           <span className="text-xs text-muted-foreground">–</span>
-          <input
-            type="number"
+          <NumberInput
             placeholder="Max"
             value={pptoMax}
-            onChange={(e) => setPptoMax(e.target.value)}
-            className="w-20 bg-transparent text-xs outline-none placeholder:text-muted-foreground/60 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            onChange={(e) => setParams({ pptoMax: e.target.value || null })}
+            className="w-20 border-0 bg-transparent"
           />
           {(pptoMin || pptoMax) && (
-            <button onClick={() => { setPptoMin(''); setPptoMax('') }} className="text-muted-foreground hover:text-foreground">
+            <button onClick={() => setParams({ pptoMin: null, pptoMax: null })} className="text-muted-foreground hover:text-foreground">
               <X className="h-3 w-3" />
             </button>
           )}
@@ -447,27 +620,27 @@ export default function ProyectosClient({
           <input
             type="date"
             value={fechaDesde}
-            onChange={(e) => setFechaDesde(e.target.value)}
+            onChange={(e) => setParams({ desde: e.target.value || null })}
             className="w-[120px] bg-transparent text-xs outline-none text-foreground"
           />
           <span className="text-xs text-muted-foreground">–</span>
           <input
             type="date"
             value={fechaHasta}
-            onChange={(e) => setFechaHasta(e.target.value)}
+            onChange={(e) => setParams({ hasta: e.target.value || null })}
             className="w-[120px] bg-transparent text-xs outline-none text-foreground"
           />
           <label className="flex items-center gap-1 cursor-pointer">
             <input
               type="checkbox"
               checked={sinFecha}
-              onChange={(e) => setSinFecha(e.target.checked)}
+              onChange={(e) => setParams({ sinFecha: e.target.checked ? '1' : null })}
               className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
             />
             <span className="text-[10px] text-muted-foreground whitespace-nowrap">Sin fecha</span>
           </label>
           {(fechaDesde || fechaHasta || sinFecha) && (
-            <button onClick={() => { setFechaDesde(''); setFechaHasta(''); setSinFecha(false) }} className="text-muted-foreground hover:text-foreground">
+            <button onClick={() => setParams({ desde: null, hasta: null, sinFecha: null })} className="text-muted-foreground hover:text-foreground">
               <X className="h-3 w-3" />
             </button>
           )}
@@ -484,10 +657,15 @@ export default function ProyectosClient({
           </button>
         )}
 
-        {/* Contador de resultados */}
-        <span className="ml-auto text-xs text-muted-foreground">
-          {filtered.length} de {proyectos.length} proyectos
-        </span>
+        {/* Sort + Contador de resultados */}
+        <div className="ml-auto flex items-center gap-3">
+          {view === 'list' && (
+            <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
+          )}
+          <span className="text-xs text-muted-foreground">
+            {filtered.length} proyecto{filtered.length !== 1 ? 's' : ''}
+          </span>
+        </div>
       </div>
 
       {/* ── VISTA LISTA ── */}
@@ -498,7 +676,7 @@ export default function ProyectosClient({
               <p className="text-sm text-muted-foreground">No se encontraron proyectos con esos filtros.</p>
             </div>
           )}
-          {filtered.map((p) => <ProjectCard key={p.id} p={p} />)}
+          {sorted.map((p) => <ProjectCard key={p.id} p={p} />)}
         </div>
       )}
 

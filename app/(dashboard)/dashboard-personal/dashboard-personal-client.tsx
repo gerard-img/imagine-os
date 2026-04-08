@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 import { KpiCard } from '@/components/kpi-card'
 import { MonthNavigator } from '@/components/month-navigator'
 import { ServicioPill } from '@/components/servicio-pill'
+import { SortableHeader } from '@/components/sortable-header'
+import { useTableState, sortData } from '@/hooks/use-table-state'
 import { safeDivide, resolverHoras } from '@/lib/helpers'
 import type {
   Asignacion,
@@ -37,12 +39,25 @@ function getCurrentMonth(): string {
   return `${y}-${m}-01`
 }
 
-export default function DashboardPersonalClient({
+export default function DashboardPersonalClient(props: Props) {
+  return (
+    <Suspense>
+      <DashboardPersonalContent {...props} />
+    </Suspense>
+  )
+}
+
+function DashboardPersonalContent({
   personaId, personaNombre, empresaGrupoId,
   asignaciones, ordenesTrabajo, proyectos, empresas,
   servicios, cuotas, horasTrabajables, personasDepartamentos,
 }: Props) {
-  const [mes, setMes] = useState(getCurrentMonth)
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'clienteNombre', dir: 'asc' },
+  })
+
+  const mes = getParam('mes', getCurrentMonth())!
+  const setMes = (v: string) => setParams({ mes: v })
 
   // Lookup maps
   const otMap = useMemo(() => new Map(ordenesTrabajo.map((o) => [o.id, o])), [ordenesTrabajo])
@@ -61,7 +76,7 @@ export default function DashboardPersonalClient({
   }, [asignaciones, personaId, mes, otMap])
 
   // Filas de la tabla: enriquecer cada asignación con datos de negocio
-  const filas = useMemo(() => {
+  const filasBase = useMemo(() => {
     return misAsignaciones.map((a) => {
       const ot = otMap.get(a.orden_trabajo_id)!
       const proyecto = proyectoMap.get(ot.proyecto_id)
@@ -83,8 +98,17 @@ export default function DashboardPersonalClient({
         horas,
         porcentaje: a.porcentaje_ppto_tm,
       }
-    }).sort((a, b) => a.clienteNombre.localeCompare(b.clienteNombre))
+    })
   }, [misAsignaciones, otMap, proyectoMap, empresaMap, servicioMap, cuotaMap])
+
+  // Ordenar según columna activa
+  const filas = useMemo(() => sortData(filasBase, sortCol, sortDir, {
+    clienteNombre: (f) => f.clienteNombre,
+    proyectoTitulo: (f) => f.proyectoTitulo,
+    servicioNombre: (f) => f.servicioNombre,
+    porcentaje: (f) => f.porcentaje,
+    horas: (f) => f.horas,
+  }), [filasBase, sortCol, sortDir])
 
   // KPIs
   const totalHoras = filas.reduce((sum, f) => sum + f.horas, 0)
@@ -102,17 +126,6 @@ export default function DashboardPersonalClient({
   const pctOcupacion = horasDisponibles > 0
     ? Math.round((totalHoras / horasDisponibles) * 100)
     : 0
-
-  // Agrupar filas por cliente
-  const filasPorCliente = useMemo(() => {
-    const groups = new Map<string, typeof filas>()
-    for (const f of filas) {
-      const existing = groups.get(f.clienteNombre) ?? []
-      existing.push(f)
-      groups.set(f.clienteNombre, existing)
-    }
-    return groups
-  }, [filas])
 
   return (
     <div>
@@ -157,7 +170,7 @@ export default function DashboardPersonalClient({
         />
       </div>
 
-      {/* Tabla de asignaciones agrupada por cliente */}
+      {/* Tabla de asignaciones */}
       <div className="mt-6 rounded-xl bg-white p-5 shadow-sm">
         <p className="mb-4 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           Tus asignaciones
@@ -173,54 +186,47 @@ export default function DashboardPersonalClient({
             </p>
           </div>
         ) : (
-          <div className="space-y-5">
-            {[...filasPorCliente.entries()].map(([cliente, rows]) => {
-              const horasCliente = rows.reduce((sum, r) => sum + r.horas, 0)
-              return (
-                <div key={cliente}>
-                  {/* Cliente header */}
-                  <div className="mb-2 flex items-center gap-3">
-                    <span className="text-sm font-bold text-foreground">{cliente}</span>
-                    <span className="text-xs font-semibold text-blue-600">
-                      {Math.round(horasCliente)}h
-                    </span>
-                    <div className="flex-1 border-t border-border/50" />
-                  </div>
-
-                  {/* Filas del cliente */}
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-xs uppercase text-muted-foreground">
-                        <th className="pb-2 font-semibold">Proyecto</th>
-                        <th className="pb-2 font-semibold">Servicio</th>
-                        <th className="pb-2 font-semibold text-right">% Partida</th>
-                        <th className="pb-2 font-semibold text-right">Horas</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r) => (
-                        <tr key={r.id} className="border-t border-border/50">
-                          <td className="py-2.5 font-medium">{r.proyectoTitulo}</td>
-                          <td className="py-2.5">
-                            {r.servicioNombre
-                              ? <ServicioPill name={r.servicioNombre} />
-                              : <span className="text-xs text-muted-foreground">—</span>
-                            }
-                          </td>
-                          <td className="py-2.5 text-right text-muted-foreground">
-                            {r.porcentaje}%
-                          </td>
-                          <td className="py-2.5 text-right font-semibold text-blue-600">
-                            {r.horas.toFixed(1)}h
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )
-            })}
-          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="pb-2.5 text-left">
+                  <SortableHeader label="Cliente" column="clienteNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} />
+                </th>
+                <th className="pb-2.5 text-left">
+                  <SortableHeader label="Proyecto" column="proyectoTitulo" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} />
+                </th>
+                <th className="pb-2.5 text-left">
+                  <SortableHeader label="Servicio" column="servicioNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} />
+                </th>
+                <th className="pb-2.5">
+                  <SortableHeader label="% Partida" column="porcentaje" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" />
+                </th>
+                <th className="pb-2.5">
+                  <SortableHeader label="Horas" column="horas" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((r) => (
+                <tr key={r.id} className="border-t border-border/50">
+                  <td className="py-2.5 text-muted-foreground">{r.clienteNombre}</td>
+                  <td className="py-2.5 font-medium">{r.proyectoTitulo}</td>
+                  <td className="py-2.5">
+                    {r.servicioNombre
+                      ? <ServicioPill name={r.servicioNombre} />
+                      : <span className="text-xs text-muted-foreground">—</span>
+                    }
+                  </td>
+                  <td className="py-2.5 text-right text-muted-foreground">
+                    {r.porcentaje}%
+                  </td>
+                  <td className="py-2.5 text-right font-semibold text-blue-600">
+                    {r.horas.toFixed(1)}h
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
 
         {/* Resumen total */}

@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import Link from 'next/link'
 import { formatMoney } from '@/lib/helpers'
+import { useTableState, sortData } from '@/hooks/use-table-state'
+import { SortableHeader } from '@/components/sortable-header'
 import type {
   OrdenTrabajo,
   OrdenTrabajoPersona,
@@ -25,9 +27,9 @@ import {
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { MonthNavigator } from '@/components/month-navigator'
-import { StatusBadge, UrgenciaIndicador } from '@/components/status-badge'
+import { UrgenciaIndicador } from '@/components/status-badge'
 import { getUrgenciaPlanificado } from '@/lib/helpers'
-import { AvanzarEstadoButton } from './avanzar-estado-button'
+import { CambiarEstadoOT } from '@/components/cambiar-estado-ot'
 import { OtFormSheet } from './ot-form-sheet'
 import { GenerarOtsButton } from './generar-ots-button'
 import { confirmarOTsBulk } from './actions'
@@ -41,15 +43,20 @@ function FilterSelect({
 }: {
   label: string; value: string; options: string[]; onChange: (v: string) => void
 }) {
+  const isActive = value !== 'Todos'
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+      className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+        isActive
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+      }`}
       aria-label={label}
     >
       {options.map((opt) => (
-        <option key={opt} value={opt}>
+        <option key={opt} value={opt} className="bg-white text-foreground">
           {opt === 'Todos' ? `${label}: Todos` : opt}
         </option>
       ))}
@@ -69,7 +76,15 @@ interface OrdenesTrabajoClientProps {
   cuotas: CuotaPlanificacion[]
 }
 
-export function OrdenesTrabajoClient({
+export function OrdenesTrabajoClient(props: OrdenesTrabajoClientProps) {
+  return (
+    <Suspense>
+      <OrdenesTrabajoContent {...props} />
+    </Suspense>
+  )
+}
+
+function OrdenesTrabajoContent({
   ordenesTrabajo,
   ordenesPersonas,
   proyectos,
@@ -93,12 +108,18 @@ export function OrdenesTrabajoClient({
     return months.length > 0 ? months : ['2026-01-01']
   }, [ordenesTrabajo])
 
-  const [month, setMonth] = useState(availableMonths[0])
+  // ── URL params para filtros y sorting ──
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'proyectoTitulo', dir: 'asc' },
+  })
+  const month = getParam('mes', availableMonths[0])!
+  const estadoFilter = getParam('estado', 'Todos')!
+  const deptoFilter = getParam('depto', 'Todos')!
+  const servicioFilter = getParam('servicio', 'Todos')!
+  const tipoPartidaFilter = getParam('tipoPartida', 'Todos')!
+
+  // Search permanece local (evitar demasiadas entradas de URL al teclear)
   const [search, setSearch] = useState('')
-  const [estadoFilter, setEstadoFilter] = useState('Todos')
-  const [deptoFilter, setDeptoFilter] = useState('Todos')
-  const [servicioFilter, setServicioFilter] = useState('Todos')
-  const [tipoPartidaFilter, setTipoPartidaFilter] = useState('Todos')
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -107,7 +128,7 @@ export function OrdenesTrabajoClient({
   // OT → Asignación integrated flow
   const [pendingOtId, setPendingOtId] = useState<string | null>(null)
 
-  function handleMonthChange(m: string) { setMonth(m); setSelectedIds([]) }
+  function handleMonthChange(m: string) { setParams({ mes: m }); setSelectedIds([]) }
   function handleSearchChange(s: string) { setSearch(s) }
 
   // Build filter options from data
@@ -162,6 +183,18 @@ export function OrdenesTrabajoClient({
     }
     return true
   })
+
+  // Aplicar ordenación
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    proyectoTitulo: (r) => r.proyectoTitulo,
+    clienteNombre: (r) => r.clienteNombre,
+    servicioNombre: (r) => r.servicioNombre ?? '',
+    departamentoNombre: (r) => r.departamentoNombre,
+    porcentaje_ppto_mes: (r) => r.porcentaje_ppto_mes,
+    partida_prevista: (r) => r.partida_prevista,
+    partida_real: (r) => r.partida_real ?? 0,
+    estado: (r) => r.estado,
+  }), [filtered, sortCol, sortDir])
 
   const totalPrevisto = filtered.reduce((sum, r) => sum + r.partida_prevista, 0)
   const totalReal = filtered.reduce((sum, r) => sum + (r.partida_real ?? 0), 0)
@@ -234,10 +267,10 @@ export function OrdenesTrabajoClient({
         <div className="w-64">
           <SearchBar placeholder="Buscar proyecto, servicio, cliente..." value={search} onChange={handleSearchChange} />
         </div>
-        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={setEstadoFilter} />
-        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={setDeptoFilter} />
-        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={setServicioFilter} />
-        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={setTipoPartidaFilter} />
+        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={(v) => setParams({ estado: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={(v) => setParams({ depto: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={(v) => setParams({ tipoPartida: v === 'Todos' ? null : v })} />
       </div>
 
       {/* Table */}
@@ -272,20 +305,20 @@ export function OrdenesTrabajoClient({
                     title="Seleccionar todas"
                   />
                 </TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Proyecto</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Cliente</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Servicio</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Depto</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">% Ppto</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">Prevista</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">Real</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Estado</TableHead>
+                <TableHead><SortableHeader label="Proyecto" column="proyectoTitulo" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="Cliente" column="clienteNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="Servicio" column="servicioNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="Depto" column="departamentoNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="% Ppto" column="porcentaje_ppto_mes" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
+                <TableHead><SortableHeader label="Prevista" column="partida_prevista" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
+                <TableHead><SortableHeader label="Real" column="partida_real" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
+                <TableHead><SortableHeader label="Estado" column="estado" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground">Personas</TableHead>
                 <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((r) => {
+              {sorted.map((r) => {
                 const isSelected = selectedIds.includes(r.id)
                 return (
                   <TableRow key={r.id} className={isSelected ? 'bg-emerald-50' : undefined}>
@@ -327,8 +360,7 @@ export function OrdenesTrabajoClient({
                     <TableCell className="text-right">{r.partida_real !== null ? formatMoney(r.partida_real) : '—'}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <StatusBadge status={r.estado} />
-                        <AvanzarEstadoButton otId={r.id} estadoActual={r.estado} />
+                        <CambiarEstadoOT otId={r.id} estadoActual={r.estado} />
                         {(() => {
                           const u = getUrgenciaPlanificado(r.estado, r.mes_anio)
                           return u ? <UrgenciaIndicador nivel={u} /> : null

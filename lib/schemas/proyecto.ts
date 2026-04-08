@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const TIPOS_PROYECTO = ['Interno', 'Externo', 'Facturable'] as const
 export const TIPOS_PARTIDA = ['Puntual', 'Recurrente'] as const
 export const ESTADOS_PROYECTO = ['Propuesta', 'Confirmado', 'Activo', 'Pausado', 'Finalizado', 'Cancelado'] as const
-export const TIPOS_FACTURACION = ['Precio fijo', 'Por horas', 'Retainer', 'Éxito'] as const
+export const TIPOS_FACTURACION = ['Precio fijo', 'Por horas', 'Fee mensual', 'Éxito'] as const
 
 export const proyectoSchema = z.object({
   titulo: z.string().min(1, 'El título es obligatorio'),

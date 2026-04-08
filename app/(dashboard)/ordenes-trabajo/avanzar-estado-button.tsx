@@ -6,13 +6,15 @@ import { avanzarEstadoOT } from './actions'
 
 const SIGUIENTE: Record<string, string> = {
   'Propuesto':   'Planificado',
-  'Planificado': 'Confirmado',
+  'Planificado': 'Realizado',
+  'Realizado':   'Confirmado',
   'Confirmado':  'Facturado',
 }
 
 // Color del label del siguiente estado
 const SIGUIENTE_COLOR: Record<string, string> = {
   'Planificado': 'text-amber-600',
+  'Realizado':   'text-blue-600',
   'Confirmado':  'text-purple-600',
   'Facturado':   'text-emerald-600',
 }

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTableState, sortData } from '@/hooks/use-table-state'
+import { SortControl } from '@/components/sortable-header'
 import type {
   OrdenTrabajo,
   Asignacion,
@@ -11,6 +13,7 @@ import type {
   Departamento,
   CatalogoServicio,
   Empresa,
+  EmpresaGrupo,
   CuotaPlanificacion,
   PersonaDepartamento,
   HorasTrabajables,
@@ -19,15 +22,17 @@ import { safeDivide, clamp, formatMoney } from '@/lib/helpers'
 import { KpiCard } from '@/components/kpi-card'
 import { MonthNavigator } from '@/components/month-navigator'
 import { SearchBar } from '@/components/search-bar'
-import { StatusBadge } from '@/components/status-badge'
+import { CambiarEstadoOT } from '@/components/cambiar-estado-ot'
 import { ServicioPill } from '@/components/servicio-pill'
 import { ClientePill } from '@/components/cliente-pill'
 import { DeptPill } from '@/components/dept-pill'
-import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save } from 'lucide-react'
+import { NumberInput } from '@/components/number-input'
+import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save, AlertTriangle } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
+import { asignarServicioOT, eliminarOrdenTrabajo } from '../ordenes-trabajo/actions'
 import { OtFormSheet } from '../ordenes-trabajo/ot-form-sheet'
 import { GenerarOtsButton } from '../ordenes-trabajo/generar-ots-button'
-import { AvanzarEstadoButton } from '../ordenes-trabajo/avanzar-estado-button'
+import { generarOTsProyectoMes } from '../ordenes-trabajo/generar-ots-mes'
 
 // ── Props del servidor ──
 type PlanificadorClientProps = {
@@ -39,6 +44,7 @@ type PlanificadorClientProps = {
   departamentos: Departamento[]
   catalogoServicios: CatalogoServicio[]
   empresas: Empresa[]
+  empresasGrupo: EmpresaGrupo[]
   cuotasPlanificacion: CuotaPlanificacion[]
   personasDepartamentos: PersonaDepartamento[]
   horasTrabajables: HorasTrabajables[]
@@ -61,6 +67,7 @@ type AsignacionLocal = {
 type OrdenLocal = {
   id: string
   porcentaje_ppto_mes: number
+  partida_real: number | null
 }
 
 // ── Resolver horas trabajables (misma lógica que el server, replicada en cliente) ──
@@ -99,7 +106,22 @@ function resolverHorasTrabajables(
   return general?.horas ?? 0
 }
 
-export function PlanificadorClient({
+const SORT_OPTIONS_PLANIF = [
+  { value: 'proyecto', label: 'Proyecto' },
+  { value: 'cliente', label: 'Cliente' },
+  { value: 'partida', label: 'Partida' },
+  { value: 'estado', label: 'Estado' },
+]
+
+export function PlanificadorClient(props: PlanificadorClientProps) {
+  return (
+    <Suspense>
+      <PlanificadorContent {...props} />
+    </Suspense>
+  )
+}
+
+function PlanificadorContent({
   ordenesTrabajo,
   asignaciones: allAsignaciones,
   personas,
@@ -108,6 +130,7 @@ export function PlanificadorClient({
   departamentos,
   catalogoServicios,
   empresas,
+  empresasGrupo,
   cuotasPlanificacion,
   personasDepartamentos,
   horasTrabajables,
@@ -119,23 +142,29 @@ export function PlanificadorClient({
   const deptosMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
   const router = useRouter()
   const empresasMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
+  const egMap = useMemo(() => new Map(empresasGrupo.map((eg) => [eg.id, eg])), [empresasGrupo])
   const personasMap = useMemo(() => new Map(personas.map((p) => [p.id, p])), [personas])
   const cuotasMap = useMemo(() => new Map(cuotasPlanificacion.map((c) => [c.id, c])), [cuotasPlanificacion])
 
-  // ── Month ── (initialMonth viene de ?mes= en la URL, sino el mes actual)
+  // ── URL params para filtros, sort y mes ──
   const defaultMonth = useMemo(() => {
     if (initialMonth) return initialMonth
     const d = new Date()
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
   }, [initialMonth])
-  const [month, setMonth] = useState(defaultMonth)
 
-  // ── Filters ──
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'proyecto', dir: 'asc' },
+  })
+  const month = getParam('mes', defaultMonth)!
+  const egFilter = getParam('eg', 'Todos')!
+  const estadoFilter = getParam('estado', 'Todos')!
+  const deptoFilter = getParam('depto', 'Todos')!
+  const servicioFilter = getParam('servicio', 'Todos')!
+  const tipoPartidaFilter = getParam('tipoPartida', 'Todos')!
+
+  // Search permanece local
   const [search, setSearch] = useState('')
-  const [estadoFilter, setEstadoFilter] = useState('Todos')
-  const [deptoFilter, setDeptoFilter] = useState('Todos')
-  const [servicioFilter, setServicioFilter] = useState('Todos')
-  const [tipoPartidaFilter, setTipoPartidaFilter] = useState('Todos')
 
   // ── Expanded cards ──
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
@@ -148,16 +177,67 @@ export function PlanificadorClient({
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set())
   const [saveErrors, setSaveErrors] = useState<Record<string, string>>({})
 
+  // ── Delete OT state ──
+  const [confirmDeleteOt, setConfirmDeleteOt] = useState<string | null>(null)
+  const [deletingOt, setDeletingOt] = useState<string | null>(null)
+
+  // Mapa proyecto_id → Set de departamento_ids configurados en proyectos_departamentos
+  const proyDeptoMap = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    for (const pd of proyectosDepartamentos) {
+      if (!m.has(pd.proyecto_id)) m.set(pd.proyecto_id, new Set())
+      m.get(pd.proyecto_id)!.add(pd.departamento_id)
+    }
+    return m
+  }, [proyectosDepartamentos])
+
   const filterOptions = useMemo(() => {
+    const egs = ['Todos', ...empresasGrupo.map((eg) => eg.nombre)]
     const estados = ['Todos', ...new Set(ordenesTrabajo.map((o) => o.estado))]
-    const deptos = ['Todos', ...new Set(departamentos.map((d) => d.nombre))]
+
+    // Proyectos con OTs en este mes
+    const proyIdsEnMes = new Set(
+      ordenesTrabajo.filter((ot) => ot.mes_anio === month).map((ot) => ot.proyecto_id)
+    )
+
+    // Cascada EG: si hay empresa_grupo seleccionada, solo proyectos de esa EG
+    const egFilterId = egFilter !== 'Todos'
+      ? empresasGrupo.find((eg) => eg.nombre === egFilter)?.id ?? null
+      : null
+
+    const deptoIdsActivos = new Set<string>()
+    for (const proyId of proyIdsEnMes) {
+      if (egFilterId) {
+        const proy = proyectosMap.get(proyId)
+        if (proy?.empresa_grupo_id !== egFilterId) continue
+      }
+      const pDeptos = proyDeptoMap.get(proyId)
+      if (pDeptos) {
+        for (const dId of pDeptos) deptoIdsActivos.add(dId)
+      }
+    }
+    // Deduplicar por nombre (mismos nombres en distintas EGs)
+    const deptoNombres = new Set(
+      Array.from(deptoIdsActivos).map((id) => deptosMap.get(id)?.nombre).filter(Boolean) as string[]
+    )
+    const deptos = ['Todos', ...Array.from(deptoNombres).sort()]
+
     const servicios = ['Todos', ...new Set(catalogoServicios.map((s) => s.nombre))]
     const tiposPartida = ['Todos', 'Puntual', 'Recurrente']
-    return { estados, deptos, servicios, tiposPartida }
-  }, [ordenesTrabajo, departamentos, catalogoServicios])
+    return { egs, estados, deptos, servicios, tiposPartida }
+  }, [ordenesTrabajo, month, egFilter, catalogoServicios, empresasGrupo, proyDeptoMap, deptosMap, proyectosMap])
 
   // ── Filtered ordenes ──
   const filtered = useMemo(() => {
+    // Resolver todos los IDs de departamento que coincidan con el nombre seleccionado
+    const deptoFilterIds = deptoFilter !== 'Todos'
+      ? new Set(
+          Array.from(deptosMap.entries())
+            .filter(([, d]) => d.nombre === deptoFilter)
+            .map(([id]) => id)
+        )
+      : null
+
     return ordenesTrabajo.filter((ot) => {
       if (ot.mes_anio !== month) return false
 
@@ -167,8 +247,27 @@ export function PlanificadorClient({
       const empresa = proyecto?.empresa_id ? empresasMap.get(proyecto.empresa_id) : undefined
       const clienteNombre = empresa?.nombre_interno ?? empresa?.nombre_legal ?? ''
 
+      if (egFilter !== 'Todos' && egMap.get(proyecto?.empresa_grupo_id ?? '')?.nombre !== egFilter) return false
       if (estadoFilter !== 'Todos' && ot.estado !== estadoFilter) return false
-      if (deptoFilter !== 'Todos' && depto?.nombre !== deptoFilter) return false
+
+      // Filtro de departamento: basado en proyectos_departamentos del proyecto
+      if (deptoFilterIds) {
+        const proyDeptosIds = proyDeptoMap.get(ot.proyecto_id)
+        if (!proyDeptosIds || proyDeptosIds.size === 0) {
+          // Proyecto sin departamentos configurados → mostrarlo siempre
+        } else {
+          // ¿El proyecto tiene configurado alguno de los deptos con este nombre?
+          const tieneDepto = Array.from(deptoFilterIds).some((id) => proyDeptosIds.has(id))
+          if (tieneDepto) {
+            // Solo mostrar OTs cuyo departamento coincida
+            if (!deptoFilterIds.has(ot.departamento_id)) return false
+          } else {
+            // El proyecto no tiene este depto → excluir
+            return false
+          }
+        }
+      }
+
       if (servicioFilter !== 'Todos' && servicio?.nombre !== servicioFilter) return false
       if (tipoPartidaFilter !== 'Todos' && proyecto?.tipo_partida !== tipoPartidaFilter) return false
 
@@ -184,7 +283,19 @@ export function PlanificadorClient({
 
       return true
     })
-  }, [month, estadoFilter, deptoFilter, servicioFilter, tipoPartidaFilter, search, ordenesTrabajo, proyectosMap, serviciosMap, deptosMap, empresasMap])
+  }, [month, egFilter, estadoFilter, deptoFilter, servicioFilter, tipoPartidaFilter, search, ordenesTrabajo, proyectosMap, serviciosMap, deptosMap, empresasMap, egMap, proyDeptoMap])
+
+  // Aplicar ordenación
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    proyecto: (ot) => (proyectosMap.get(ot.proyecto_id)?.titulo ?? '').toLowerCase(),
+    cliente: (ot) => {
+      const p = proyectosMap.get(ot.proyecto_id)
+      const e = p?.empresa_id ? empresasMap.get(p.empresa_id) : null
+      return (e?.nombre_interno ?? e?.nombre_legal ?? '').toLowerCase()
+    },
+    partida: (ot) => ot.partida_prevista,
+    estado: (ot) => ot.estado,
+  }), [filtered, sortCol, sortDir, proyectosMap, empresasMap])
 
   // ── Get asignaciones for an OT (with local overrides) ──
   function getAsignacionesLocal(ordenId: string): AsignacionLocal[] {
@@ -211,6 +322,7 @@ export function PlanificadorClient({
       else next.add(id)
       return next
     })
+    setConfirmDeleteOt(null)
   }
 
   function updateAsignacion(ordenId: string, asigId: string, field: keyof AsignacionLocal, value: string | number) {
@@ -219,6 +331,17 @@ export function PlanificadorClient({
       a.id === asigId ? { ...a, [field]: value } : a
     )
     setAsignacionEdits((prev) => ({ ...prev, [ordenId]: updated }))
+  }
+
+  async function handleDeleteOt(otId: string) {
+    if (confirmDeleteOt !== otId) { setConfirmDeleteOt(otId); return }
+    setDeletingOt(otId)
+    const result = await eliminarOrdenTrabajo(otId)
+    if (!result.success) {
+      setSaveErrors((prev) => ({ ...prev, [otId]: result.error ?? 'Error al eliminar' }))
+    }
+    setDeletingOt(null)
+    setConfirmDeleteOt(null)
   }
 
   function deleteAsignacion(ordenId: string, asigId: string) {
@@ -252,7 +375,30 @@ export function PlanificadorClient({
   }
 
   function updateOrdenPpto(ordenId: string, pct: number) {
-    setOrdenEdits((prev) => ({ ...prev, [ordenId]: { id: ordenId, porcentaje_ppto_mes: pct } }))
+    setOrdenEdits((prev) => {
+      const existing = prev[ordenId]
+      if (existing) {
+        return { ...prev, [ordenId]: { ...existing, porcentaje_ppto_mes: pct } }
+      }
+      const ot = ordenesTrabajo.find((o) => o.id === ordenId)
+      return { ...prev, [ordenId]: { id: ordenId, porcentaje_ppto_mes: pct, partida_real: ot?.partida_real ?? null } }
+    })
+  }
+
+  function updateOrdenPartidaReal(ordenId: string, val: number | null) {
+    setOrdenEdits((prev) => {
+      const existing = prev[ordenId]
+      if (existing) {
+        return { ...prev, [ordenId]: { ...existing, partida_real: val } }
+      }
+      const ot = ordenesTrabajo.find((o) => o.id === ordenId)
+      return { ...prev, [ordenId]: { id: ordenId, porcentaje_ppto_mes: ot?.porcentaje_ppto_mes ?? 0, partida_real: val } }
+    })
+  }
+
+  function getOrdenPartidaReal(ot: OrdenTrabajo): number | null {
+    const edit = ordenEdits[ot.id]
+    return edit ? edit.partida_real : ot.partida_real
   }
 
   async function handleGuardar(ot: OrdenTrabajo) {
@@ -261,10 +407,14 @@ export function PlanificadorClient({
       .filter((a) => a.orden_trabajo_id === ot.id && !a.deleted_at)
       .map((a) => a.id)
 
+    const ordenUpdate = ordenEdits[ot.id]
+      ? { porcentaje_ppto_mes: ordenEdits[ot.id].porcentaje_ppto_mes, partida_real: ordenEdits[ot.id].partida_real }
+      : undefined
+
     setSavingIds((prev) => new Set(prev).add(ot.id))
     setSaveErrors((prev) => { const n = { ...prev }; delete n[ot.id]; return n })
 
-    const result = await guardarAsignacionesOT(ot.id, asigs, originalIds)
+    const result = await guardarAsignacionesOT(ot.id, asigs, originalIds, ordenUpdate)
 
     if (result.success) {
       setAsignacionEdits((prev) => { const n = { ...prev }; delete n[ot.id]; return n })
@@ -315,6 +465,50 @@ export function PlanificadorClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, month, asignacionEdits])
 
+  // ── Proyectos activos sin OTs este mes (solo con filtros activos) ──
+  const [alertaOpen, setAlertaOpen] = useState(true)
+  const [generandoIds, setGenerandoIds] = useState<Set<string>>(new Set())
+
+  const hayFiltroActivo = egFilter !== 'Todos' || deptoFilter !== 'Todos' || servicioFilter !== 'Todos' || tipoPartidaFilter !== 'Todos'
+
+  const proyectosSinOTs = useMemo(() => {
+    if (!hayFiltroActivo) return []
+
+    const [y, m] = month.split('-').map(Number)
+    const ultimoDia = `${y}-${String(m).padStart(2, '0')}-${new Date(y, m, 0).getDate()}`
+
+    const proyectosConOTs = new Set(
+      ordenesTrabajo
+        .filter((ot) => ot.mes_anio === month && !ot.deleted_at)
+        .map((ot) => ot.proyecto_id)
+    )
+
+    return proyectos.filter((p) => {
+      if (p.estado !== 'Activo' && p.estado !== 'Confirmado') return false
+      if (!p.fecha_activacion || p.fecha_activacion > ultimoDia) return false
+      if (p.fecha_cierre && p.fecha_cierre < month) return false
+      if (proyectosConOTs.has(p.id)) return false
+
+      // Aplicar los mismos filtros que las OTs
+      if (egFilter !== 'Todos' && egMap.get(p.empresa_grupo_id)?.nombre !== egFilter) return false
+      if (tipoPartidaFilter !== 'Todos' && p.tipo_partida !== tipoPartidaFilter) return false
+      // Filtro por departamento: el proyecto debe tener ese departamento asignado
+      if (deptoFilter !== 'Todos') {
+        const deptoId = departamentos.find((d) => d.nombre === deptoFilter)?.id
+        const proyDeptos = proyectosDepartamentos.filter((pd) => pd.proyecto_id === p.id)
+        if (!proyDeptos.some((pd) => pd.departamento_id === deptoId)) return false
+      }
+
+      return true
+    })
+  }, [month, proyectos, ordenesTrabajo, hayFiltroActivo, egFilter, deptoFilter, tipoPartidaFilter, egMap, departamentos, proyectosDepartamentos])
+
+  async function handleGenerarOTs(proyectoId: string) {
+    setGenerandoIds((prev) => new Set(prev).add(proyectoId))
+    await generarOTsProyectoMes(proyectoId, month)
+    setGenerandoIds((prev) => { const n = new Set(prev); n.delete(proyectoId); return n })
+  }
+
   // ── Cuotas vigentes ──
   const cuotasVigentes = useMemo(
     () => cuotasPlanificacion.filter((c) => !c.fin_validez),
@@ -348,7 +542,7 @@ export function PlanificadorClient({
             personas={personas}
             empresas={empresas}
           />
-          <MonthNavigator value={month} onChange={setMonth} />
+          <MonthNavigator value={month} onChange={(v) => setParams({ mes: v })} />
         </div>
       </div>
 
@@ -365,11 +559,83 @@ export function PlanificadorClient({
         <div className="w-64">
           <SearchBar placeholder="Buscar proyecto, cliente, servicio..." value={search} onChange={setSearch} />
         </div>
-        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={setEstadoFilter} />
-        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={setDeptoFilter} />
-        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={setServicioFilter} />
-        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={setTipoPartidaFilter} />
+        <FilterSelect label="Empresa" value={egFilter} options={filterOptions.egs} onChange={(v) => setParams({ eg: v === 'Todos' ? null : v, depto: null })} />
+        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={(v) => setParams({ estado: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={(v) => setParams({ depto: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={(v) => setParams({ tipoPartida: v === 'Todos' ? null : v })} />
+        <div className="ml-auto">
+          <SortControl options={SORT_OPTIONS_PLANIF} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
+        </div>
       </div>
+
+      {/* Alerta: proyectos sin OTs (solo con filtros activos) */}
+      {proyectosSinOTs.length > 0 && (
+        <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 shadow-sm">
+          <button
+            onClick={() => setAlertaOpen(!alertaOpen)}
+            className="flex w-full items-center gap-2 px-4 py-3 text-left"
+          >
+            {alertaOpen ? (
+              <ChevronDown className="h-4 w-4 text-amber-600 shrink-0" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-amber-600 shrink-0" />
+            )}
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="text-sm font-semibold text-amber-800">
+              {proyectosSinOTs.length} proyecto{proyectosSinOTs.length > 1 ? 's' : ''} activo{proyectosSinOTs.length > 1 ? 's' : ''} sin OTs este mes
+            </span>
+          </button>
+
+          {alertaOpen && (
+            <div className="border-t border-amber-200 px-4 pb-3 pt-2 space-y-2">
+              {proyectosSinOTs.map((p) => {
+                const empresa = p.empresa_id ? empresasMap.get(p.empresa_id) : undefined
+                const clienteNombre = empresa?.nombre_interno ?? empresa?.nombre_legal ?? 'Interno'
+                const isGenerando = generandoIds.has(p.id)
+
+                return (
+                  <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg bg-white/70 px-3 py-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <ClientePill name={clienteNombre} />
+                      <span
+                        className="text-sm font-semibold text-foreground truncate hover:text-primary hover:underline cursor-pointer"
+                        onClick={() => router.push(`/proyectos/${p.id}`)}
+                      >
+                        {p.titulo}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {p.tipo_partida}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {p.tipo_partida === 'Recurrente' ? (
+                        <button
+                          onClick={() => handleGenerarOTs(p.id)}
+                          disabled={isGenerando}
+                          className="flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 disabled:opacity-60 transition-colors"
+                        >
+                          {isGenerando ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                          Generar OTs
+                        </button>
+                      ) : (
+                        <OtFormSheet
+                          proyectos={proyectos}
+                          servicios={catalogoServicios}
+                          departamentos={departamentos}
+                          personas={personas}
+                          empresas={empresas}
+                          preselectedProyectoId={p.id}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Orders list */}
       <div className="mt-5 space-y-3">
@@ -378,7 +644,7 @@ export function PlanificadorClient({
             <p className="text-sm text-muted-foreground">No hay órdenes de trabajo para este mes con esos filtros.</p>
           </div>
         ) : (
-          filtered.map((ot) => {
+          sorted.map((ot) => {
             const proyecto = proyectosMap.get(ot.proyecto_id)
             const servicio = ot.servicio_id ? serviciosMap.get(ot.servicio_id) : undefined
             const depto = deptosMap.get(ot.departamento_id)
@@ -396,7 +662,7 @@ export function PlanificadorClient({
               .filter((p): p is Persona => !!p && p.activo)
 
             return (
-              <div key={ot.id} className="rounded-xl bg-white shadow-sm overflow-hidden">
+              <div key={ot.id} className="rounded-xl bg-white shadow-sm relative">
                 {/* ── Header ── */}
                 <button
                   onClick={() => toggleExpand(ot.id)}
@@ -416,26 +682,31 @@ export function PlanificadorClient({
                     {proyecto?.titulo ?? '—'}
                   </span>
 
-                  <StatusBadge status={ot.estado} />
-                  <span onClick={(e) => e.stopPropagation()}>
-                    <AvanzarEstadoButton otId={ot.id} estadoActual={ot.estado} />
-                  </span>
+                  <CambiarEstadoOT otId={ot.id} estadoActual={ot.estado} />
                   {hasLocalEdits(ot.id) && (
                     <span className="inline-flex h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Cambios sin guardar" />
                   )}
 
-                  {servicio && <ServicioPill name={servicio.nombre} />}
+                  <span onClick={(e) => e.stopPropagation()}>
+                    {servicio ? (
+                      <ServicioPill name={servicio.nombre} />
+                    ) : (
+                      <SinServicioSelector
+                        otId={ot.id}
+                        servicios={catalogoServicios.filter((s) => s.empresa_grupo_id === proyecto?.empresa_grupo_id)}
+                      />
+                    )}
+                  </span>
                   {depto && <DeptPill name={depto.nombre} label={depto.codigo} />}
 
                   {/* Editable % ppto mes */}
                   <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <input
-                      type="number"
+                    <NumberInput
                       min={0}
                       max={100}
                       value={pptoPct}
                       onChange={(e) => updateOrdenPpto(ot.id, clamp(Number(e.target.value), 0, 100))}
-                      className="w-14 rounded border border-border px-1.5 py-0.5 text-xs text-right font-medium text-foreground outline-none focus:border-primary"
+                      className="w-14 text-foreground"
                     />
                     <span className="text-[10px] text-muted-foreground">% ppto</span>
                   </span>
@@ -444,8 +715,20 @@ export function PlanificadorClient({
                     {formatMoney(ot.partida_prevista)}
                   </span>
 
+                  {/* Editable partida real */}
+                  <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <NumberInput
+                      min={0}
+                      value={getOrdenPartidaReal(ot) ?? ''}
+                      onChange={(e) => updateOrdenPartidaReal(ot.id, e.target.value === '' ? null : Number(e.target.value))}
+                      className="w-20 text-emerald-600"
+                      placeholder="—"
+                    />
+                    <span className="text-[10px] text-muted-foreground">real</span>
+                  </span>
+
                   <span className={`text-xs font-bold shrink-0 tabular-nums w-16 text-right ${pctColor}`}>
-                    {totalPctAsig}% tm
+                    {totalPctAsig}% asig.
                   </span>
 
                   <span className="text-[10px] text-muted-foreground shrink-0 w-16 text-right">
@@ -460,16 +743,11 @@ export function PlanificadorClient({
                       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                         Asignaciones
                       </p>
-                      <div className="flex items-center gap-3">
-                        <span className={`text-xs font-bold ${pctColor}`}>
-                          Suma %: {totalPctAsig}%
+                      {totalPctAsig !== 100 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          (debe sumar 100%)
                         </span>
-                        {totalPctAsig !== 100 && (
-                          <span className="text-[10px] text-muted-foreground">
-                            (debe sumar 100%)
-                          </span>
-                        )}
-                      </div>
+                      )}
                     </div>
 
                     {/* Table header */}
@@ -530,9 +808,15 @@ export function PlanificadorClient({
                                 className="rounded border border-border bg-white px-2 py-1 text-xs outline-none focus:border-primary"
                               >
                                 {(() => {
+                                  const ORDEN_CUOTAS = ['Senior', 'Specialist', 'Junior', 'Intern', 'Coordinador']
                                   const pEgId = personasMap.get(a.persona_id)?.empresa_grupo_id
                                   return cuotasVigentes
                                     .filter((c) => c.empresa_grupo_id === pEgId)
+                                    .sort((a, b) => {
+                                      const ia = ORDEN_CUOTAS.indexOf(a.nombre)
+                                      const ib = ORDEN_CUOTAS.indexOf(b.nombre)
+                                      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+                                    })
                                     .map((c) => (
                                       <option key={c.id} value={c.id}>
                                         {c.nombre} ({c.precio_hora}€/h)
@@ -542,13 +826,12 @@ export function PlanificadorClient({
                               </select>
 
                               {/* % asignación */}
-                              <input
-                                type="number"
+                              <NumberInput
                                 min={0}
                                 max={100}
                                 value={a.porcentaje_ppto_tm}
                                 onChange={(e) => updateAsignacion(ot.id, a.id, 'porcentaje_ppto_tm', clamp(Number(e.target.value), 0, 100))}
-                                className="w-full rounded border border-border px-2 py-1 text-xs text-right font-medium outline-none focus:border-primary"
+                                className="w-full px-2 py-1"
                               />
 
                               {/* Ingresos asignados (read-only) */}
@@ -588,9 +871,9 @@ export function PlanificadorClient({
                       Añadir persona
                     </button>
 
-                    {/* Save / error */}
-                    {hasLocalEdits(ot.id) && (
-                      <div className="mt-3 flex items-center gap-3">
+                    {/* Save / Delete OT / error */}
+                    <div className="mt-3 flex items-center gap-3">
+                      {hasLocalEdits(ot.id) && (
                         <button
                           onClick={() => handleGuardar(ot)}
                           disabled={savingIds.has(ot.id)}
@@ -601,11 +884,26 @@ export function PlanificadorClient({
                             : <><Save className="h-3.5 w-3.5" /> Guardar cambios</>
                           }
                         </button>
-                        {saveErrors[ot.id] && (
-                          <p className="text-xs text-destructive">{saveErrors[ot.id]}</p>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      <button
+                        onClick={() => handleDeleteOt(ot.id)}
+                        disabled={deletingOt === ot.id}
+                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ml-auto ${
+                          confirmDeleteOt === ot.id
+                            ? 'bg-red-600 text-white hover:bg-red-700'
+                            : 'text-red-500 hover:bg-red-50'
+                        }`}
+                      >
+                        {deletingOt === ot.id
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          : <Trash2 className="h-3.5 w-3.5" />
+                        }
+                        {confirmDeleteOt === ot.id ? '¿Eliminar OT y asignaciones?' : 'Eliminar OT'}
+                      </button>
+                      {saveErrors[ot.id] && (
+                        <p className="text-xs text-destructive">{saveErrors[ot.id]}</p>
+                      )}
+                    </div>
 
                     {/* Total row */}
                     {asignaciones.length > 0 && (
@@ -652,18 +950,92 @@ function FilterSelect({
   options: string[]
   onChange: (v: string) => void
 }) {
+  const isActive = value !== 'Todos'
   return (
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/30"
+      className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
+        isActive
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+      }`}
       aria-label={label}
     >
       {options.map((opt) => (
-        <option key={opt} value={opt}>
+        <option key={opt} value={opt} className="bg-white text-foreground">
           {opt === 'Todos' ? `${label}: Todos` : opt}
         </option>
       ))}
     </select>
+  )
+}
+
+// ── Selector inline para OTs sin servicio ──
+
+function SinServicioSelector({
+  otId,
+  servicios,
+}: {
+  otId: string
+  servicios: CatalogoServicio[]
+}) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  async function handleSelect(servicioId: string) {
+    setSaving(true)
+    await asignarServicioOT(otId, servicioId)
+    setSaving(false)
+    setOpen(false)
+  }
+
+  if (saving) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
+        Guardando…
+      </span>
+    )
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
+      >
+        ⚠ Sin servicio
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border bg-white py-1 shadow-lg">
+          {servicios.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-muted-foreground">No hay servicios configurados</p>
+          ) : (
+            servicios.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleSelect(s.id)}
+                className="flex w-full items-center px-3 py-1.5 text-sm transition-colors hover:bg-muted/50 text-left"
+              >
+                <ServicioPill name={s.nombre} />
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   )
 }

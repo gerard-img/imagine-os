@@ -7,6 +7,7 @@ import {
   getDepartamentos,
   getCatalogoServicios,
   getEmpresas,
+  getEmpresasGrupo,
   getCuotasPlanificacion,
   getPersonasDepartamentos,
   getHorasTrabajables,
@@ -28,6 +29,7 @@ export default async function PlanificadorPage({
     departamentos,
     catalogoServicios,
     empresas,
+    empresasGrupo,
     cuotasPlanificacion,
     personasDepartamentos,
     horasTrabajables,
@@ -40,6 +42,7 @@ export default async function PlanificadorPage({
     getDepartamentos(),
     getCatalogoServicios(),
     getEmpresas(),
+    getEmpresasGrupo(),
     getCuotasPlanificacion(),
     getPersonasDepartamentos(),
     getHorasTrabajables(),
@@ -55,6 +58,7 @@ export default async function PlanificadorPage({
       departamentos={departamentos}
       catalogoServicios={catalogoServicios}
       empresas={empresas}
+      empresasGrupo={empresasGrupo}
       cuotasPlanificacion={cuotasPlanificacion}
       personasDepartamentos={personasDepartamentos}
       horasTrabajables={horasTrabajables}

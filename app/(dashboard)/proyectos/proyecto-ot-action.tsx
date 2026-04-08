@@ -130,7 +130,7 @@ export function ProyectoOtAction({
         className="gap-1.5"
         onClick={handleGenerarPuntual}
         disabled={loadingPuntual}
-        title="Generar todas las OTs del rango de fechas del proyecto"
+        title="Generar OTs en el rango de fechas de este Proyecto PUNTUAL."
       >
         {loadingPuntual
           ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Generando...</>

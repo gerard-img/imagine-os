@@ -79,7 +79,11 @@ export function EmpresaFormSheet() {
       tipo_cliente: '',
       estado_prospecto: '',
       fecha_primer_contrato: '',
-      direccion: '',
+      calle: '',
+      codigo_postal: '',
+      ciudad: '',
+      provincia: '',
+      pais: '',
       sector: '',
       web: '',
       notas: '',
@@ -263,14 +267,30 @@ export function EmpresaFormSheet() {
             </div>
           )}
 
-          {/* Dirección */}
+          {/* Dirección estructurada */}
           <div className="space-y-1.5">
-            <Label htmlFor="direccion">Dirección</Label>
-            <Input
-              id="direccion"
-              placeholder="Calle, número, ciudad..."
-              {...register('direccion')}
-            />
+            <Label htmlFor="calle">Calle</Label>
+            <Input id="calle" placeholder="Calle y número" {...register('calle')} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="codigo_postal">Código postal</Label>
+              <Input id="codigo_postal" placeholder="28001" {...register('codigo_postal')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ciudad">Ciudad</Label>
+              <Input id="ciudad" placeholder="Madrid" {...register('ciudad')} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="provincia">Provincia</Label>
+              <Input id="provincia" placeholder="Madrid" {...register('provincia')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="pais">País</Label>
+              <Input id="pais" placeholder="España" {...register('pais')} />
+            </div>
           </div>
 
           {/* Web */}

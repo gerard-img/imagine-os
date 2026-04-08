@@ -21,13 +21,13 @@ export default async function DashboardLayout({
   const rolNombre = roles?.nombre
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Suspense>
         <Sidebar rolNombre={rolNombre} />
       </Suspense>
-      <div className="ml-[220px] flex-1 flex flex-col">
+      <div className="ml-[220px] flex-1 flex flex-col min-h-0">
         <Header />
-        <main className="flex-1 bg-[#F9FAFB] p-6 overflow-auto">
+        <main className="flex-1 min-h-0 bg-[#F9FAFB] p-6 overflow-auto">
           {children}
         </main>
       </div>

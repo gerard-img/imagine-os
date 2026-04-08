@@ -1,5 +1,5 @@
 import {
-  getProyectos,
+  getProyectosConEliminados,
   getEmpresas,
   getEmpresasGrupo,
   getProyectosDepartamentos,
@@ -13,7 +13,7 @@ import ProyectosClient from './proyectos-client'
 export default async function ProyectosPage() {
   const [proyectos, empresas, empresasGrupo, proyectosDepts, departamentos, personas, servicios, serviciosYDepts] =
     await Promise.all([
-      getProyectos(),
+      getProyectosConEliminados(),
       getEmpresas(),
       getEmpresasGrupo(),
       getProyectosDepartamentos(),

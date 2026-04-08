@@ -4,27 +4,25 @@
  */
 
 const PALETTE: string[] = [
-  'bg-blue-100 text-blue-700',
-  'bg-emerald-100 text-emerald-700',
-  'bg-amber-100 text-amber-700',
-  'bg-purple-100 text-purple-700',
-  'bg-pink-100 text-pink-700',
-  'bg-cyan-100 text-cyan-700',
-  'bg-orange-100 text-orange-700',
-  'bg-indigo-100 text-indigo-700',
-  'bg-rose-100 text-rose-700',
-  'bg-teal-100 text-teal-700',
-  'bg-lime-100 text-lime-700',
-  'bg-fuchsia-100 text-fuchsia-700',
-  'bg-sky-100 text-sky-700',
-  'bg-violet-100 text-violet-700',
-  'bg-red-100 text-red-700',
+  'bg-amber-200 text-amber-900',
+  'bg-emerald-200 text-emerald-900',
+  'bg-rose-200 text-rose-900',
+  'bg-cyan-200 text-cyan-900',
+  'bg-orange-200 text-orange-900',
+  'bg-teal-200 text-teal-900',
+  'bg-lime-200 text-lime-900',
+  'bg-pink-200 text-pink-900',
+  'bg-fuchsia-200 text-fuchsia-900',
+  'bg-sky-200 text-sky-900',
+  'bg-violet-200 text-violet-900',
+  'bg-indigo-200 text-indigo-900',
+  'bg-purple-200 text-purple-900',
+  'bg-red-200 text-red-900',
+  'bg-yellow-200 text-yellow-900',
 ]
 
 // Overrides manuales para colisiones de hash
-const OVERRIDES: Record<string, string> = {
-  'Globalvia': 'bg-violet-100 text-violet-700',
-}
+const OVERRIDES: Record<string, string> = {}
 
 function hashName(name: string): number {
   let hash = 0

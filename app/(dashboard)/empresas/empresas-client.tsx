@@ -1,16 +1,24 @@
 'use client'
 
-import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useMemo, Suspense } from 'react'
 import Link from 'next/link'
 import type { Empresa } from '@/lib/supabase/types'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { FilterPills } from '@/components/filter-pills'
 import { StatusBadge } from '@/components/status-badge'
+import { SortControl } from '@/components/sortable-header'
+import { useTableState, sortData } from '@/hooks/use-table-state'
 import { EmpresaFormSheet } from './empresa-form-sheet'
 
 const FILTER_OPTIONS = ['Todos', 'Cliente', 'Prospecto', 'Conocido', 'Baja']
+
+const SORT_OPTIONS = [
+  { value: 'nombre', label: 'Nombre' },
+  { value: 'estado', label: 'Estado' },
+  { value: 'tipo', label: 'Tipo' },
+  { value: 'sector', label: 'Sector' },
+]
 
 interface EmpresasClientProps {
   empresas: Empresa[]
@@ -25,13 +33,11 @@ export function EmpresasClient({ empresas }: EmpresasClientProps) {
 }
 
 function EmpresasContent({ empresas }: EmpresasClientProps) {
-  // Read initial filter from URL (?estado=Cliente or ?estado=Prospecto)
-  const searchParams = useSearchParams()
-  const estadoParam = searchParams.get('estado')
-  const initialFilter = estadoParam && FILTER_OPTIONS.includes(estadoParam) ? estadoParam : 'Todos'
-
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'nombre', dir: 'asc' },
+  })
+  const filter = getParam('estado', 'Todos')!
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState(initialFilter)
 
   const filtered = empresas.filter((e) => {
     const matchesSearch =
@@ -42,6 +48,13 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
     const matchesFilter = filter === 'Todos' || e.estado === filter
     return matchesSearch && matchesFilter
   })
+
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    nombre: (e) => (e.nombre_interno ?? e.nombre_legal).toLowerCase(),
+    estado: (e) => e.estado,
+    tipo: (e) => e.tipo ?? '',
+    sector: (e) => e.sector ?? '',
+  }), [filtered, sortCol, sortDir])
 
   const clientes = empresas.filter((e) => e.estado === 'Cliente').length
   const prospectos = empresas.filter((e) => e.estado === 'Prospecto').length
@@ -73,27 +86,30 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
         <KpiCard label="Bajas" value={inactivos} borderColor="border-t-red-400" />
       </div>
 
-      {/* Search + Filters + Action */}
+      {/* Search + Filters + Sort + Action */}
       <div className="mt-5 flex items-center gap-3">
         <SearchBar
           placeholder="Buscar empresa..."
           value={search}
           onChange={setSearch}
         />
-        <FilterPills options={FILTER_OPTIONS} active={filter} onChange={setFilter} />
-        <EmpresaFormSheet />
+        <FilterPills options={FILTER_OPTIONS} active={filter} onChange={(v) => setParams({ estado: v === 'Todos' ? null : v })} />
+        <div className="ml-auto flex items-center gap-3">
+          <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
+          <EmpresaFormSheet />
+        </div>
       </div>
 
       {/* Enterprise cards */}
       <div className="mt-4 space-y-2">
-        {filtered.length === 0 && (
+        {sorted.length === 0 && (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-muted-foreground">
               No se encontraron empresas con esos filtros.
             </p>
           </div>
         )}
-        {filtered.map((e) => {
+        {sorted.map((e) => {
           const subestado =
             e.estado === 'Conocido'
               ? e.tipo_conocido

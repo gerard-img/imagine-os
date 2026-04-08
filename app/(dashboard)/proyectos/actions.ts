@@ -1,12 +1,168 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { proyectoSchema } from '@/lib/schemas/proyecto'
+import { getPersonaAutenticada } from '@/lib/supabase/auth-helpers'
+import { proyectoSchema, ESTADOS_PROYECTO } from '@/lib/schemas/proyecto'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult = {
   success: boolean
   error?: string
+}
+
+const ROLES_DIRECTOR_O_SUPERIOR = ['Director', 'Socio', 'Administrador', 'Fundador']
+
+function revalidateProyectos(id?: string) {
+  revalidatePath('/proyectos')
+  if (id) revalidatePath(`/proyectos/${id}`)
+  revalidatePath('/planificador')
+  revalidatePath('/ordenes-trabajo')
+  revalidatePath('/asignaciones')
+  revalidatePath('/cargas-trabajo')
+  revalidatePath('/informes')
+}
+
+// ── Archivar ──
+export async function archivarProyecto(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('proyectos')
+    .update({ archivado_at: new Date().toISOString() })
+    .eq('id', id)
+    .is('deleted_at', null)
+
+  if (error) return { success: false, error: error.message }
+  revalidateProyectos(id)
+  return { success: true }
+}
+
+// ── Desarchivar ──
+export async function desarchivarProyecto(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('proyectos')
+    .update({ archivado_at: null })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+  revalidateProyectos(id)
+  return { success: true }
+}
+
+// ── Eliminar (soft delete en cascada) ──
+export async function eliminarProyecto(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const now = new Date().toISOString()
+
+  // Comprobar si tiene OTs facturadas
+  const { data: otsFacturadas } = await supabase
+    .from('ordenes_trabajo')
+    .select('id')
+    .eq('proyecto_id', id)
+    .eq('estado', 'Facturado')
+    .is('deleted_at', null)
+    .limit(1)
+
+  if (otsFacturadas && otsFacturadas.length > 0) {
+    // Solo Director o superior puede borrar proyectos con OTs facturadas
+    const persona = await getPersonaAutenticada()
+    const roles = persona?.roles as unknown as { nombre: string } | null
+    const rolNombre = roles?.nombre ?? ''
+
+    if (!ROLES_DIRECTOR_O_SUPERIOR.includes(rolNombre)) {
+      return {
+        success: false,
+        error: 'Este proyecto tiene OTs facturadas. Solo un Director o superior puede eliminarlo.',
+      }
+    }
+  }
+
+  // Soft-delete asignaciones de las OTs del proyecto
+  const { data: ots } = await supabase
+    .from('ordenes_trabajo')
+    .select('id')
+    .eq('proyecto_id', id)
+    .is('deleted_at', null)
+
+  if (ots && ots.length > 0) {
+    const otIds = ots.map((o) => o.id)
+    await supabase
+      .from('asignaciones')
+      .update({ deleted_at: now })
+      .in('orden_trabajo_id', otIds)
+      .is('deleted_at', null)
+
+    // Soft-delete las OTs
+    await supabase
+      .from('ordenes_trabajo')
+      .update({ deleted_at: now })
+      .in('id', otIds)
+  }
+
+  // Soft-delete el proyecto
+  const { error } = await supabase
+    .from('proyectos')
+    .update({ deleted_at: now })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+  revalidateProyectos(id)
+  return { success: true }
+}
+
+// ── Restaurar (quita deleted_at del proyecto, sus OTs y asignaciones) ──
+export async function restaurarProyecto(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  // Restaurar asignaciones de OTs del proyecto
+  const { data: ots } = await supabase
+    .from('ordenes_trabajo')
+    .select('id')
+    .eq('proyecto_id', id)
+    .not('deleted_at', 'is', null)
+
+  if (ots && ots.length > 0) {
+    const otIds = ots.map((o) => o.id)
+    await supabase
+      .from('asignaciones')
+      .update({ deleted_at: null })
+      .in('orden_trabajo_id', otIds)
+
+    await supabase
+      .from('ordenes_trabajo')
+      .update({ deleted_at: null })
+      .in('id', otIds)
+  }
+
+  // Restaurar proyecto
+  const { error } = await supabase
+    .from('proyectos')
+    .update({ deleted_at: null })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+  revalidateProyectos(id)
+  return { success: true }
+}
+
+export async function cambiarEstadoProyecto(id: string, nuevoEstado: string): Promise<ActionResult> {
+  if (!ESTADOS_PROYECTO.includes(nuevoEstado as typeof ESTADOS_PROYECTO[number])) {
+    return { success: false, error: 'Estado no válido' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('proyectos')
+    .update({ estado: nuevoEstado })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/proyectos')
+  revalidatePath(`/proyectos/${id}`)
+  revalidatePath('/planificador')
+  revalidatePath('/ordenes-trabajo')
+  return { success: true }
 }
 
 export async function crearProyecto(formData: unknown): Promise<ActionResult> {

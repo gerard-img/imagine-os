@@ -296,9 +296,11 @@ export type Database = {
           probabilidad_cierre: number | null
           valor_estimado_total: number | null
           margen_objetivo_pct: number | null
-          tipo_facturacion: 'Precio fijo' | 'Por horas' | 'Retainer' | 'Éxito' | null
+          tipo_facturacion: 'Precio fijo' | 'Por horas' | 'Fee mensual' | 'Éxito' | null
           tags: string[] | null
           fecha_propuesta: string | null
+          archivado_at: string | null
+          deleted_at: string | null
           created_at: string
           updated_at: string
         }
@@ -322,7 +324,7 @@ export type Database = {
           partida_prevista: number
           partida_real: number | null
           aprobador_id: string
-          estado: 'Propuesto' | 'Planificado' | 'Confirmado' | 'Facturado'
+          estado: 'Propuesto' | 'Planificado' | 'Realizado' | 'Confirmado' | 'Facturado'
           fecha_inicio: string
           fecha_fin: string | null
           notas: string | null

@@ -77,7 +77,7 @@ export function MultiSelectFilter({
         className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
           hasSelection
             ? 'bg-primary text-primary-foreground'
-            : 'bg-gray-100 text-muted-foreground hover:bg-gray-200'
+            : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
         }`}
       >
         <span>{label}</span>

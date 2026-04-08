@@ -1,6 +1,6 @@
 # Modelo de Datos v4 — Company OS
 
-Última actualización: 2026-03-25
+Última actualización: 2026-04-08
 
 ---
 
@@ -332,12 +332,15 @@
 | `fecha_activacion` | date, nullable | |
 | `fecha_cierre` | date, nullable | |
 | `notas` | text, nullable | |
+| `archivado_at` | timestamptz, nullable | Null = visible. Oculta el proyecto del listado principal sin eliminarlo |
+| `deleted_at` | timestamptz, nullable | Soft delete. Recuperable durante 7 días |
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
 > Nombre para mostrar (computado en app): empresa.nombre_interno - proyecto.titulo. Los servicios se definen a nivel de orden de trabajo, no de proyecto.
 > El ciclo de vida se gestiona con `estado`. Los cambios se documentan en `historial_estado_proyecto`.
 > Los departamentos que participan en un proyecto se definen en `proyectos_departamentos` (N:M).
+> Archivar (`archivado_at`) oculta del listado pero no afecta a OTs/asignaciones. Eliminar (`deleted_at`) hace soft-delete en cascada (OTs + asignaciones). Si el proyecto tiene OTs facturadas, solo Director o superior puede eliminarlo.
 
 ---
 
@@ -381,7 +384,7 @@
 | `partida_prevista` | numeric | Puede calcularse (ppto x %), pero almacenado para override manual |
 | `partida_real` | numeric, nullable | Obligatorio antes de confirmar |
 | `aprobador_id` | UUID FK | → personas |
-| `estado` | text, check | Propuesto, Planificado, Confirmado, Facturado |
+| `estado` | text, check | Propuesto, Planificado, Realizado, Confirmado, Facturado |
 | `fecha_inicio` | date | |
 | `fecha_fin` | date, nullable | |
 | `notas` | text, nullable | |
@@ -419,7 +422,7 @@
 | `created_at` | timestamptz | Auto |
 | `updated_at` | timestamptz | Auto |
 
-> Constraint: UNIQUE(orden_trabajo_id, persona_id)
+> Constraint: UNIQUE(orden_trabajo_id, persona_id, cuota_planificacion_id). Una persona puede tener varias asignaciones en la misma OT si usa cuotas distintas.
 
 Campos calculados (en queries, no almacenados):
 - **Ingresos asignados** = partida_prevista x porcentaje_ppto_tm

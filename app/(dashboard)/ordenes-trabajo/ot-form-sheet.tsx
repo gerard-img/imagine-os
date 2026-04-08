@@ -8,7 +8,7 @@ import {
   type OrdenTrabajoFormData,
   ESTADOS_OT,
 } from '@/lib/schemas/orden-trabajo'
-import { crearOrdenTrabajo, actualizarOrdenTrabajo } from './actions'
+import { crearOrdenTrabajo, actualizarOrdenTrabajo, eliminarOrdenTrabajo } from './actions'
 import type { Proyecto, CatalogoServicio, Departamento, Persona, Empresa, OrdenTrabajo } from '@/lib/supabase/types'
 import {
   Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Loader2, Pencil } from 'lucide-react'
+import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatMoney } from '@/lib/helpers'
 
@@ -69,6 +69,8 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
   const [open, setOpen] = useState(false)
   const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const empresaMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
 
@@ -76,7 +78,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
     proyecto_id: preselectedProyectoId ?? '',
     servicio_id: '', departamento_id: '', mes_anio: '',
     titulo: '', porcentaje_ppto_mes: 100, partida_prevista: 0,
-    partida_real: '',
+    partida_real: null,
     aprobador_id: '', estado: 'Propuesto' as OrdenTrabajoFormData['estado'],
     notas: '',
   }
@@ -93,7 +95,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
       titulo: ot.titulo ?? '',
       porcentaje_ppto_mes: ot.porcentaje_ppto_mes,
       partida_prevista: ot.partida_prevista,
-      partida_real: ot.partida_real?.toString() ?? '',
+      partida_real: ot.partida_real ?? null,
       aprobador_id: ot.aprobador_id,
       estado: ot.estado as OrdenTrabajoFormData['estado'],
       notas: ot.notas ?? '',
@@ -156,6 +158,15 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
     setSubmitting(false)
   }
 
+  async function handleDelete() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setDeleting(true)
+    const result = await eliminarOrdenTrabajo(ot!.id)
+    if (result.success) { handleOpenChange(false) }
+    else setServerError(result.error ?? 'Error al eliminar')
+    setDeleting(false)
+  }
+
   function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next && !isEditMode && preselectedProyectoId) {
@@ -164,6 +175,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
     if (!next) {
       if (!isEditMode) reset(createDefaults)
       setServerError('')
+      setConfirmDelete(false)
     }
   }
 
@@ -338,10 +350,10 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
               min={0}
               step={1}
               placeholder="Importe facturado"
-              {...register('partida_real')}
+              {...register('partida_real', { valueAsNumber: true })}
             />
             <p className="text-[11px] text-muted-foreground">
-              Importe real facturado. Dejar vacío si aún no se ha facturado.
+              Importe real a facturar. Dejar vacío si aún no se conoce.
             </p>
           </div>
 
@@ -385,10 +397,27 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
           )}
 
           <SheetFooter className="flex gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting}>
+            {isEditMode && (
+              <Button
+                type="button"
+                variant={confirmDelete ? 'destructive' : 'outline'}
+                size="sm"
+                onClick={handleDelete}
+                disabled={deleting || submitting}
+                className="gap-1.5 mr-auto"
+              >
+                {deleting ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                {confirmDelete ? '¿Eliminar OT y asignaciones?' : 'Eliminar'}
+              </Button>
+            )}
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitting || deleting}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={submitting} className="gap-1.5">
+            <Button type="submit" disabled={submitting || deleting} className="gap-1.5">
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {submitting ? 'Guardando...' : isEditMode ? 'Guardar cambios' : 'Crear OT'}
             </Button>

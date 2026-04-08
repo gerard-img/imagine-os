@@ -186,10 +186,34 @@ export async function getEmpresaById(id: string): Promise<Empresa | null> {
 
 // ── Proyectos ──
 
-export async function getProyectos(): Promise<Proyecto[]> {
-  return query<Proyecto>('proyectos', {
-    order: { column: 'titulo' },
-  })
+/**
+ * Por defecto excluye borrados. Incluye archivados (las otras páginas los necesitan).
+ * NOTA: el filtro de deleted_at requiere migración 046. Si la columna no existe aún,
+ * se devuelven todos (graceful fallback).
+ */
+export async function getProyectos(opciones?: { incluirEliminados?: boolean }): Promise<Proyecto[]> {
+  const supabase = await createClient()
+
+  if (opciones?.incluirEliminados) {
+    const { data, error } = await supabase.from('proyectos').select('*').order('titulo')
+    if (error) throw new Error(`Error consultando proyectos: ${error.message}`)
+    return (data ?? []) as Proyecto[]
+  }
+
+  // Intentar filtrar por deleted_at; si la columna no existe aún, fallback sin filtro
+  const { data, error } = await supabase.from('proyectos').select('*').is('deleted_at', null).order('titulo')
+  if (error?.message?.includes('does not exist')) {
+    const { data: fallback, error: err2 } = await supabase.from('proyectos').select('*').order('titulo')
+    if (err2) throw new Error(`Error consultando proyectos: ${err2.message}`)
+    return (fallback ?? []) as Proyecto[]
+  }
+  if (error) throw new Error(`Error consultando proyectos: ${error.message}`)
+  return (data ?? []) as Proyecto[]
+}
+
+/** Trae todos los proyectos incluyendo eliminados (para la vista de papelera). */
+export async function getProyectosConEliminados(): Promise<Proyecto[]> {
+  return getProyectos({ incluirEliminados: true })
 }
 
 export async function getProyectoById(id: string): Promise<Proyecto | null> {
@@ -204,10 +228,19 @@ export async function getProyectoById(id: string): Promise<Proyecto | null> {
 }
 
 export async function getProyectosByEmpresa(empresaId: string): Promise<Proyecto[]> {
-  return query<Proyecto>('proyectos', {
-    filters: [{ column: 'empresa_id', op: 'eq', value: empresaId }],
-    order: { column: 'created_at', ascending: false },
-  })
+  const supabase = await createClient()
+  let q = supabase.from('proyectos').select('*').eq('empresa_id', empresaId)
+
+  // Intentar filtrar por deleted_at si la columna existe
+  const { data, error } = await q.is('deleted_at', null).order('created_at', { ascending: false })
+  if (error?.message?.includes('does not exist')) {
+    const { data: fallback, error: err2 } = await supabase
+      .from('proyectos').select('*').eq('empresa_id', empresaId).order('created_at', { ascending: false })
+    if (err2) throw new Error(`Error consultando proyectos: ${err2.message}`)
+    return (fallback ?? []) as Proyecto[]
+  }
+  if (error) throw new Error(`Error consultando proyectos: ${error.message}`)
+  return (data ?? []) as Proyecto[]
 }
 
 export async function getProyectosDepartamentos(): Promise<ProyectoDepartamento[]> {

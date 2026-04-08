@@ -14,6 +14,11 @@ const asignacionItemSchema = z.object({
   porcentaje_ppto_tm: z.number().min(0).max(100),
 })
 
+const ordenUpdatesSchema = z.object({
+  porcentaje_ppto_mes: z.number().min(0).max(100),
+  partida_real: z.number().min(0).nullable(),
+})
+
 /**
  * Persiste todos los cambios de asignaciones de una OT:
  * - Inserta las nuevas (isNew: true)
@@ -24,6 +29,7 @@ export async function guardarAsignacionesOT(
   ordenId: string,
   asignaciones: unknown[],
   originalIds: string[],
+  rawOrdenUpdates?: unknown,
 ): Promise<ActionResult> {
   const parsed = z.array(asignacionItemSchema).safeParse(asignaciones)
   if (!parsed.success) {
@@ -67,7 +73,7 @@ export async function guardarAsignacionesOT(
     })
     if (error) {
       if (error.code === '23505') {
-        return { success: false, error: 'Una persona ya está asignada a esta OT' }
+        return { success: false, error: 'Esta persona ya tiene una asignación con la misma cuota en esta OT' }
       }
       return { success: false, error: `Error al crear asignación: ${error.message}` }
     }
@@ -87,7 +93,23 @@ export async function guardarAsignacionesOT(
     if (error) return { success: false, error: `Error al actualizar: ${error.message}` }
   }
 
+  // Persistir cambios de la OT (porcentaje_ppto_mes, partida_real)
+  if (rawOrdenUpdates) {
+    const parsedOT = ordenUpdatesSchema.safeParse(rawOrdenUpdates)
+    if (!parsedOT.success) return { success: false, error: 'Datos de OT inválidos' }
+
+    const { error } = await supabase
+      .from('ordenes_trabajo')
+      .update({
+        porcentaje_ppto_mes: parsedOT.data.porcentaje_ppto_mes,
+        partida_real: parsedOT.data.partida_real,
+      })
+      .eq('id', ordenId)
+    if (error) return { success: false, error: `Error al actualizar la OT: ${error.message}` }
+  }
+
   revalidatePath('/planificador')
   revalidatePath('/asignaciones')
+  revalidatePath('/ordenes-trabajo')
   return { success: true }
 }

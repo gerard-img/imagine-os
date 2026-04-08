@@ -45,7 +45,7 @@ export async function clonarOTsMes(
   // 1. Obtener las OTs de referencia
   const { data: otsRef, error: errRef } = await supabase
     .from('ordenes_trabajo')
-    .select('id, proyecto_id, departamento_id, servicio_id, titulo, porcentaje_ppto_mes, partida_prevista, aprobador_id, horas_planificadas')
+    .select('id, proyecto_id, departamento_id, servicio_id, titulo, porcentaje_ppto_mes, partida_prevista, aprobador_id, horas_planificadas, estado')
     .in('id', otIds)
     .is('deleted_at', null)
 
@@ -63,7 +63,7 @@ export async function clonarOTsMes(
   let omitidas = 0
 
   for (const ot of otsRef) {
-    const { error } = await supabase.from('ordenes_trabajo').insert({
+    const { data: nuevaOT, error } = await supabase.from('ordenes_trabajo').insert({
       proyecto_id: ot.proyecto_id,
       departamento_id: ot.departamento_id,
       servicio_id: ot.servicio_id,
@@ -73,17 +73,36 @@ export async function clonarOTsMes(
       partida_prevista: ot.partida_prevista,
       horas_planificadas: ot.horas_planificadas,
       aprobador_id: ot.aprobador_id,
-      estado: 'Propuesto',
+      estado: ot.estado === 'Propuesto' ? 'Propuesto' : 'Planificado',
       fecha_inicio: mesDestino,
       fecha_fin: fechaFin,
-    })
+    }).select('id').single()
 
     if (error && error.code !== '23505') {
       return { success: false, creadas, omitidas, error: `Error al crear OT: ${error.message}` }
     }
 
-    if (!error) creadas++
-    else omitidas++ // UNIQUE violation → ya existía
+    if (!error && nuevaOT) {
+      creadas++
+      // Copiar asignaciones de la OT de referencia
+      const { data: asigs } = await supabase
+        .from('asignaciones')
+        .select('persona_id, cuota_planificacion_id, porcentaje_ppto_tm')
+        .eq('orden_trabajo_id', ot.id)
+        .is('deleted_at', null)
+      if (asigs && asigs.length > 0) {
+        await supabase.from('asignaciones').insert(
+          asigs.map((a) => ({
+            orden_trabajo_id: nuevaOT.id,
+            persona_id: a.persona_id,
+            cuota_planificacion_id: a.cuota_planificacion_id,
+            porcentaje_ppto_tm: a.porcentaje_ppto_tm,
+          }))
+        )
+      }
+    } else {
+      omitidas++ // UNIQUE violation → ya existía
+    }
   }
 
   revalidatePath('/ordenes-trabajo')
@@ -150,14 +169,16 @@ export async function generarOTsProyectoMes(
 
   const { data: otsMesAnterior } = await supabase
     .from('ordenes_trabajo')
-    .select('departamento_id, estado')
+    .select('id, departamento_id, estado')
     .eq('proyecto_id', proyectoId)
     .eq('mes_anio', mesAnterior)
     .is('deleted_at', null)
 
   const estadoMesAnterior = new Map<string, string>()
+  const otIdMesAnterior = new Map<string, string>()
   for (const ot of otsMesAnterior ?? []) {
     estadoMesAnterior.set(ot.departamento_id, ot.estado)
+    otIdMesAnterior.set(ot.departamento_id, ot.id)
   }
 
   // 5. fecha_fin del mes
@@ -176,11 +197,11 @@ export async function generarOTsProyectoMes(
     if (deptoExiste.has(pd.departamento_id)) { omitidas++; continue }
 
     const estadoAnterior = estadoMesAnterior.get(pd.departamento_id)
-    const estadoNuevo = (estadoAnterior === 'Planificado' || estadoAnterior === 'Confirmado' || estadoAnterior === 'Facturado')
+    const estadoNuevo = (estadoAnterior === 'Planificado' || estadoAnterior === 'Realizado' || estadoAnterior === 'Confirmado' || estadoAnterior === 'Facturado')
       ? 'Planificado'
       : 'Propuesto'
 
-    const { error } = await supabase.from('ordenes_trabajo').insert({
+    const { data: nuevaOT, error } = await supabase.from('ordenes_trabajo').insert({
       proyecto_id: proyectoId,
       departamento_id: pd.departamento_id,
       servicio_id: null,
@@ -191,13 +212,35 @@ export async function generarOTsProyectoMes(
       estado: estadoNuevo,
       fecha_inicio: mes,
       fecha_fin: fechaFin,
-    })
+    }).select('id').single()
 
     if (error && error.code !== '23505') {
       return { success: false, creadas, omitidas, error: `Error al crear OT: ${error.message}` }
     }
-    if (!error) creadas++
-    else omitidas++
+    if (!error && nuevaOT) {
+      creadas++
+      // Copiar asignaciones de la OT del mes anterior (mismo departamento)
+      const otRefId = otIdMesAnterior.get(pd.departamento_id)
+      if (otRefId) {
+        const { data: asigs } = await supabase
+          .from('asignaciones')
+          .select('persona_id, cuota_planificacion_id, porcentaje_ppto_tm')
+          .eq('orden_trabajo_id', otRefId)
+          .is('deleted_at', null)
+        if (asigs && asigs.length > 0) {
+          await supabase.from('asignaciones').insert(
+            asigs.map((a) => ({
+              orden_trabajo_id: nuevaOT.id,
+              persona_id: a.persona_id,
+              cuota_planificacion_id: a.cuota_planificacion_id,
+              porcentaje_ppto_tm: a.porcentaje_ppto_tm,
+            }))
+          )
+        }
+      }
+    } else {
+      omitidas++
+    }
   }
 
   revalidatePath(`/proyectos/${proyectoId}`)

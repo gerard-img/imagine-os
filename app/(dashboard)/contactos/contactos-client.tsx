@@ -1,22 +1,41 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import type { ContactoEmpresa, Empresa } from '@/lib/supabase/types'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { FilterPills } from '@/components/filter-pills'
 import { StatusBadge } from '@/components/status-badge'
+import { SortControl } from '@/components/sortable-header'
+import { useTableState, sortData } from '@/hooks/use-table-state'
 import { Mail, Phone, Star, ShieldCheck } from 'lucide-react'
 import { ContactoFormSheet } from './contacto-form-sheet'
+
+const SORT_OPTIONS = [
+  { value: 'nombre', label: 'Nombre' },
+  { value: 'empresa', label: 'Empresa' },
+  { value: 'cargo', label: 'Cargo' },
+]
 
 type Props = {
   contactos: ContactoEmpresa[]
   empresas: Empresa[]
 }
 
-export function ContactosClient({ contactos, empresas }: Props) {
+export function ContactosClient(props: Props) {
+  return (
+    <Suspense>
+      <ContactosContent {...props} />
+    </Suspense>
+  )
+}
+
+function ContactosContent({ contactos, empresas }: Props) {
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'nombre', dir: 'asc' },
+  })
+  const empresaFilter = getParam('empresa', 'Todos')!
   const [search, setSearch] = useState('')
-  const [empresaFilter, setEmpresaFilter] = useState('Todos')
 
   const empresasMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
 
@@ -44,6 +63,15 @@ export function ContactosClient({ contactos, empresas }: Props) {
     return matchesSearch && matchesEmpresa
   })
 
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    nombre: (c) => `${c.nombre} ${c.apellidos ?? ''}`.toLowerCase(),
+    empresa: (c) => {
+      const emp = empresasMap.get(c.empresa_id)
+      return (emp?.nombre_interno ?? emp?.nombre_legal ?? '').toLowerCase()
+    },
+    cargo: (c) => (c.cargo ?? '').toLowerCase(),
+  }), [filtered, sortCol, sortDir, empresasMap])
+
   const totalContactos = contactos.length
   const activos = contactos.filter((c) => c.activo).length
   const decisores = contactos.filter((c) => c.es_decisor).length
@@ -63,17 +91,20 @@ export function ContactosClient({ contactos, empresas }: Props) {
 
       <div className="mt-5 flex items-center gap-3">
         <SearchBar placeholder="Buscar contacto, empresa o cargo..." value={search} onChange={setSearch} />
-        <FilterPills options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
-        <ContactoFormSheet empresas={empresas} />
+        <FilterPills options={empresaOptions} active={empresaFilter} onChange={(v) => setParams({ empresa: v === 'Todos' ? null : v })} />
+        <div className="ml-auto flex items-center gap-3">
+          <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
+          <ContactoFormSheet empresas={empresas} />
+        </div>
       </div>
 
       <div className="mt-4 space-y-2">
-        {filtered.length === 0 && (
+        {sorted.length === 0 && (
           <div className="rounded-xl bg-white p-8 text-center shadow-sm">
             <p className="text-sm text-muted-foreground">No se encontraron contactos con esos filtros.</p>
           </div>
         )}
-        {filtered.map((c) => {
+        {sorted.map((c) => {
           const empresa = empresasMap.get(c.empresa_id)
           const empName = empresa?.nombre_interno ?? empresa?.nombre_legal ?? '—'
 

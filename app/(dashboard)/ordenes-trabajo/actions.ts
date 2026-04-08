@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { ordenTrabajoSchema } from '@/lib/schemas/orden-trabajo'
+import { ordenTrabajoSchema, ESTADOS_OT } from '@/lib/schemas/orden-trabajo'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult = { success: boolean; id?: string; error?: string }
@@ -28,7 +28,7 @@ export async function crearOrdenTrabajo(formData: unknown): Promise<ActionResult
     titulo: data.titulo || null,
     porcentaje_ppto_mes: data.porcentaje_ppto_mes,
     partida_prevista: data.partida_prevista,
-    partida_real: data.partida_real ? parseFloat(data.partida_real) : null,
+    partida_real: data.partida_real,
     aprobador_id: data.aprobador_id,
     estado: data.estado,
     fecha_inicio: fechaInicio,
@@ -70,7 +70,7 @@ export async function actualizarOrdenTrabajo(id: string, formData: unknown): Pro
       titulo: data.titulo || null,
       porcentaje_ppto_mes: data.porcentaje_ppto_mes,
       partida_prevista: data.partida_prevista,
-      partida_real: data.partida_real ? parseFloat(data.partida_real) : null,
+      partida_real: data.partida_real,
       aprobador_id: data.aprobador_id,
       estado: data.estado,
       fecha_inicio: fechaInicio,
@@ -112,8 +112,9 @@ export async function confirmarOTsBulk(ids: string[]): Promise<ActionResult> {
 }
 
 const SIGUIENTE_ESTADO: Record<string, string> = {
-  'Propuesto':  'Planificado',
-  'Planificado': 'Confirmado',
+  'Propuesto':   'Planificado',
+  'Planificado': 'Realizado',
+  'Realizado':   'Confirmado',
   'Confirmado':  'Facturado',
 }
 
@@ -135,6 +136,87 @@ export async function avanzarEstadoOT(id: string): Promise<ActionResult> {
   const { error } = await supabase
     .from('ordenes_trabajo')
     .update({ estado: siguiente })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/ordenes-trabajo')
+  revalidatePath('/planificador')
+  revalidatePath('/proyectos')
+  revalidatePath('/cargas-trabajo')
+  return { success: true }
+}
+
+export async function asignarServicioOT(otId: string, servicioId: string): Promise<ActionResult> {
+  if (!servicioId) return { success: false, error: 'Selecciona un servicio' }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('ordenes_trabajo')
+    .update({ servicio_id: servicioId })
+    .eq('id', otId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/ordenes-trabajo')
+  revalidatePath('/planificador')
+  revalidatePath('/proyectos')
+  return { success: true }
+}
+
+export async function eliminarOrdenTrabajo(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const now = new Date().toISOString()
+
+  // Soft-delete de las asignaciones asociadas
+  const { error: errAsig } = await supabase
+    .from('asignaciones')
+    .update({ deleted_at: now })
+    .eq('orden_trabajo_id', id)
+    .is('deleted_at', null)
+
+  if (errAsig) return { success: false, error: `Error al eliminar asignaciones: ${errAsig.message}` }
+
+  // Soft-delete de la OT
+  const { error } = await supabase
+    .from('ordenes_trabajo')
+    .update({ deleted_at: now })
+    .eq('id', id)
+    .is('deleted_at', null)
+
+  if (error) return { success: false, error: `Error al eliminar la OT: ${error.message}` }
+
+  revalidatePath('/ordenes-trabajo')
+  revalidatePath('/planificador')
+  revalidatePath('/asignaciones')
+  revalidatePath('/cargas-trabajo')
+  revalidatePath('/proyectos')
+  return { success: true }
+}
+
+export async function cambiarEstadoOT(id: string, nuevoEstado: string): Promise<ActionResult> {
+  if (!ESTADOS_OT.includes(nuevoEstado as typeof ESTADOS_OT[number])) {
+    return { success: false, error: 'Estado no válido' }
+  }
+
+  const supabase = await createClient()
+
+  // Confirmado y Facturado requieren partida_real
+  if (nuevoEstado === 'Confirmado' || nuevoEstado === 'Facturado') {
+    const { data: ot } = await supabase
+      .from('ordenes_trabajo')
+      .select('partida_real')
+      .eq('id', id)
+      .single()
+
+    if (ot?.partida_real == null) {
+      return { success: false, error: 'Rellena la partida real antes de pasar a ' + nuevoEstado }
+    }
+  }
+
+  const { error } = await supabase
+    .from('ordenes_trabajo')
+    .update({ estado: nuevoEstado })
     .eq('id', id)
 
   if (error) return { success: false, error: error.message }

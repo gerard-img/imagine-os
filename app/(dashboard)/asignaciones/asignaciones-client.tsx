@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import Link from 'next/link'
 import { Pencil, AlertTriangle } from 'lucide-react'
 import { formatMoney } from '@/lib/helpers'
+import { useTableState, sortData } from '@/hooks/use-table-state'
+import { SortableHeader } from '@/components/sortable-header'
 import type { AsignacionRow } from './page'
 import type { OrdenTrabajo, Proyecto, Empresa, Persona, CuotaPlanificacion, Asignacion, CatalogoServicio, Departamento } from '@/lib/supabase/types'
 import { AsignacionFormSheet } from './asignacion-form-sheet'
@@ -34,14 +36,25 @@ interface AsignacionesClientProps {
   departamentos: Departamento[]
 }
 
-export function AsignacionesClient({
+export function AsignacionesClient(props: AsignacionesClientProps) {
+  return (
+    <Suspense>
+      <AsignacionesContent {...props} />
+    </Suspense>
+  )
+}
+
+function AsignacionesContent({
   rows, availableMonths,
   ordenesTrabajo, proyectos, empresas, personas, cuotas, asignaciones,
   servicios, departamentos,
 }: AsignacionesClientProps) {
-  const [month, setMonth] = useState(availableMonths[0])
+  const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
+    defaultSort: { col: 'proyectoTitulo', dir: 'asc' },
+  })
+  const month = getParam('mes', availableMonths[0])!
+  const servicioFilter = getParam('servicio', 'Todos')!
   const [search, setSearch] = useState('')
-  const [servicioFilter, setServicioFilter] = useState('Todos')
 
   // Unique servicios for filter pills
   const servicioOptions = useMemo(() => {
@@ -60,6 +73,18 @@ export function AsignacionesClient({
     const matchesServicio = servicioFilter === 'Todos' || r.servicioNombre === servicioFilter
     return matchesMonth && matchesSearch && matchesServicio
   })
+
+  // Aplicar ordenación
+  const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
+    proyectoTitulo: (r) => r.proyectoTitulo,
+    servicioNombre: (r) => r.servicioNombre,
+    personaNombre: (r) => r.personaNombre,
+    cuotaNombre: (r) => r.cuotaNombre,
+    porcentaje: (r) => r.porcentaje,
+    ingresosAsignados: (r) => r.ingresosAsignados,
+    ingresosReales: (r) => r.ingresosReales ?? 0,
+    horasDedicar: (r) => r.horasDedicar,
+  }), [filtered, sortCol, sortDir])
 
   // KPIs for filtered data
   const totalIngresos = filtered.reduce((sum, r) => sum + r.ingresosAsignados, 0)
@@ -86,7 +111,7 @@ export function AsignacionesClient({
             servicios={servicios}
             departamentos={departamentos}
           />
-          <MonthNavigator value={month} onChange={setMonth} />
+          <MonthNavigator value={month} onChange={(v) => setParams({ mes: v })} />
         </div>
       </div>
 
@@ -116,7 +141,7 @@ export function AsignacionesClient({
           value={search}
           onChange={setSearch}
         />
-        <FilterPills options={servicioOptions} active={servicioFilter} onChange={setServicioFilter} />
+        <FilterPills options={servicioOptions} active={servicioFilter} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
       </div>
 
       {/* Table */}
@@ -129,20 +154,20 @@ export function AsignacionesClient({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-xs uppercase text-muted-foreground">Proyecto</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Servicio</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Persona</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground">Cuota</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">%</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">Ingresos Asign.</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">Ingresos Reales</TableHead>
-                <TableHead className="text-xs uppercase text-muted-foreground text-right">Horas</TableHead>
+                <TableHead><SortableHeader label="Proyecto" column="proyectoTitulo" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="Servicio" column="servicioNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="Persona" column="personaNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="Cuota" column="cuotaNombre" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} /></TableHead>
+                <TableHead><SortableHeader label="%" column="porcentaje" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
+                <TableHead><SortableHeader label="Ingr. Asign." column="ingresosAsignados" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
+                <TableHead><SortableHeader label="Ingr. Reales" column="ingresosReales" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
+                <TableHead><SortableHeader label="Horas" column="horasDedicar" currentCol={sortCol} currentDir={sortDir} onToggle={toggleSort} align="right" /></TableHead>
                 <TableHead className="text-xs uppercase text-muted-foreground text-right">Carga</TableHead>
                 <TableHead className="w-8" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((r) => (
+              {sorted.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">
                     <Link href={`/proyectos/${r.proyectoId}`} className="hover:text-primary hover:underline transition-colors">
