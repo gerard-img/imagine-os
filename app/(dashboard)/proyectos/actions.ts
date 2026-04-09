@@ -19,7 +19,7 @@ function revalidateProyectos(id?: string) {
   revalidatePath('/ordenes-trabajo')
   revalidatePath('/asignaciones')
   revalidatePath('/cargas-trabajo')
-  revalidatePath('/informes')
+  revalidatePath('/datos')
 }
 
 // ── Archivar ──

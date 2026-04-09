@@ -6,7 +6,8 @@ import { useTableState } from '@/hooks/use-table-state'
 import type { SortDir } from '@/hooks/use-table-state'
 import { SortableHeader } from '@/components/sortable-header'
 import { formatMoney } from '@/lib/helpers'
-import { MonthNavigator } from '@/components/month-navigator'
+import { DateRangeSelector, generateMonthRange, rangoPrevioEquivalente, defaultDateRange } from '@/components/date-range-selector'
+import type { DateRange } from '@/components/date-range-selector'
 import { FilterPills } from '@/components/filter-pills'
 import {
   buildLookupMaps,
@@ -18,11 +19,9 @@ import {
   calcularConcentracionClientes,
   calcularHeatmapCarga,
   calcularSparklines,
-  mesAnterior,
   vistaCliente,
   vistaMes,
   vistaDepto,
-  detectarUltimoMesConDatos,
 } from '@/lib/helpers-informes'
 import type { FilaInforme, KpisInformes } from '@/lib/helpers-informes'
 import { GraficoIngresos } from './components/grafico-ingresos'
@@ -327,10 +326,12 @@ export function InformesClient({
   })
   const sortCol = (sortColRaw ?? 'ingresosReal') as SortColumn
 
-  const mesInicial = useMemo(() => detectarUltimoMesConDatos(ordenesTrabajo), [ordenesTrabajo])
+  // Rango de fechas por defecto: mes actual
+  const defaultRange = useMemo(() => defaultDateRange(), [])
 
   // Leer parámetros de la URL (con defaults)
-  const month = searchParams.get('mes') || mesInicial
+  const desde = searchParams.get('desde') || defaultRange.desde
+  const hasta = searchParams.get('hasta') || defaultRange.hasta
   const egFilter = searchParams.get('empresa') || 'Todos'
   const vistaTab = (searchParams.get('vista') as VistaTab) || 'cliente'
   const tipoProyecto = (searchParams.get('tipo') as TipoProyecto) || 'facturable'
@@ -339,7 +340,11 @@ export function InformesClient({
   // Estado puramente de UI (no va a la URL)
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
 
-  const setMonth = (v: string) => { setParams({ mes: v }); setExpandedKeys(new Set()) }
+  const setDateRange = (range: DateRange) => {
+    const isDefault = range.desde === defaultRange.desde && range.hasta === defaultRange.hasta
+    setParams({ desde: isDefault ? null : range.desde, hasta: isDefault ? null : range.hasta })
+    setExpandedKeys(new Set())
+  }
   const setEgFilter = (v: string) => { setParams({ empresa: v === 'Todos' ? null : v }); setExpandedKeys(new Set()) }
   const setVistaTab = (v: VistaTab) => { setParams({ vista: v === 'cliente' ? null : v }); setExpandedKeys(new Set()) }
   const setTipoProyecto = (v: TipoProyecto) => { setParams({ tipo: v === 'facturable' ? null : v }); setExpandedKeys(new Set()) }
@@ -361,13 +366,17 @@ export function InformesClient({
 
   const filtroEg = egFilter === 'Todos' ? null : egFilter
 
-  // Año extraído del mes seleccionado
-  const anio = useMemo(() => {
-    const d = new Date(month + 'T00:00:00')
-    return d.getFullYear()
-  }, [month])
+  // Meses del rango seleccionado
+  const mesesRango = useMemo(() => generateMonthRange(desde, hasta), [desde, hasta])
+  const esRangoUnico = mesesRango.length === 1
 
-  // Meses del año completo (para vistas temporales)
+  // Año del "desde" (para gráficos y heatmap que necesitan año completo)
+  const anio = useMemo(() => {
+    const d = new Date(desde + 'T00:00:00')
+    return d.getFullYear()
+  }, [desde])
+
+  // Meses del año completo (para gráficos de barras y heatmap)
   const mesesAnio = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
       const m = String(i + 1).padStart(2, '0')
@@ -375,85 +384,71 @@ export function InformesClient({
     })
   }, [anio])
 
-  // Filas crudas: mes único para vista cliente, año completo para vista mes/depto
-  const filasCrudasMes = useMemo(
-    () => buildFilasCrudas(asignaciones, maps, filtroEg, [month], tipoProyecto, estadoOT),
-    [asignaciones, maps, filtroEg, month, tipoProyecto, estadoOT],
+  // Filas crudas del rango seleccionado (para todas las vistas y KPIs)
+  const filasCrudasRango = useMemo(
+    () => buildFilasCrudas(asignaciones, maps, filtroEg, mesesRango, tipoProyecto, estadoOT),
+    [asignaciones, maps, filtroEg, mesesRango, tipoProyecto, estadoOT],
   )
 
-  const filasCrudasAnio = useMemo(
-    () => buildFilasCrudas(asignaciones, maps, filtroEg, mesesAnio, tipoProyecto, estadoOT),
-    [asignaciones, maps, filtroEg, mesesAnio, tipoProyecto, estadoOT],
+  // Horas trabajables del rango
+  const horasTrabRango = useMemo(
+    () => calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango),
+    [personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango],
   )
 
-  // Horas trabajables (mes único para KPIs, año completo para vistas temporales)
-  const horasTrabPorMes = useMemo(
-    () => calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, [month]),
-    [personas, personasDepartamentos, horasTrabajables, filtroEg, month],
+  const horasTrabDeptoRango = useMemo(
+    () => calcularHorasTrabajablesPorDepto(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango),
+    [personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango],
   )
 
-  const horasTrabPorMesAnio = useMemo(
-    () => calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesAnio),
-    [personas, personasDepartamentos, horasTrabajables, filtroEg, mesesAnio],
-  )
-
-  const horasTrabPorDepto = useMemo(
-    () => calcularHorasTrabajablesPorDepto(personas, personasDepartamentos, horasTrabajables, filtroEg, [month]),
-    [personas, personasDepartamentos, horasTrabajables, filtroEg, month],
-  )
-
-  const horasTrabPorDeptoAnio = useMemo(
-    () => calcularHorasTrabajablesPorDepto(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesAnio),
-    [personas, personasDepartamentos, horasTrabajables, filtroEg, mesesAnio],
-  )
-
-  // KPIs — siempre del mes seleccionado
+  // KPIs — del rango seleccionado
   const kpis = useMemo(
-    () => calcularKpis(filasCrudasMes, horasTrabPorMes),
-    [filasCrudasMes, horasTrabPorMes],
+    () => calcularKpis(filasCrudasRango, horasTrabRango),
+    [filasCrudasRango, horasTrabRango],
   )
 
-  // KPIs del mes anterior (para deltas comparativos)
-  const mesPrev = useMemo(() => mesAnterior(month), [month])
+  // KPIs del periodo anterior equivalente (para deltas comparativos)
+  const rangoPrev = useMemo(() => rangoPrevioEquivalente(desde, hasta), [desde, hasta])
+  const mesesPrev = useMemo(() => generateMonthRange(rangoPrev.desde, rangoPrev.hasta), [rangoPrev])
 
   const kpisPrev = useMemo(() => {
-    const filasPrev = buildFilasCrudas(asignaciones, maps, filtroEg, [mesPrev], tipoProyecto, estadoOT)
-    const htPrev = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, [mesPrev])
+    const filasPrev = buildFilasCrudas(asignaciones, maps, filtroEg, mesesPrev, tipoProyecto, estadoOT)
+    const htPrev = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesPrev)
     return calcularKpis(filasPrev, htPrev)
-  }, [asignaciones, maps, filtroEg, mesPrev, tipoProyecto, estadoOT, personas, personasDepartamentos, horasTrabajables])
+  }, [asignaciones, maps, filtroEg, mesesPrev, tipoProyecto, estadoOT, personas, personasDepartamentos, horasTrabajables])
 
-  // Heatmap departamento × mes
+  // Heatmap departamento × mes (año completo del "desde")
   const datosHeatmap = useMemo(
     () => calcularHeatmapCarga(asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filtroEg, anio, tipoProyecto, estadoOT),
     [asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filtroEg, anio, tipoProyecto, estadoOT],
   )
 
-  // Datos para gráficos
+  // Datos para gráficos (año completo del "desde")
   const datosMensuales = useMemo(
     () => calcularDatosMensualesBarras(asignaciones, maps, filtroEg, anio, tipoProyecto, estadoOT),
     [asignaciones, maps, filtroEg, anio, tipoProyecto, estadoOT],
   )
 
   const datosConcentracion = useMemo(
-    () => calcularConcentracionClientes(filasCrudasMes),
-    [filasCrudasMes],
+    () => calcularConcentracionClientes(filasCrudasRango),
+    [filasCrudasRango],
   )
 
-  // Sparklines de tendencia por cliente (últimos 6 meses)
+  // Sparklines de tendencia por cliente (últimos 6 meses desde el final del rango)
   const sparklinesPorCliente = useMemo(
-    () => calcularSparklines(asignaciones, maps, filtroEg, month, tipoProyecto, estadoOT, 'cliente'),
-    [asignaciones, maps, filtroEg, month, tipoProyecto, estadoOT],
+    () => calcularSparklines(asignaciones, maps, filtroEg, hasta, tipoProyecto, estadoOT, 'cliente'),
+    [asignaciones, maps, filtroEg, hasta, tipoProyecto, estadoOT],
   )
 
-  // Filas de la tabla según la vista
+  // Filas de la tabla según la vista — todas usan el rango seleccionado
   const filasTabla = useMemo(() => {
     let filas: FilaInforme[]
     if (vistaTab === 'cliente') {
-      filas = vistaCliente(filasCrudasMes, horasTrabPorMes, horasTrabPorDepto, sparklinesPorCliente)
+      filas = vistaCliente(filasCrudasRango, horasTrabRango, horasTrabDeptoRango, sparklinesPorCliente)
     } else if (vistaTab === 'mes') {
-      filas = vistaMes(filasCrudasAnio, horasTrabPorMesAnio, horasTrabPorDeptoAnio)
+      filas = vistaMes(filasCrudasRango, horasTrabRango, horasTrabDeptoRango)
     } else {
-      filas = vistaDepto(filasCrudasAnio, horasTrabPorMesAnio, horasTrabPorDeptoAnio)
+      filas = vistaDepto(filasCrudasRango, horasTrabRango, horasTrabDeptoRango)
     }
 
     // Ordenar nivel 0
@@ -469,14 +464,10 @@ export function InformesClient({
     })
 
     return filas
-  }, [filasCrudasMes, filasCrudasAnio, horasTrabPorMes, horasTrabPorMesAnio, horasTrabPorDepto, horasTrabPorDeptoAnio, vistaTab, sortCol, sortDir])
+  }, [filasCrudasRango, horasTrabRango, horasTrabDeptoRango, vistaTab, sortCol, sortDir, sparklinesPorCliente])
 
-  // Totales para fila sticky — deben coincidir con la vista activa
-  const kpisTabla = useMemo(() => {
-    if (vistaTab === 'cliente') return kpis
-    // Vistas mes/depto muestran año completo → totales del año
-    return calcularKpis(filasCrudasAnio, horasTrabPorMesAnio)
-  }, [vistaTab, kpis, filasCrudasAnio, horasTrabPorMesAnio])
+  // Totales para fila sticky — siempre del rango seleccionado
+  const kpisTabla = kpis
 
   const totales: FilaInforme = {
     key: '__totales__',
@@ -514,7 +505,7 @@ export function InformesClient({
             </span>
           </p>
         </div>
-        <MonthNavigator value={month} onChange={setMonth} />
+        <DateRangeSelector value={{ desde, hasta }} onChange={setDateRange} />
       </div>
 
       {/* Filtros */}
@@ -642,7 +633,7 @@ export function InformesClient({
       {/* Gráficos */}
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-5">
         <div className="lg:col-span-3">
-          <GraficoIngresos datos={datosMensuales} mesActual={month} />
+          <GraficoIngresos datos={datosMensuales} mesActual={hasta} />
         </div>
         <div className="lg:col-span-2">
           <GraficoConcentracion
@@ -655,7 +646,7 @@ export function InformesClient({
 
       {/* Heatmap de carga */}
       <div className="mt-5">
-        <HeatmapCarga datos={datosHeatmap} mesActual={month} />
+        <HeatmapCarga datos={datosHeatmap} mesActual={hasta} />
       </div>
 
       {/* Pestañas de vista */}
@@ -682,9 +673,9 @@ export function InformesClient({
           )
         })}
         <span className="ml-2 pb-2 text-[11px] text-muted-foreground">
-          {vistaTab === 'cliente'
-            ? `Datos del mes seleccionado`
-            : `Datos del año ${anio} completo`}
+          {esRangoUnico
+            ? 'Datos del mes seleccionado'
+            : `Datos de ${mesesRango.length} meses`}
         </span>
 
         {/* Expandir/colapsar todos */}

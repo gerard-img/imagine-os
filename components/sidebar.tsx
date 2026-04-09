@@ -56,7 +56,7 @@ const allSections: NavSection[] = [
     items: [
       { name: 'Dashboard Personal', href: '/dashboard-personal', icon: Home },
       { name: 'Cargas de Trabajo', href: '/cargas-trabajo', icon: Activity },
-      { name: 'Datos', href: '/informes', icon: BarChart3 },
+      { name: 'Datos', href: '/datos', icon: BarChart3 },
       { name: 'Informes', href: '/reportes', icon: ClipboardList },
     ],
   },

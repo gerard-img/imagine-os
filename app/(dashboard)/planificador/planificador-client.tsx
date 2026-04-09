@@ -676,9 +676,12 @@ function PlanificadorContent({
             return (
               <div key={ot.id} className="rounded-xl bg-white shadow-sm relative">
                 {/* ── Header ── */}
-                <button
+                <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() => toggleExpand(ot.id)}
-                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-muted/30 transition-colors"
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(ot.id) } }}
+                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-muted/30 transition-colors cursor-pointer"
                 >
                   {expanded ? (
                     <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -753,7 +756,7 @@ function PlanificadorContent({
                   <span className="text-[10px] text-muted-foreground shrink-0 w-16 text-right">
                     {proyecto?.tipo_partida ?? '—'}
                   </span>
-                </button>
+                </div>
 
                 {/* ── Expanded: Asignaciones ── */}
                 {expanded && (
