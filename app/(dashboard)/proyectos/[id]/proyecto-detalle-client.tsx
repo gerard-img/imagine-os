@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, ChevronRight, Pencil, Plus, Users } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Pencil, Plus, Users, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/kpi-card'
 import { UrgenciaIndicador } from '@/components/status-badge'
@@ -89,11 +89,22 @@ export function ProyectoDetalleClient({
   const totalPrevisto = ordenes.reduce((sum, o) => sum + o.partida_prevista, 0)
   const totalReal = ordenes.reduce((sum, o) => sum + (o.partida_real ?? 0), 0)
 
-  // OTs del mes seleccionado, agrupadas por departamento
+  // Suma de % ppto — Recurrente: OTs del mes seleccionado; Puntual: todas las OTs
+  const isPuntual = proyecto.tipo_partida === 'Puntual'
+  const sumaPctPpto = useMemo(() => {
+    const otsParaSumar = isPuntual ? ordenes : ordenes.filter((o) => o.mes_anio === mes)
+    return otsParaSumar.reduce((sum, o) => sum + (o.porcentaje_ppto_mes ?? 0), 0)
+  }, [ordenes, mes, isPuntual])
+
+  // OTs del mes seleccionado
   const ordenesMes = useMemo(
     () => ordenes.filter((o) => o.mes_anio === mes),
     [ordenes, mes]
   )
+
+  // KPIs del mes seleccionado
+  const mesPrevisto = ordenesMes.reduce((sum, o) => sum + o.partida_prevista, 0)
+  const mesReal = ordenesMes.reduce((sum, o) => sum + (o.partida_real ?? 0), 0)
 
   const ordenesPorDepto = useMemo(() => {
     const groups = new Map<string, OrdenTrabajo[]>()
@@ -195,12 +206,18 @@ export function ProyectoDetalleClient({
       </div>
 
       {/* KPIs */}
-      <div className="mt-5 grid grid-cols-4 gap-4">
-        <KpiCard label="Órdenes de trabajo" value={ordenes.length} borderColor="border-t-blue-500" />
-        <KpiCard label="Ppto. estimado" value={formatMoney(proyecto.ppto_estimado)} borderColor="border-t-primary" />
-        <KpiCard label="Previsto OTs" value={formatMoney(totalPrevisto)} borderColor="border-t-purple-500" />
-        <KpiCard label="Real OTs" value={formatMoney(totalReal)} borderColor="border-t-amber-500" />
-      </div>
+      {(() => {
+        const [y, m] = mes.split('-').map(Number)
+        const mesLabel = new Date(y, m - 1, 1).toLocaleDateString('es-ES', { month: 'short' }).replace('.', '')
+        return (
+          <div className="mt-5 grid grid-cols-4 gap-4">
+            <KpiCard label="Órdenes de trabajo" value={ordenes.length} subtitle={`${ordenesMes.length} en ${mesLabel}`} borderColor="border-t-blue-500" />
+            <KpiCard label="Ppto. estimado" value={formatMoney(proyecto.ppto_estimado)} subtitle={isPuntual ? 'Total proyecto' : 'Mensual'} borderColor="border-t-primary" />
+            <KpiCard label="Previsto OTs" value={formatMoney(totalPrevisto)} subtitle={`${mesLabel}: ${formatMoney(mesPrevisto)}`} borderColor="border-t-purple-500" />
+            <KpiCard label="Real OTs" value={formatMoney(totalReal)} subtitle={`${mesLabel}: ${formatMoney(mesReal)}`} borderColor="border-t-amber-500" />
+          </div>
+        )
+      })()}
 
       {/* Info cards */}
       <div className="mt-5 grid grid-cols-3 gap-4">
@@ -226,6 +243,15 @@ export function ProyectoDetalleClient({
               <dt className="text-muted-foreground">Partida</dt>
               <dd className="font-semibold">{proyecto.tipo_partida}</dd>
             </div>
+            {proyecto.responsable_id && (() => {
+              const responsable = personaMap.get(proyecto.responsable_id)
+              return responsable ? (
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Responsable</dt>
+                  <dd className="font-semibold">{responsable.persona}</dd>
+                </div>
+              ) : null
+            })()}
             {proyecto.tipo_facturacion && (
               <div className="flex justify-between">
                 <dt className="text-muted-foreground">Facturación</dt>
@@ -355,6 +381,18 @@ export function ProyectoDetalleClient({
           <MonthNavigator value={mes} onChange={setMes} />
         </div>
 
+        {/* Aviso suma % ≠ 100 */}
+        {ordenes.length > 0 && sumaPctPpto !== 100 && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+            <p className="text-xs text-amber-800">
+              La suma de % presupuesto de las OTs
+              {isPuntual ? ' del proyecto' : ` en ${mes.substring(0, 7)}`}
+              {' '}es <span className="font-semibold">{sumaPctPpto.toFixed(1)}%</span> (debería ser 100%).
+            </p>
+          </div>
+        )}
+
         {ordenes.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             No hay órdenes de trabajo para este proyecto todavía.
@@ -368,6 +406,14 @@ export function ProyectoDetalleClient({
             {[...ordenesPorDepto.entries()].map(([deptoId, ots]) => {
               const dept = departamentoMap.get(deptoId)
               const deptoTotal = ots.reduce((sum, o) => sum + o.partida_prevista, 0)
+              const deptoHoras = ots.reduce((sum, o) => {
+                const otAsigs = asignacionesPorOT.get(o.id) ?? []
+                return sum + otAsigs.reduce((s, a) => {
+                  const cuota = cuotaMap.get(a.cuota_planificacion_id)
+                  if (!cuota || cuota.precio_hora <= 0) return s
+                  return s + safeDivide(o.partida_prevista * (a.porcentaje_ppto_tm / 100), cuota.precio_hora)
+                }, 0)
+              }, 0)
 
               return (
                 <div key={deptoId}>
@@ -379,14 +425,30 @@ export function ProyectoDetalleClient({
                     <span className="text-xs font-semibold text-blue-600">
                       {formatMoney(deptoTotal)}
                     </span>
+                    {deptoHoras > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {Math.round(deptoHoras)}h plan.
+                      </span>
+                    )}
                     <div className="flex-1 border-t border-border/50" />
                   </div>
 
                   {/* OTs of this dept */}
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-fixed">
+                    <colgroup>
+                      <col className="w-[28%]" /> {/* Servicio */}
+                      <col className="w-[10%]" /> {/* % Ppto */}
+                      <col className="w-[12%]" /> {/* Prevista */}
+                      <col className="w-[12%]" /> {/* Real */}
+                      <col className="w-[8%]" />  {/* H. Plan. */}
+                      <col className="w-[8%]" />  {/* H. Real */}
+                      <col className="w-[14%]" /> {/* Estado */}
+                      <col className="w-[8%]" />  {/* Acciones */}
+                    </colgroup>
                     <thead>
                       <tr className="text-left text-xs uppercase text-muted-foreground">
                         <th className="pb-2 font-semibold">Servicio</th>
+                        <th className="pb-2 font-semibold text-right">%</th>
                         <th className="pb-2 font-semibold text-right">Prevista</th>
                         <th className="pb-2 font-semibold text-right">Real</th>
                         <th className="pb-2 font-semibold text-right">H. Plan.</th>
@@ -503,9 +565,12 @@ function OTRowWithAsignaciones({
               />
             )}
             {ot.titulo && (
-              <span className="text-[11px] text-muted-foreground">{ot.titulo}</span>
+              <span className="text-[11px] text-muted-foreground truncate">{ot.titulo}</span>
             )}
           </div>
+        </td>
+        <td className="py-2.5 text-right text-muted-foreground">
+          {ot.porcentaje_ppto_mes}%
         </td>
         <td className="py-2.5 text-right font-medium text-blue-600">
           {formatMoney(ot.partida_prevista)}
@@ -541,16 +606,15 @@ function OTRowWithAsignaciones({
         </td>
         <td className="py-2.5">
           <div className="flex items-center justify-end gap-1">
-            {/* Editar OT */}
             <OtFormSheet
               proyectos={proyectos}
               servicios={servicios}
               departamentos={departamentos}
               personas={personas}
               empresas={empresas}
+              ordenesTrabajo={ordenes}
               ot={ot}
             />
-            {/* Añadir Asignación a esta OT */}
             <AsignacionFormSheet
               ordenesTrabajo={ordenes}
               proyectos={proyectos}
@@ -595,17 +659,19 @@ function OTRowWithAsignaciones({
               </div>
             </td>
             <td className="py-1.5 text-right text-[11px] text-muted-foreground">
-              {formatMoney(ingresos)}
-            </td>
-            <td className="py-1.5 text-right text-[11px] text-muted-foreground">
               {a.porcentaje_ppto_tm}%
             </td>
+            <td className="py-1.5 text-right text-[11px] text-muted-foreground">
+              {formatMoney(ingresos)}
+            </td>
+            <td className="py-1.5" /> {/* Real — no aplica a asignación */}
             <td className="py-1.5 text-right text-[11px] text-muted-foreground">
               {horas.toFixed(1)}h
             </td>
             <td className="py-1.5 text-right text-[11px] font-medium text-emerald-600">
               {a.horas_reales != null ? `${a.horas_reales}h` : '—'}
             </td>
+            <td className="py-1.5" /> {/* Estado — no aplica */}
             <td className="py-1.5">
               <div className="flex items-center justify-end">
                 <AsignacionFormSheet

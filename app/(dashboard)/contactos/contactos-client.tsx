@@ -32,7 +32,7 @@ export function ContactosClient(props: Props) {
 
 function ContactosContent({ contactos, empresas }: Props) {
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
-    defaultSort: { col: 'nombre', dir: 'asc' },
+    defaultSort: { col: 'empresa', dir: 'asc' },
   })
   const empresaFilter = getParam('empresa', 'Todos')!
   const [search, setSearch] = useState('')

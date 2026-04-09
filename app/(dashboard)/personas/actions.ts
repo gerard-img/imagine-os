@@ -167,6 +167,97 @@ export async function actualizarDepartamentosPersona(
   return { success: true }
 }
 
+export async function archivarPersona(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('personas')
+    .update({ activo: false, fecha_baja: new Date().toISOString().slice(0, 10) })
+    .eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/personas')
+  revalidatePath('/planificador')
+  revalidatePath('/cargas-trabajo')
+  return { success: true }
+}
+
+export async function restaurarPersona(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('personas')
+    .update({ activo: true, fecha_baja: null })
+    .eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/personas')
+  revalidatePath('/planificador')
+  revalidatePath('/cargas-trabajo')
+  return { success: true }
+}
+
+export async function eliminarPersona(id: string): Promise<ActionResult> {
+  const supabase = await createClient()
+
+  // Verificar que no tenga dependencias
+  const { count: asigCount } = await supabase
+    .from('asignaciones')
+    .select('id', { count: 'exact', head: true })
+    .eq('persona_id', id)
+    .is('deleted_at', null)
+
+  if (asigCount && asigCount > 0) {
+    return { success: false, error: 'Esta persona tiene asignaciones. Archívala en su lugar.' }
+  }
+
+  const { count: otpCount } = await supabase
+    .from('ordenes_trabajo_personas')
+    .select('id', { count: 'exact', head: true })
+    .eq('persona_id', id)
+
+  if (otpCount && otpCount > 0) {
+    return { success: false, error: 'Esta persona está asignada a órdenes de trabajo. Archívala en su lugar.' }
+  }
+
+  // personas_departamentos tiene ON DELETE CASCADE, se borra solo
+  const { error } = await supabase
+    .from('personas')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    if (error.code === '23503') {
+      return { success: false, error: 'No se puede eliminar: tiene datos vinculados. Archívala en su lugar.' }
+    }
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath('/personas')
+  return { success: true }
+}
+
+export async function crearPuestoRapido(
+  empresaGrupoId: string,
+  nombre: string,
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  if (!nombre.trim()) return { success: false, error: 'El nombre es obligatorio' }
+  if (!empresaGrupoId) return { success: false, error: 'Selecciona una empresa primero' }
+
+  const codigo = nombre.trim().substring(0, 10).toUpperCase().replace(/\s+/g, '_')
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('puestos')
+    .insert({ empresa_grupo_id: empresaGrupoId, nombre: nombre.trim(), codigo })
+    .select('id')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') return { success: false, error: 'Ya existe un puesto con ese nombre' }
+    return { success: false, error: error.message }
+  }
+
+  revalidatePath('/personas')
+  revalidatePath('/puestos')
+  return { success: true, id: data.id }
+}
+
 export async function toggleInterinidad(personaId: string, valor: boolean): Promise<ActionResult> {
   const supabase = await createClient()
   const { error } = await supabase

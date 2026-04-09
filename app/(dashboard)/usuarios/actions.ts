@@ -7,8 +7,8 @@ import { revalidatePath } from 'next/cache'
 export type ActionResult = { success: boolean; error?: string }
 
 /**
- * Invitar usuario: crea cuenta auth con email de la persona y envía invitación.
- * Si la persona ya tiene auth_user_id, devuelve error.
+ * Invitar usuario: crea cuenta auth directamente con contraseña temporal.
+ * El usuario deberá usar "Reset password" para establecer su contraseña.
  */
 export async function invitarUsuario(personaId: string): Promise<ActionResult> {
   const supabase = await createClient()
@@ -24,19 +24,26 @@ export async function invitarUsuario(personaId: string): Promise<ActionResult> {
   if (persona.auth_user_id) return { success: false, error: 'Esta persona ya tiene cuenta de acceso' }
   if (!persona.email_corporativo) return { success: false, error: 'La persona no tiene email corporativo' }
 
-  // Crear usuario auth con invitación
   const admin = createAdminClient()
-  const { data: authUser, error: authErr } = await admin.auth.admin.inviteUserByEmail(
-    persona.email_corporativo,
-    { data: { persona_nombre: persona.persona } }
-  )
 
-  if (authErr) return { success: false, error: authErr.message }
+  // Crear cuenta con contraseña temporal
+  const tempPassword = `Tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
+    email: persona.email_corporativo,
+    password: tempPassword,
+    email_confirm: true,
+    user_metadata: { persona_nombre: persona.persona },
+  })
+
+  if (createErr || !created?.user) {
+    const detail = createErr ? `${createErr.message} (status: ${createErr.status}, code: ${(createErr as Record<string, unknown>).code ?? 'n/a'})` : 'Error al crear la cuenta'
+    return { success: false, error: detail }
+  }
 
   // Vincular auth_user_id a la persona
   const { error: linkErr } = await admin
     .from('personas')
-    .update({ auth_user_id: authUser.user.id })
+    .update({ auth_user_id: created.user.id })
     .eq('id', personaId)
 
   if (linkErr) return { success: false, error: `Usuario creado pero error al vincular: ${linkErr.message}` }

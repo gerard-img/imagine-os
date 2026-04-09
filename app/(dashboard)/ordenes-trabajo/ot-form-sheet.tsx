@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Plus, Loader2, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Loader2, Pencil, Trash2, AlertTriangle } from 'lucide-react'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { formatMoney } from '@/lib/helpers'
 
@@ -56,6 +56,7 @@ type Props = {
   departamentos: Departamento[]
   personas: Persona[]
   empresas: Empresa[]
+  ordenesTrabajo?: OrdenTrabajo[]
   preselectedProyectoId?: string
   // Edición: pasar la OT existente
   ot?: OrdenTrabajo
@@ -64,7 +65,7 @@ type Props = {
   onCreated?: (id: string) => void
 }
 
-export function OtFormSheet({ proyectos, servicios, departamentos, personas, empresas, preselectedProyectoId, ot, trigger, onCreated }: Props) {
+export function OtFormSheet({ proyectos, servicios, departamentos, personas, empresas, ordenesTrabajo = [], preselectedProyectoId, ot, trigger, onCreated }: Props) {
   const isEditMode = !!ot
   const [open, setOpen] = useState(false)
   const [serverError, setServerError] = useState('')
@@ -104,6 +105,7 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
 
   const selectedProyectoId = watch('proyecto_id')
   const porcentaje = watch('porcentaje_ppto_mes')
+  const mesAnio = watch('mes_anio')
 
   // Proyecto seleccionado → derivar empresa_grupo_id
   const selectedProyecto = useMemo(
@@ -116,6 +118,25 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
   const partidaCalculada = selectedProyecto && porcentaje > 0
     ? (selectedProyecto.ppto_estimado * porcentaje) / 100
     : 0
+
+  // Suma de % ppto de OTs hermanas (excluye la OT actual si estamos editando)
+  const sumaPctHermanas = useMemo(() => {
+    if (!selectedProyectoId || !selectedProyecto) return 0
+    const isPuntual = selectedProyecto.tipo_partida === 'Puntual'
+    return ordenesTrabajo
+      .filter((o) => {
+        if (o.proyecto_id !== selectedProyectoId) return false
+        if (o.deleted_at) return false
+        if (isEditMode && o.id === ot!.id) return false
+        // Recurrente: solo OTs del mismo mes
+        if (!isPuntual && mesAnio && o.mes_anio !== mesAnio) return false
+        return true
+      })
+      .reduce((sum, o) => sum + (o.porcentaje_ppto_mes ?? 0), 0)
+  }, [ordenesTrabajo, selectedProyectoId, selectedProyecto, mesAnio, isEditMode, ot])
+
+  const sumaPctTotal = sumaPctHermanas + (porcentaje || 0)
+  const sumaPctNoSuma100 = selectedProyectoId && selectedProyecto && sumaPctTotal !== 100
 
   // Filtrar servicios, departamentos y aprobadores por empresa_grupo del proyecto
   const serviciosFiltrados = useMemo(
@@ -340,6 +361,19 @@ export function OtFormSheet({ proyectos, servicios, departamentos, personas, emp
               <FieldError message={errors.partida_prevista?.message} />
             </div>
           </div>
+          {/* Aviso suma % ≠ 100 */}
+          {sumaPctNoSuma100 && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+              <p className="text-xs text-amber-800">
+                La suma de % presupuesto de las OTs de este proyecto
+                {selectedProyecto!.tipo_partida === 'Recurrente' && mesAnio
+                  ? ` en ${mesAnio.substring(0, 7)}`
+                  : ' (todas las OTs)'}
+                {' '}es <span className="font-semibold">{sumaPctTotal.toFixed(1)}%</span> (debería ser 100%).
+              </p>
+            </div>
+          )}
 
           {/* Partida real (facturación) */}
           <div className="space-y-1.5">

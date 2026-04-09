@@ -110,7 +110,7 @@ function OrdenesTrabajoContent({
 
   // ── URL params para filtros y sorting ──
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
-    defaultSort: { col: 'proyectoTitulo', dir: 'asc' },
+    defaultSort: { col: 'clienteNombre', dir: 'asc' },
   })
   const month = getParam('mes', availableMonths[0])!
   const estadoFilter = getParam('estado', 'Todos')!
@@ -249,6 +249,7 @@ function OrdenesTrabajoContent({
             departamentos={departamentos}
             personas={personas}
             empresas={empresas}
+            ordenesTrabajo={ordenesTrabajo}
             onCreated={(id) => setPendingOtId(id)}
           />
           <MonthNavigator value={month} onChange={handleMonthChange} />
@@ -382,6 +383,7 @@ function OrdenesTrabajoContent({
                         departamentos={departamentos}
                         personas={personas}
                         empresas={empresas}
+                        ordenesTrabajo={ordenesTrabajo}
                         ot={ordenesTrabajo.find((o) => o.id === r.id)}
                       />
                     </TableCell>

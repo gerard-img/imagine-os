@@ -50,7 +50,7 @@ function AsignacionesContent({
   servicios, departamentos,
 }: AsignacionesClientProps) {
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
-    defaultSort: { col: 'proyectoTitulo', dir: 'asc' },
+    defaultSort: { col: 'clienteNombre', dir: 'asc' },
   })
   const month = getParam('mes', availableMonths[0])!
   const servicioFilter = getParam('servicio', 'Todos')!
@@ -77,6 +77,7 @@ function AsignacionesContent({
   // Aplicar ordenación
   const sorted = useMemo(() => sortData(filtered, sortCol, sortDir, {
     proyectoTitulo: (r) => r.proyectoTitulo,
+    clienteNombre: (r) => r.clienteNombre,
     servicioNombre: (r) => r.servicioNombre,
     personaNombre: (r) => r.personaNombre,
     cuotaNombre: (r) => r.cuotaNombre,

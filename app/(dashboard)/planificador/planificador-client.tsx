@@ -67,6 +67,7 @@ type AsignacionLocal = {
 type OrdenLocal = {
   id: string
   porcentaje_ppto_mes: number
+  partida_prevista: number
   partida_real: number | null
 }
 
@@ -154,7 +155,7 @@ function PlanificadorContent({
   }, [initialMonth])
 
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
-    defaultSort: { col: 'proyecto', dir: 'asc' },
+    defaultSort: { col: 'cliente', dir: 'asc' },
   })
   const month = getParam('mes', defaultMonth)!
   const egFilter = getParam('eg', 'Todos')!
@@ -374,26 +375,35 @@ function PlanificadorContent({
     setAsignacionEdits((prev) => ({ ...prev, [ordenId]: [...current, newAsig] }))
   }
 
+  function initOrdenEdit(ordenId: string): OrdenLocal {
+    const ot = ordenesTrabajo.find((o) => o.id === ordenId)
+    return { id: ordenId, porcentaje_ppto_mes: ot?.porcentaje_ppto_mes ?? 0, partida_prevista: ot?.partida_prevista ?? 0, partida_real: ot?.partida_real ?? null }
+  }
+
   function updateOrdenPpto(ordenId: string, pct: number) {
     setOrdenEdits((prev) => {
-      const existing = prev[ordenId]
-      if (existing) {
-        return { ...prev, [ordenId]: { ...existing, porcentaje_ppto_mes: pct } }
-      }
-      const ot = ordenesTrabajo.find((o) => o.id === ordenId)
-      return { ...prev, [ordenId]: { id: ordenId, porcentaje_ppto_mes: pct, partida_real: ot?.partida_real ?? null } }
+      const existing = prev[ordenId] ?? initOrdenEdit(ordenId)
+      return { ...prev, [ordenId]: { ...existing, porcentaje_ppto_mes: pct } }
+    })
+  }
+
+  function updateOrdenPartidaPrevista(ordenId: string, val: number) {
+    setOrdenEdits((prev) => {
+      const existing = prev[ordenId] ?? initOrdenEdit(ordenId)
+      return { ...prev, [ordenId]: { ...existing, partida_prevista: val } }
     })
   }
 
   function updateOrdenPartidaReal(ordenId: string, val: number | null) {
     setOrdenEdits((prev) => {
-      const existing = prev[ordenId]
-      if (existing) {
-        return { ...prev, [ordenId]: { ...existing, partida_real: val } }
-      }
-      const ot = ordenesTrabajo.find((o) => o.id === ordenId)
-      return { ...prev, [ordenId]: { id: ordenId, porcentaje_ppto_mes: ot?.porcentaje_ppto_mes ?? 0, partida_real: val } }
+      const existing = prev[ordenId] ?? initOrdenEdit(ordenId)
+      return { ...prev, [ordenId]: { ...existing, partida_real: val } }
     })
+  }
+
+  function getOrdenPartidaPrevista(ot: OrdenTrabajo): number {
+    const edit = ordenEdits[ot.id]
+    return edit ? edit.partida_prevista : ot.partida_prevista
   }
 
   function getOrdenPartidaReal(ot: OrdenTrabajo): number | null {
@@ -408,7 +418,7 @@ function PlanificadorContent({
       .map((a) => a.id)
 
     const ordenUpdate = ordenEdits[ot.id]
-      ? { porcentaje_ppto_mes: ordenEdits[ot.id].porcentaje_ppto_mes, partida_real: ordenEdits[ot.id].partida_real }
+      ? { porcentaje_ppto_mes: ordenEdits[ot.id].porcentaje_ppto_mes, partida_prevista: ordenEdits[ot.id].partida_prevista, partida_real: ordenEdits[ot.id].partida_real }
       : undefined
 
     setSavingIds((prev) => new Set(prev).add(ot.id))
@@ -541,6 +551,7 @@ function PlanificadorContent({
             departamentos={departamentos}
             personas={personas}
             empresas={empresas}
+            ordenesTrabajo={ordenesTrabajo}
           />
           <MonthNavigator value={month} onChange={(v) => setParams({ mes: v })} />
         </div>
@@ -625,6 +636,7 @@ function PlanificadorContent({
                           departamentos={departamentos}
                           personas={personas}
                           empresas={empresas}
+                          ordenesTrabajo={ordenesTrabajo}
                           preselectedProyectoId={p.id}
                         />
                       )}
@@ -711,8 +723,15 @@ function PlanificadorContent({
                     <span className="text-[10px] text-muted-foreground">% ppto</span>
                   </span>
 
-                  <span className="text-sm font-semibold text-blue-600 shrink-0 w-24 text-right">
-                    {formatMoney(ot.partida_prevista)}
+                  <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <NumberInput
+                      min={0}
+                      step={1}
+                      value={getOrdenPartidaPrevista(ot)}
+                      onChange={(e) => updateOrdenPartidaPrevista(ot.id, Math.max(0, Number(e.target.value)))}
+                      className="w-20 text-blue-600"
+                    />
+                    <span className="text-[10px] text-muted-foreground">€</span>
                   </span>
 
                   {/* Editable partida real */}
@@ -770,7 +789,8 @@ function PlanificadorContent({
                       <div className="space-y-1">
                         {asignaciones.map((a) => {
                           const cuota = cuotasMap.get(a.cuota_planificacion_id)
-                          const ingresosAsignados = ot.partida_prevista * (a.porcentaje_ppto_tm / 100)
+                          const partidaPrev = getOrdenPartidaPrevista(ot)
+                          const ingresosAsignados = partidaPrev * (a.porcentaje_ppto_tm / 100)
                           const horasADedicar = safeDivide(ingresosAsignados, cuota?.precio_hora ?? 0)
                           const horasTrab = resolverHorasTrabajables(
                             a.persona_id, month, personasMap, personasDepartamentos, horasTrabajables
@@ -912,13 +932,13 @@ function PlanificadorContent({
                         <span />
                         <span className={`text-xs font-bold text-right ${pctColor}`}>{totalPctAsig}%</span>
                         <span className="text-xs font-bold text-blue-600 text-right">
-                          {formatMoney(asignaciones.reduce((sum, a) => sum + ot.partida_prevista * (a.porcentaje_ppto_tm / 100), 0))}
+                          {formatMoney(asignaciones.reduce((sum, a) => sum + getOrdenPartidaPrevista(ot) * (a.porcentaje_ppto_tm / 100), 0))}
                         </span>
                         <span className="text-xs font-bold text-right">
                           {Math.round(
                             asignaciones.reduce((sum, a) => {
                               const cuota = cuotasMap.get(a.cuota_planificacion_id)
-                              const ing = ot.partida_prevista * (a.porcentaje_ppto_tm / 100)
+                              const ing = getOrdenPartidaPrevista(ot) * (a.porcentaje_ppto_tm / 100)
                               return sum + safeDivide(ing, cuota?.precio_hora ?? 0)
                             }, 0)
                           )}h

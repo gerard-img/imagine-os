@@ -104,7 +104,7 @@ function ProyectosContent({
 }: Props) {
   const router = useRouter()
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
-    defaultSort: { col: 'titulo', dir: 'asc' },
+    defaultSort: { col: 'cliente', dir: 'asc' },
   })
 
   // ── Vista archivo ──

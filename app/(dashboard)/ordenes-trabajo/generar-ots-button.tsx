@@ -58,6 +58,23 @@ export function GenerarOtsButton({
     })
   }, [ordenesTrabajo, mesRef, deptoFilter, deptMap])
 
+  // OTs que ya existen en el mes destino → detectar duplicados
+  const otsDestinoKeys = useMemo(() => {
+    const keys = new Set<string>()
+    for (const ot of ordenesTrabajo) {
+      if (ot.mes_anio !== currentMonth || ot.deleted_at) continue
+      const key = `${ot.proyecto_id}|${ot.departamento_id}|${ot.servicio_id ?? ''}|${ot.titulo ?? ''}`
+      keys.add(key)
+    }
+    return keys
+  }, [ordenesTrabajo, currentMonth])
+
+  /** Devuelve true si esta OT de referencia ya tiene equivalente en el mes destino */
+  const yaExiste = (ot: OrdenTrabajo) => {
+    const key = `${ot.proyecto_id}|${ot.departamento_id}|${ot.servicio_id ?? ''}|${ot.titulo ?? ''}`
+    return otsDestinoKeys.has(key)
+  }
+
   // Agrupar OTs por proyecto para mostrar agrupado
   const otsPorProyecto = useMemo(() => {
     const groups = new Map<string, OrdenTrabajo[]>()
@@ -87,8 +104,8 @@ export function GenerarOtsButton({
   function handleOpen(next: boolean) {
     setOpen(next)
     if (next) {
-      // Al abrir, seleccionar todas las OTs por defecto
-      setSelectedIds(new Set(otsReferencia.map((ot) => ot.id)))
+      // Al abrir, seleccionar solo las OTs que NO existen ya en el mes destino
+      setSelectedIds(new Set(otsReferencia.filter((ot) => !yaExiste(ot)).map((ot) => ot.id)))
       setResult(null)
       setError('')
     }
@@ -175,6 +192,18 @@ export function GenerarOtsButton({
             </p>
           ) : (
             <>
+              {/* Aviso de OTs que ya existen en el mes destino */}
+              {otsReferencia.some((ot) => yaExiste(ot)) && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-800">
+                    {otsReferencia.filter((ot) => yaExiste(ot)).length} OT{otsReferencia.filter((ot) => yaExiste(ot)).length !== 1 ? 's' : ''} ya
+                    {otsReferencia.filter((ot) => yaExiste(ot)).length !== 1 ? ' existen' : ' existe'} en {mesDestinoLabel} (mismo proyecto, departamento, servicio y título).
+                    Se han deseleccionado automáticamente.
+                  </p>
+                </div>
+              )}
+
               {/* Seleccionar/deseleccionar todos */}
               <label className="flex items-center gap-2 cursor-pointer text-sm font-medium text-muted-foreground border-b border-border pb-2">
                 <input
@@ -226,6 +255,7 @@ export function GenerarOtsButton({
                     <div className="divide-y divide-border">
                       {ots.map((ot) => {
                         const checked = selectedIds.has(ot.id)
+                        const existe = yaExiste(ot)
                         const depto = deptMap.get(ot.departamento_id)
                         const servicio = ot.servicio_id ? servicioMap.get(ot.servicio_id) : null
 
@@ -233,7 +263,7 @@ export function GenerarOtsButton({
                           <label
                             key={ot.id}
                             className={`flex items-center gap-3 px-3 py-2 pl-9 cursor-pointer transition-colors ${
-                              checked ? 'bg-primary/5' : 'hover:bg-gray-50/50'
+                              existe ? 'bg-amber-50/60 opacity-60' : checked ? 'bg-primary/5' : 'hover:bg-gray-50/50'
                             }`}
                           >
                             <input
@@ -252,6 +282,11 @@ export function GenerarOtsButton({
                               {ot.titulo && (
                                 <span className="text-xs text-muted-foreground truncate">
                                   {ot.titulo}
+                                </span>
+                              )}
+                              {existe && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 shrink-0">
+                                  Ya existe
                                 </span>
                               )}
                             </div>

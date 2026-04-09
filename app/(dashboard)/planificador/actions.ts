@@ -16,6 +16,7 @@ const asignacionItemSchema = z.object({
 
 const ordenUpdatesSchema = z.object({
   porcentaje_ppto_mes: z.number().min(0).max(100),
+  partida_prevista: z.number().min(0),
   partida_real: z.number().min(0).nullable(),
 })
 
@@ -102,6 +103,7 @@ export async function guardarAsignacionesOT(
       .from('ordenes_trabajo')
       .update({
         porcentaje_ppto_mes: parsedOT.data.porcentaje_ppto_mes,
+        partida_prevista: parsedOT.data.partida_prevista,
         partida_real: parsedOT.data.partida_real,
       })
       .eq('id', ordenId)

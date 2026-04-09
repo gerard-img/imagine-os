@@ -499,7 +499,7 @@ export function InformesClient({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Informes</h1>
+          <h1 className="text-xl font-bold text-foreground">Datos</h1>
           <p className="mt-0.5 text-sm text-muted-foreground flex items-center gap-1.5">
             Análisis de ingresos, carga y concentración por cliente, mes y departamento
             <span className="group relative">

@@ -26,11 +26,11 @@ import type {
 import { formatMoney, formatDate, safeDivide } from '@/lib/helpers'
 import { StatusBadge } from '@/components/status-badge'
 import { MonthNavigator } from '@/components/month-navigator'
-import { ArrowLeft, Mail, Phone, ExternalLink, Globe } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, ExternalLink, Globe, Archive, ArchiveRestore, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PersonaDeptSheet } from '../persona-dept-sheet'
 import { PersonaFormSheet } from '../persona-form-sheet'
-import { toggleInterinidad } from '../actions'
+import { toggleInterinidad, archivarPersona, restaurarPersona, eliminarPersona } from '../actions'
 
 type Props = {
   persona: Persona
@@ -94,6 +94,39 @@ export function PersonaDetalleClient({
 }: Props) {
   const router = useRouter()
   const [mes, setMes] = useState('2026-01-01')
+  const [actionLoading, setActionLoading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+
+  async function handleArchivar() {
+    setActionLoading(true)
+    setActionError(null)
+    const result = await archivarPersona(persona.id)
+    if (!result.success) setActionError(result.error ?? 'Error al archivar')
+    setActionLoading(false)
+  }
+
+  async function handleRestaurar() {
+    setActionLoading(true)
+    setActionError(null)
+    const result = await restaurarPersona(persona.id)
+    if (!result.success) setActionError(result.error ?? 'Error al restaurar')
+    setActionLoading(false)
+  }
+
+  async function handleEliminar() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setActionLoading(true)
+    setActionError(null)
+    setConfirmDelete(false)
+    const result = await eliminarPersona(persona.id)
+    if (result.success) {
+      router.push('/personas')
+    } else {
+      setActionError(result.error ?? 'Error al eliminar')
+      setActionLoading(false)
+    }
+  }
 
   // Lookup maps
   const egMap = useMemo(() => new Map(empresasGrupo.map((e) => [e.id, e])), [empresasGrupo])
@@ -218,8 +251,50 @@ export function PersonaDetalleClient({
             personasDepts={personasDepts}
             persona={persona}
           />
+          {actionLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          ) : persona.activo ? (
+            <>
+              <Button variant="outline" size="sm" onClick={handleArchivar} className="gap-1.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50">
+                <Archive className="h-3.5 w-3.5" />
+                Archivar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEliminar}
+                className={`gap-1.5 ${confirmDelete ? 'text-red-700 bg-red-100 border-red-300' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {confirmDelete ? 'Confirmar' : 'Eliminar'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" size="sm" onClick={handleRestaurar} className="gap-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50">
+                <ArchiveRestore className="h-3.5 w-3.5" />
+                Restaurar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEliminar}
+                className={`gap-1.5 ${confirmDelete ? 'text-red-700 bg-red-100 border-red-300' : 'text-red-600 hover:text-red-700 hover:bg-red-50'}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                {confirmDelete ? 'Confirmar' : 'Eliminar'}
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Error de acción */}
+      {actionError && (
+        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
 
       {/* Row 1: 3 info cards */}
       <div className="mt-5 grid grid-cols-3 gap-4">

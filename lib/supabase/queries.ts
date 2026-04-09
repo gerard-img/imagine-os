@@ -106,7 +106,7 @@ export async function getRoles(): Promise<Rol[]> {
 }
 
 export async function getRangosInternos(): Promise<RangoInterno[]> {
-  return query<RangoInterno>('rangos_internos', { order: { column: 'nombre' } })
+  return query<RangoInterno>('rangos_internos', { order: { column: 'orden' } })
 }
 
 export async function getPuestos(): Promise<Puesto[]> {

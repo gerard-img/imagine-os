@@ -25,6 +25,8 @@ import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { PersonaFormSheet } from './persona-form-sheet'
+import { archivarPersona, restaurarPersona, eliminarPersona } from './actions'
+import { Archive, ArchiveRestore, Trash2, Loader2 } from 'lucide-react'
 
 interface PersonasClientProps {
   personas: Persona[]
@@ -139,7 +141,11 @@ function PersonasContent({
   const rolFilter = getParam('rol', 'Todos')!
   const divisionFilter = getParam('division', 'Todos')!
   const empresaFilter = getParam('empresa', 'Todos')!
+  const vistaFilter = (getParam('vista', 'activos') as 'activos' | 'archivados')
   const [search, setSearch] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   // Build lookup maps for efficient access
   const deptsMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
@@ -218,6 +224,10 @@ function PersonasContent({
   const empresaOptions = useMemo(() => ['Todos', ...empresasGrupo.map((e) => e.codigo)], [empresasGrupo])
 
   const filtered = personas.filter((p) => {
+    // Filtro activos/archivados
+    if (vistaFilter === 'activos' && !p.activo) return false
+    if (vistaFilter === 'archivados' && p.activo) return false
+
     const q = search.toLowerCase()
     const matchesSearch =
       !search ||
@@ -236,7 +246,34 @@ function PersonasContent({
     horas: (p) => getHorasTotales(p.id),
   }), [filtered, sortCol, sortDir, empresasGrupoMap, getHorasTotales])
 
+  async function handleArchivar(id: string) {
+    setActionLoading(id)
+    setActionError(null)
+    const result = await archivarPersona(id)
+    if (!result.success) setActionError(result.error ?? 'Error al archivar')
+    setActionLoading(null)
+  }
+
+  async function handleRestaurar(id: string) {
+    setActionLoading(id)
+    setActionError(null)
+    const result = await restaurarPersona(id)
+    if (!result.success) setActionError(result.error ?? 'Error al restaurar')
+    setActionLoading(null)
+  }
+
+  async function handleEliminar(id: string) {
+    if (confirmDeleteId !== id) { setConfirmDeleteId(id); return }
+    setActionLoading(id)
+    setActionError(null)
+    setConfirmDeleteId(null)
+    const result = await eliminarPersona(id)
+    if (!result.success) setActionError(result.error ?? 'Error al eliminar')
+    setActionLoading(null)
+  }
+
   const activos = personas.filter((p) => p.activo).length
+  const archivados = personas.filter((p) => !p.activo).length
   const clientesVinculados = new Set(
     asignaciones
       .map((a) => {
@@ -262,8 +299,39 @@ function PersonasContent({
         <KpiCard label="Horas totales" value={`${Math.round(horasTotales)}h`} borderColor="border-t-primary" />
       </div>
 
+      {/* Vista toggle */}
+      <div className="mt-5 flex items-center gap-2">
+        <button
+          onClick={() => setParams({ vista: null })}
+          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+            vistaFilter === 'activos'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
+        >
+          Activos ({activos})
+        </button>
+        <button
+          onClick={() => setParams({ vista: 'archivados' })}
+          className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+            vistaFilter === 'archivados'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
+          }`}
+        >
+          Archivados ({archivados})
+        </button>
+      </div>
+
+      {/* Error global */}
+      {actionError && (
+        <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
+
       {/* Search + Filters + Action */}
-      <div className="mt-5 flex flex-wrap items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <div className="w-56">
           <SearchBar placeholder="Buscar miembro..." value={search} onChange={setSearch} />
         </div>
@@ -296,48 +364,99 @@ function PersonasContent({
           const puesto = puestosMap.get(p.puesto_id)
           const clientes = getClientesAsignados(p.id)
           const horas = getHorasTotales(p.id)
+          const isLoading = actionLoading === p.id
 
           return (
-            <Link
-              href={`/personas/${p.id}`}
+            <div
               key={p.id}
-              className="flex items-start justify-between rounded-xl bg-white px-5 py-4 shadow-sm border border-transparent hover:border-primary/20 transition-colors cursor-pointer"
+              className="flex items-start justify-between rounded-xl bg-white px-5 py-4 shadow-sm border border-transparent hover:border-primary/20 transition-colors"
             >
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-bold text-foreground">{p.persona}</p>
-                  {depts.map((d) => (
-                    <span key={d.departamento.id} className="flex items-center gap-0.5">
-                      <DeptPill name={d.departamento.nombre} />
-                      {d.porcentaje_tiempo < 100 && (
-                        <span className="text-[10px] text-muted-foreground">{d.porcentaje_tiempo}%</span>
-                      )}
-                    </span>
-                  ))}
-                  {puesto && (
-                    <span className="text-xs text-muted-foreground">{puesto.nombre}</span>
-                  )}
-                </div>
-                {clientes.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {clientes.map((c) => (
-                      <span
-                        key={c}
-                        className="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700"
-                      >
-                        {c.toUpperCase()}
+              <Link href={`/personas/${p.id}`} className="flex-1 min-w-0 cursor-pointer">
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-foreground">{p.persona}</p>
+                    {depts.map((d) => (
+                      <span key={d.departamento.id} className="flex items-center gap-0.5">
+                        <DeptPill name={d.departamento.nombre} />
+                        {d.porcentaje_tiempo < 100 && (
+                          <span className="text-[10px] text-muted-foreground">{d.porcentaje_tiempo}%</span>
+                        )}
                       </span>
                     ))}
+                    {puesto && (
+                      <span className="text-xs text-muted-foreground">{puesto.nombre}</span>
+                    )}
                   </div>
-                )}
+                  {clientes.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {clientes.map((c) => (
+                        <span
+                          key={c}
+                          className="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700"
+                        >
+                          {c.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </Link>
+              <div className="flex items-center gap-2 shrink-0 ml-3">
+                <div className="flex flex-col items-end gap-1">
+                  <StatusBadge status={p.activo ? 'Activo' : 'Inactivo'} />
+                  {horas > 0 && (
+                    <span className="text-xs font-semibold text-muted-foreground">{Math.round(horas)}h</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : p.activo ? (
+                    <>
+                      <button
+                        onClick={() => handleArchivar(p.id)}
+                        className="rounded p-1.5 text-muted-foreground hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                        title="Archivar persona"
+                      >
+                        <Archive className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleEliminar(p.id)}
+                        className={`rounded p-1.5 transition-colors ${
+                          confirmDeleteId === p.id
+                            ? 'text-red-700 bg-red-100'
+                            : 'text-muted-foreground hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title={confirmDeleteId === p.id ? 'Clic de nuevo para confirmar' : 'Eliminar persona'}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleRestaurar(p.id)}
+                        className="rounded p-1.5 text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                        title="Restaurar persona"
+                      >
+                        <ArchiveRestore className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleEliminar(p.id)}
+                        className={`rounded p-1.5 transition-colors ${
+                          confirmDeleteId === p.id
+                            ? 'text-red-700 bg-red-100'
+                            : 'text-muted-foreground hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title={confirmDeleteId === p.id ? 'Clic de nuevo para confirmar' : 'Eliminar persona'}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col items-end gap-1">
-                <StatusBadge status={p.activo ? 'Activo' : 'Inactivo'} />
-                {horas > 0 && (
-                  <span className="text-xs font-semibold text-muted-foreground">{Math.round(horas)}h</span>
-                )}
-              </div>
-            </Link>
+            </div>
           )
         })}
       </div>

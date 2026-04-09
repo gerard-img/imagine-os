@@ -19,6 +19,7 @@ export type AsignacionRow = {
   mes: string
   proyectoId: string
   proyectoTitulo: string
+  clienteNombre: string
   servicioNombre: string
   personaNombre: string
   cuotaNombre: string
@@ -75,6 +76,7 @@ export default async function AsignacionesPage() {
   const proyectoMap = new Map(proyectos.map((p) => [p.id, p]))
   const servicioMap = new Map(servicios.map((s) => [s.id, s]))
   const cuotaMap = new Map(cuotas.map((c) => [c.id, c]))
+  const empresaMap = new Map(empresas.map((e) => [e.id, e]))
 
   // Build enriched rows
   const rows: AsignacionRow[] = asignaciones.map((a) => {
@@ -96,6 +98,10 @@ export default async function AsignacionesPage() {
       mes: orden?.mes_anio ?? '',
       proyectoId: orden?.proyecto_id ?? '',
       proyectoTitulo: proyecto?.titulo ?? '',
+      clienteNombre: (() => {
+        const emp = proyecto?.empresa_id ? empresaMap.get(proyecto.empresa_id) : null
+        return emp?.nombre_interno ?? emp?.nombre_legal ?? 'Interno'
+      })(),
       servicioNombre: servicio?.nombre ?? '',
       personaNombre: persona?.persona ?? '',
       cuotaNombre: cuota?.nombre ?? '—',

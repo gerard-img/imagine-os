@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { personaSchema, type PersonaFormData, MODALIDADES_TRABAJO, NIVELES_INGLES } from '@/lib/schemas/persona'
-import { crearPersona, actualizarPersona } from './actions'
+import { crearPersona, actualizarPersona, crearPuestoRapido } from './actions'
 import type {
   EmpresaGrupo, Rol, Division, Puesto, RangoInterno, Ciudad, Oficina, Persona,
   Departamento, PersonaDepartamento,
@@ -72,6 +72,10 @@ export function PersonaFormSheet({
   const [open, setOpen] = useState(false)
   const [serverError, setServerError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [creandoPuesto, setCreandoPuesto] = useState(false)
+  const [nuevoPuestoNombre, setNuevoPuestoNombre] = useState('')
+  const [puestoError, setPuestoError] = useState('')
+  const [puestosLocales, setPuestosLocales] = useState<Puesto[]>([])
 
   const currentDepts = isEditMode
     ? personasDepts
@@ -127,9 +131,10 @@ export function PersonaFormSheet({
   const egId = watch('empresa_grupo_id')
   const deptEntries = watch('departamentos')
 
+  const todosPuestos = useMemo(() => [...puestos, ...puestosLocales], [puestos, puestosLocales])
   const puestosFiltrados = useMemo(
-    () => egId ? puestos.filter((p) => p.empresa_grupo_id === egId) : puestos,
-    [puestos, egId]
+    () => egId ? todosPuestos.filter((p) => p.empresa_grupo_id === egId) : todosPuestos,
+    [todosPuestos, egId]
   )
   const rangosFiltrados = useMemo(
     () => egId ? rangos.filter((r) => r.empresa_grupo_id === egId) : rangos,
@@ -265,7 +270,16 @@ export function PersonaFormSheet({
             <div className="space-y-1.5">
               <Label>Rol *</Label>
               <SearchableSelect
-                options={roles.map((r) => ({ value: r.id, label: r.nombre }))}
+                options={(() => {
+                  const ORDEN_ROLES = ['Miembro', 'Responsable', 'Coordinador', 'Intern', 'Externo', 'Implant', 'Director', 'Administrador', 'Socio', 'Fundador']
+                  return [...roles]
+                    .sort((a, b) => {
+                      const ia = ORDEN_ROLES.indexOf(a.nombre)
+                      const ib = ORDEN_ROLES.indexOf(b.nombre)
+                      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
+                    })
+                    .map((r) => ({ value: r.id, label: r.nombre }))
+                })()}
                 placeholder="Seleccionar..."
                 value={watch('rol_id')}
                 onChange={(v) => setValue('rol_id', v, { shouldValidate: true })}
@@ -289,15 +303,78 @@ export function PersonaFormSheet({
           {/* Puesto + Rango */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Puesto *</Label>
-              <SearchableSelect
-                options={puestosFiltrados.map((p) => ({ value: p.id, label: p.nombre }))}
-                placeholder={egId ? 'Seleccionar...' : 'Elige empresa primero'}
-                value={watch('puesto_id')}
-                onChange={(v) => setValue('puesto_id', v, { shouldValidate: true })}
-                error={!!errors.puesto_id}
-                disabled={!egId}
-              />
+              <div className="flex items-center justify-between">
+                <Label>Puesto *</Label>
+                {egId && !creandoPuesto && (
+                  <button
+                    type="button"
+                    onClick={() => { setCreandoPuesto(true); setPuestoError('') }}
+                    className="text-[11px] font-medium text-primary hover:underline"
+                  >
+                    + Crear puesto
+                  </button>
+                )}
+              </div>
+              {creandoPuesto ? (
+                <div className="flex gap-1.5">
+                  <Input
+                    value={nuevoPuestoNombre}
+                    onChange={(e) => setNuevoPuestoNombre(e.target.value)}
+                    placeholder="Nombre del puesto"
+                    className="flex-1"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') { setCreandoPuesto(false); setNuevoPuestoNombre('') }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!nuevoPuestoNombre.trim()}
+                    onClick={async () => {
+                      setPuestoError('')
+                      const res = await crearPuestoRapido(egId, nuevoPuestoNombre)
+                      if (res.success && res.id) {
+                        const nuevo: Puesto = {
+                          id: res.id,
+                          empresa_grupo_id: egId,
+                          nombre: nuevoPuestoNombre.trim(),
+                          codigo: nuevoPuestoNombre.trim().substring(0, 10).toUpperCase().replace(/\s+/g, '_'),
+                          descripcion: null,
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString(),
+                        }
+                        setPuestosLocales((prev) => [...prev, nuevo])
+                        setValue('puesto_id', res.id, { shouldValidate: true })
+                        setCreandoPuesto(false)
+                        setNuevoPuestoNombre('')
+                      } else {
+                        setPuestoError(res.error ?? 'Error al crear')
+                      }
+                    }}
+                  >
+                    Crear
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setCreandoPuesto(false); setNuevoPuestoNombre(''); setPuestoError('') }}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              ) : (
+                <SearchableSelect
+                  options={puestosFiltrados.map((p) => ({ value: p.id, label: p.nombre }))}
+                  placeholder={egId ? 'Seleccionar...' : 'Elige empresa primero'}
+                  value={watch('puesto_id')}
+                  onChange={(v) => setValue('puesto_id', v, { shouldValidate: true })}
+                  error={!!errors.puesto_id}
+                  disabled={!egId}
+                />
+              )}
+              {puestoError && <p className="text-xs text-destructive">{puestoError}</p>}
               <FieldError message={errors.puesto_id?.message} />
             </div>
             <div className="space-y-1.5">

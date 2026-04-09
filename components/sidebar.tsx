@@ -52,11 +52,12 @@ const allSections: NavSection[] = [
     ],
   },
   {
-    label: 'DATOS',
+    label: 'MANDOS',
     items: [
       { name: 'Dashboard Personal', href: '/dashboard-personal', icon: Home },
       { name: 'Cargas de Trabajo', href: '/cargas-trabajo', icon: Activity },
-      { name: 'Informes', href: '/informes', icon: BarChart3 },
+      { name: 'Datos', href: '/informes', icon: BarChart3 },
+      { name: 'Informes', href: '/reportes', icon: ClipboardList },
     ],
   },
   {
@@ -108,6 +109,14 @@ const allSections: NavSection[] = [
           { name: 'Cuotas Planificación', href: '/cuotas-por-rango', icon: Settings },
           { name: 'Departamentos', href: '/departamentos-config', icon: Network },
           { name: 'Horas Trabajables', href: '/horas-trabajables', icon: Clock },
+        ],
+      },
+      {
+        name: 'App',
+        href: '/usuarios',
+        icon: Shield,
+        children: [
+          { name: 'Usuarios', href: '/usuarios', icon: KeyRound },
           { name: 'Roles', href: '/roles-sistema', icon: Shield },
         ],
       },
