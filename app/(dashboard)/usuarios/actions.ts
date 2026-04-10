@@ -36,7 +36,7 @@ export async function invitarUsuario(personaId: string): Promise<ActionResult> {
   })
 
   if (createErr || !created?.user) {
-    const detail = createErr ? `${createErr.message} (status: ${createErr.status}, code: ${(createErr as Record<string, unknown>).code ?? 'n/a'})` : 'Error al crear la cuenta'
+    const detail = createErr ? `${createErr.message} (status: ${createErr.status}, code: ${(createErr as unknown as Record<string, unknown>).code ?? 'n/a'})` : 'Error al crear la cuenta'
     return { success: false, error: detail }
   }
 
