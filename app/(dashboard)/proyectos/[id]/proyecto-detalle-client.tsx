@@ -436,14 +436,14 @@ export function ProyectoDetalleClient({
                   {/* OTs of this dept */}
                   <table className="w-full text-sm table-fixed">
                     <colgroup>
-                      <col className="w-[28%]" /> {/* Servicio */}
-                      <col className="w-[10%]" /> {/* % Ppto */}
-                      <col className="w-[12%]" /> {/* Prevista */}
-                      <col className="w-[12%]" /> {/* Real */}
-                      <col className="w-[8%]" />  {/* H. Plan. */}
-                      <col className="w-[8%]" />  {/* H. Real */}
-                      <col className="w-[14%]" /> {/* Estado */}
-                      <col className="w-[8%]" />  {/* Acciones */}
+                      <col className="w-[28%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[12%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[8%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[8%]" />
                     </colgroup>
                     <thead>
                       <tr className="text-left text-xs uppercase text-muted-foreground">
