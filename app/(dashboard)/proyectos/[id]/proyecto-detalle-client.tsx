@@ -6,9 +6,7 @@ import Link from 'next/link'
 import { ArrowLeft, ChevronRight, Pencil, Plus, Users, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/kpi-card'
-import { UrgenciaIndicador } from '@/components/status-badge'
 import { CambiarEstadoProyecto } from '@/components/cambiar-estado-proyecto'
-import { getUrgenciaPlanificado } from '@/lib/helpers'
 import { CambiarEstadoOT } from '@/components/cambiar-estado-ot'
 import { asignarServicioOT } from '../../ordenes-trabajo/actions'
 import { OtFormSheet } from '../../ordenes-trabajo/ot-form-sheet'
@@ -191,16 +189,6 @@ export function ProyectoDetalleClient({
             proyecto={proyecto}
             proyectoDepartamentoIds={proyDepts.map((pd) => pd.departamento_id)}
           />
-          <ProyectoOtAction
-            proyecto={proyecto}
-            proyectos={proyectos}
-            servicios={servicios}
-            departamentos={departamentos}
-            personas={personas}
-            empresas={empresas}
-            currentMonth={mes}
-            onCreated={(id) => setPendingOtId(id)}
-          />
           <CambiarEstadoProyecto proyectoId={proyecto.id} estadoActual={proyecto.estado} />
         </div>
       </div>
@@ -360,9 +348,38 @@ export function ProyectoDetalleClient({
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Órdenes de trabajo
             </p>
-            {/* Botón nueva asignación global */}
+            {/* Generar OT del mes (Recurrente) o todas las OTs (Puntual) */}
+            <ProyectoOtAction
+              proyecto={proyecto}
+              proyectos={proyectos}
+              servicios={servicios}
+              departamentos={departamentos}
+              personas={personas}
+              empresas={empresas}
+              currentMonth={mes}
+              onCreated={(id) => setPendingOtId(id)}
+            />
+            {/* Editar la primera OT del mes mostrado */}
+            {ordenesMes.length > 0 && (
+              <OtFormSheet
+                proyectos={proyectos}
+                servicios={servicios}
+                departamentos={departamentos}
+                personas={personas}
+                empresas={empresas}
+                ordenesTrabajo={ordenes}
+                ot={ordenesMes[0]}
+                trigger={
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Pencil className="h-3.5 w-3.5" />
+                    Editar OT
+                  </Button>
+                }
+              />
+            )}
+            {/* Botón nueva asignación global — solo OTs del mes seleccionado */}
             <AsignacionFormSheet
-              ordenesTrabajo={ordenes}
+              ordenesTrabajo={ordenesMes}
               proyectos={proyectos}
               empresas={empresas}
               personas={personas}
@@ -425,6 +442,9 @@ export function ProyectoDetalleClient({
                     <span className="text-xs font-semibold text-blue-600">
                       {formatMoney(deptoTotal)}
                     </span>
+                    {ots.map((o) => (
+                      <CambiarEstadoOT key={o.id} otId={o.id} estadoActual={o.estado} />
+                    ))}
                     {deptoHoras > 0 && (
                       <span className="text-xs text-muted-foreground">
                         {Math.round(deptoHoras)}h plan.
@@ -436,14 +456,13 @@ export function ProyectoDetalleClient({
                   {/* OTs of this dept */}
                   <table className="w-full text-sm table-fixed">
                     <colgroup>
-                      <col className="w-[28%]" />
+                      <col className="w-[32%]" />
                       <col className="w-[10%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[12%]" />
-                      <col className="w-[8%]" />
-                      <col className="w-[8%]" />
                       <col className="w-[14%]" />
-                      <col className="w-[8%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[10%]" />
                     </colgroup>
                     <thead>
                       <tr className="text-left text-xs uppercase text-muted-foreground">
@@ -453,7 +472,6 @@ export function ProyectoDetalleClient({
                         <th className="pb-2 font-semibold text-right">Real</th>
                         <th className="pb-2 font-semibold text-right">H. Plan.</th>
                         <th className="pb-2 font-semibold text-right">H. Real</th>
-                        <th className="pb-2 font-semibold">Estado</th>
                         <th className="pb-2 font-semibold text-right">Acciones</th>
                       </tr>
                     </thead>
@@ -596,15 +614,6 @@ function OTRowWithAsignaciones({
           })()}
         </td>
         <td className="py-2.5">
-          <div className="flex items-center gap-2">
-            <CambiarEstadoOT otId={ot.id} estadoActual={ot.estado} />
-            {(() => {
-              const u = getUrgenciaPlanificado(ot.estado, ot.mes_anio)
-              return u ? <UrgenciaIndicador nivel={u} /> : null
-            })()}
-          </div>
-        </td>
-        <td className="py-2.5">
           <div className="flex items-center justify-end gap-1">
             <OtFormSheet
               proyectos={proyectos}
@@ -671,7 +680,6 @@ function OTRowWithAsignaciones({
             <td className="py-1.5 text-right text-[11px] font-medium text-emerald-600">
               {a.horas_reales != null ? `${a.horas_reales}h` : '—'}
             </td>
-            <td className="py-1.5" /> {/* Estado — no aplica */}
             <td className="py-1.5">
               <div className="flex items-center justify-end">
                 <AsignacionFormSheet
@@ -699,7 +707,7 @@ function OTRowWithAsignaciones({
       {/* Indicador de % asignado */}
       {otAsignaciones.length > 0 && (
         <tr className="border-t border-dashed border-border/30 bg-[#F9FAFB]">
-          <td colSpan={8} className="py-1 pl-6">
+          <td colSpan={7} className="py-1 pl-6">
             <div className="flex items-center gap-2">
               <span className="text-[10px] text-muted-foreground/50">└</span>
               <div className="flex items-center gap-3">
@@ -720,7 +728,7 @@ function OTRowWithAsignaciones({
       {/* Mensaje si no hay asignaciones */}
       {otAsignaciones.length === 0 && (
         <tr className="border-t border-dashed border-border/30 bg-[#F9FAFB]">
-          <td colSpan={8} className="py-1.5 pl-6">
+          <td colSpan={7} className="py-1.5 pl-6">
             <span className="text-[11px] text-muted-foreground/60 italic">Sin asignaciones</span>
           </td>
         </tr>

@@ -201,6 +201,20 @@ export function AsignacionFormSheet({
           </SheetDescription>
         </SheetHeader>
 
+        {ordenesTrabajo.length === 0 && !isEditMode ? (
+          <div className="px-6 py-8 text-center space-y-3">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-50">
+              <Plus className="h-5 w-5 text-amber-600" />
+            </div>
+            <p className="text-sm font-medium text-foreground">No hay OTs disponibles</p>
+            <p className="text-xs text-muted-foreground">
+              Primero crea una orden de trabajo para este mes antes de asignar personas.
+            </p>
+            <Button variant="outline" size="sm" onClick={() => handleOpenChange(false)}>
+              Cerrar
+            </Button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 px-6 py-4">
 
           {/* Orden de Trabajo */}
@@ -368,6 +382,7 @@ export function AsignacionFormSheet({
             </Button>
           </SheetFooter>
         </form>
+        )}
       </SheetContent>
     </Sheet>
   )

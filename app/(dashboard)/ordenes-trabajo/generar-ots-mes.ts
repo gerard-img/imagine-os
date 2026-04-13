@@ -113,9 +113,15 @@ export async function clonarOTsMes(
 
 /**
  * Versión acotada a un único proyecto Recurrente.
- * Genera las OTs para ese proyecto en el mes indicado,
- * siguiendo la misma lógica de reparto que generarOTsMes.
- * Útil desde la página de detalle del proyecto.
+ * Genera las OTs para ese proyecto en el mes indicado.
+ *
+ * Lógica por departamento:
+ *   - Si el dept tenía OT(s) en el mes anterior → REPLICA 1 a 1 cada una
+ *     (servicio_id, titulo, %, partida, horas, aprobador, asignaciones).
+ *     Esto permite mantener la estructura: si el mes pasado había 3 OTs
+ *     con servicios distintos en el mismo dept, este mes se generan las 3.
+ *   - Si el dept no tenía OTs el mes anterior → comportamiento por defecto:
+ *     1 OT sin servicio con reparto igualitario del ppto entre los depts.
  */
 export async function generarOTsProyectoMes(
   proyectoId: string,
@@ -140,7 +146,7 @@ export async function generarOTsProyectoMes(
     return { success: false, creadas: 0, omitidas: 0, error: `El proyecto está en estado "${proyecto.estado}"` }
   }
 
-  // 2. Departamentos
+  // 2. Departamentos del proyecto
   const { data: proyDepts, error: errD } = await supabase
     .from('proyectos_departamentos')
     .select('departamento_id')
@@ -151,34 +157,42 @@ export async function generarOTsProyectoMes(
     return { success: false, creadas: 0, omitidas: 0, error: 'El proyecto no tiene departamentos asignados' }
   }
 
-  // 3. OTs ya existentes este mes para este proyecto
+  // 3. OTs ya existentes este mes — para evitar duplicados.
+  // Clave: dept|servicio|titulo (varias OTs con mismo dept+servicio pueden coexistir
+  // si tienen titulos distintos, p.ej. webs de países diferentes).
   const { data: otsExistentes, error: errO } = await supabase
     .from('ordenes_trabajo')
-    .select('departamento_id')
+    .select('departamento_id, servicio_id, titulo')
     .eq('proyecto_id', proyectoId)
     .eq('mes_anio', mes)
     .is('deleted_at', null)
 
   if (errO) return { success: false, creadas: 0, omitidas: 0, error: errO.message }
-  const deptoExiste = new Set((otsExistentes ?? []).map((o) => o.departamento_id))
+  const claveExistente = (deptId: string, servId: string | null, titulo: string | null) =>
+    `${deptId}|${servId ?? ''}|${titulo ?? ''}`
+  const existentes = new Set(
+    (otsExistentes ?? []).map((o) => claveExistente(o.departamento_id, o.servicio_id, o.titulo))
+  )
+  const deptosConAlgunaOT = new Set((otsExistentes ?? []).map((o) => o.departamento_id))
 
-  // 4. OT del mes anterior → heredar estado
+  // 4. OTs del mes anterior — para replicar estructura (servicios + asignaciones)
   const [yearNum, monthNum] = mes.split('-').map(Number)
   const mesAnteriorDate = new Date(yearNum, monthNum - 2, 1)
   const mesAnterior = `${mesAnteriorDate.getFullYear()}-${String(mesAnteriorDate.getMonth() + 1).padStart(2, '0')}-01`
 
   const { data: otsMesAnterior } = await supabase
     .from('ordenes_trabajo')
-    .select('id, departamento_id, estado')
+    .select('id, departamento_id, servicio_id, titulo, porcentaje_ppto_mes, partida_prevista, horas_planificadas, aprobador_id, estado')
     .eq('proyecto_id', proyectoId)
     .eq('mes_anio', mesAnterior)
     .is('deleted_at', null)
 
-  const estadoMesAnterior = new Map<string, string>()
-  const otIdMesAnterior = new Map<string, string>()
+  type OtAnterior = NonNullable<typeof otsMesAnterior>[number]
+  const otsAnterioresPorDept = new Map<string, OtAnterior[]>()
   for (const ot of otsMesAnterior ?? []) {
-    estadoMesAnterior.set(ot.departamento_id, ot.estado)
-    otIdMesAnterior.set(ot.departamento_id, ot.id)
+    const arr = otsAnterioresPorDept.get(ot.departamento_id) ?? []
+    arr.push(ot)
+    otsAnterioresPorDept.set(ot.departamento_id, arr)
   }
 
   // 5. fecha_fin del mes
@@ -186,60 +200,99 @@ export async function generarOTsProyectoMes(
   const lastDay = new Date(year, month, 0).getDate()
   const fechaFin = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
+  // Helper: copiar asignaciones de una OT origen a una OT destino
+  async function copiarAsignaciones(otOrigenId: string, otDestinoId: string) {
+    const { data: asigs } = await supabase
+      .from('asignaciones')
+      .select('persona_id, cuota_planificacion_id, porcentaje_ppto_tm')
+      .eq('orden_trabajo_id', otOrigenId)
+      .is('deleted_at', null)
+    if (asigs && asigs.length > 0) {
+      await supabase.from('asignaciones').insert(
+        asigs.map((a) => ({
+          orden_trabajo_id: otDestinoId,
+          persona_id: a.persona_id,
+          cuota_planificacion_id: a.cuota_planificacion_id,
+          porcentaje_ppto_tm: a.porcentaje_ppto_tm,
+        }))
+      )
+    }
+  }
+
+  // Reparto por defecto (solo se usa en depts sin mes anterior)
   const numDepts = proyDepts.length
-  const pctOT = Math.round((100 / numDepts) * 100) / 100
-  const partidaOT = Math.round(proyecto.ppto_estimado / numDepts)
+  const pctOTDefault = Math.round((100 / numDepts) * 100) / 100
+  const partidaOTDefault = Math.round(proyecto.ppto_estimado / numDepts)
 
   let creadas = 0
   let omitidas = 0
 
   for (const pd of proyDepts) {
-    if (deptoExiste.has(pd.departamento_id)) { omitidas++; continue }
+    const otsAntDept = otsAnterioresPorDept.get(pd.departamento_id) ?? []
 
-    const estadoAnterior = estadoMesAnterior.get(pd.departamento_id)
-    const estadoNuevo = (estadoAnterior === 'Planificado' || estadoAnterior === 'Realizado' || estadoAnterior === 'Confirmado' || estadoAnterior === 'Facturado')
-      ? 'Planificado'
-      : 'Propuesto'
+    if (otsAntDept.length > 0) {
+      // RUTA A — replicar 1 a 1 cada OT del mes anterior en este dept
+      for (const otAnt of otsAntDept) {
+        if (existentes.has(claveExistente(otAnt.departamento_id, otAnt.servicio_id, otAnt.titulo))) {
+          omitidas++
+          continue
+        }
 
-    const { data: nuevaOT, error } = await supabase.from('ordenes_trabajo').insert({
-      proyecto_id: proyectoId,
-      departamento_id: pd.departamento_id,
-      servicio_id: null,
-      mes_anio: mes,
-      porcentaje_ppto_mes: pctOT,
-      partida_prevista: partidaOT,
-      aprobador_id: proyecto.responsable_id,
-      estado: estadoNuevo,
-      fecha_inicio: mes,
-      fecha_fin: fechaFin,
-    }).select('id').single()
+        const estadoNuevo = (otAnt.estado === 'Planificado' || otAnt.estado === 'Realizado'
+          || otAnt.estado === 'Confirmado' || otAnt.estado === 'Facturado')
+          ? 'Planificado'
+          : 'Propuesto'
 
-    if (error && error.code !== '23505') {
-      return { success: false, creadas, omitidas, error: `Error al crear OT: ${error.message}` }
-    }
-    if (!error && nuevaOT) {
-      creadas++
-      // Copiar asignaciones de la OT del mes anterior (mismo departamento)
-      const otRefId = otIdMesAnterior.get(pd.departamento_id)
-      if (otRefId) {
-        const { data: asigs } = await supabase
-          .from('asignaciones')
-          .select('persona_id, cuota_planificacion_id, porcentaje_ppto_tm')
-          .eq('orden_trabajo_id', otRefId)
-          .is('deleted_at', null)
-        if (asigs && asigs.length > 0) {
-          await supabase.from('asignaciones').insert(
-            asigs.map((a) => ({
-              orden_trabajo_id: nuevaOT.id,
-              persona_id: a.persona_id,
-              cuota_planificacion_id: a.cuota_planificacion_id,
-              porcentaje_ppto_tm: a.porcentaje_ppto_tm,
-            }))
-          )
+        const { data: nuevaOT, error } = await supabase.from('ordenes_trabajo').insert({
+          proyecto_id: proyectoId,
+          departamento_id: otAnt.departamento_id,
+          servicio_id: otAnt.servicio_id,
+          titulo: otAnt.titulo,
+          mes_anio: mes,
+          porcentaje_ppto_mes: otAnt.porcentaje_ppto_mes,
+          partida_prevista: otAnt.partida_prevista,
+          horas_planificadas: otAnt.horas_planificadas,
+          aprobador_id: otAnt.aprobador_id,
+          estado: estadoNuevo,
+          fecha_inicio: mes,
+          fecha_fin: fechaFin,
+        }).select('id').single()
+
+        if (error && error.code !== '23505') {
+          return { success: false, creadas, omitidas, error: `Error al crear OT: ${error.message}` }
+        }
+        if (!error && nuevaOT) {
+          creadas++
+          await copiarAsignaciones(otAnt.id, nuevaOT.id)
+        } else {
+          omitidas++
         }
       }
     } else {
-      omitidas++
+      // RUTA B — sin mes anterior: 1 OT por defecto (sin servicio, reparto igualitario)
+      if (deptosConAlgunaOT.has(pd.departamento_id)) { omitidas++; continue }
+
+      const { data: nuevaOT, error } = await supabase.from('ordenes_trabajo').insert({
+        proyecto_id: proyectoId,
+        departamento_id: pd.departamento_id,
+        servicio_id: null,
+        mes_anio: mes,
+        porcentaje_ppto_mes: pctOTDefault,
+        partida_prevista: partidaOTDefault,
+        aprobador_id: proyecto.responsable_id,
+        estado: 'Propuesto',
+        fecha_inicio: mes,
+        fecha_fin: fechaFin,
+      }).select('id').single()
+
+      if (error && error.code !== '23505') {
+        return { success: false, creadas, omitidas, error: `Error al crear OT: ${error.message}` }
+      }
+      if (!error && nuevaOT) {
+        creadas++
+      } else {
+        omitidas++
+      }
     }
   }
 
