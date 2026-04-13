@@ -160,15 +160,22 @@ type FilaCruda = {
   horasAsignadas: number
 }
 
+/** Tipo de proyecto válido para los filtros (se compara en minúsculas) */
+export type TipoProyectoFiltro = 'facturable' | 'externo' | 'interno'
+
 // ── Construir filas crudas a partir de asignaciones ───────────
+//
+// Convención de filtros: un array vacío significa "sin filtro" (mostrar todos).
+// Esto se alinea con el patrón usado en proyectos-client y MultiSelectFilter.
 
 export function buildFilasCrudas(
   asignaciones: Asignacion[],
   maps: LookupMaps,
-  filtroEmpresaGrupo: string | null,
+  filtroEmpresasGrupo: string[],
   filtroMeses: string[], // lista de meses a incluir
-  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
-  filtroEstadoOT?: string | null, // null o 'Todos' = sin filtro
+  filtroTiposProyecto: TipoProyectoFiltro[],
+  filtroEstadosOT: string[],
+  filtroDepartamentos: string[],
 ): FilaCruda[] {
   const filas: FilaCruda[] = []
 
@@ -178,19 +185,22 @@ export function buildFilasCrudas(
     if (!filtroMeses.includes(orden.mesAnio)) continue
 
     // Filtro estado OT
-    if (filtroEstadoOT && filtroEstadoOT !== 'Todos' && orden.estado !== filtroEstadoOT) continue
+    if (filtroEstadosOT.length > 0 && !filtroEstadosOT.includes(orden.estado)) continue
+
+    // Filtro departamento
+    if (filtroDepartamentos.length > 0 && !filtroDepartamentos.includes(orden.departamentoId)) continue
 
     const proyecto = maps.proyectoMap.get(orden.proyectoId)
     if (!proyecto) continue
 
     // Filtro empresa grupo
-    if (filtroEmpresaGrupo && proyecto.empresaGrupoId !== filtroEmpresaGrupo) continue
+    if (filtroEmpresasGrupo.length > 0 && !filtroEmpresasGrupo.includes(proyecto.empresaGrupoId)) continue
 
     // Filtro tipo proyecto: Facturable (se cobra), Externo (a terceros sin cobrar), Interno
-    if (filtroTipoProyecto === 'facturable' && proyecto.tipoProyecto !== 'Facturable') continue
-    if (filtroTipoProyecto === 'externo' && proyecto.tipoProyecto !== 'Externo') continue
-    if (filtroTipoProyecto === 'interno' && proyecto.tipoProyecto !== 'Interno') continue
-    // 'todos' no filtra
+    if (filtroTiposProyecto.length > 0) {
+      const tipoLower = proyecto.tipoProyecto.toLowerCase() as TipoProyectoFiltro
+      if (!filtroTiposProyecto.includes(tipoLower)) continue
+    }
 
     const cuota = maps.cuotaMap.get(a.cuota_planificacion_id)
     if (!cuota) continue
@@ -247,16 +257,20 @@ const COLORES_DONUT = [
 export function calcularDatosMensualesBarras(
   asignaciones: Asignacion[],
   maps: LookupMaps,
-  filtroEmpresaGrupo: string | null,
+  filtroEmpresasGrupo: string[],
   anio: number,
-  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
-  filtroEstadoOT?: string | null,
+  filtroTiposProyecto: TipoProyectoFiltro[],
+  filtroEstadosOT: string[],
+  filtroDepartamentos: string[],
 ): DatoMensualBarras[] {
   const resultado: DatoMensualBarras[] = []
 
   for (let m = 1; m <= 12; m++) {
     const mes = `${anio}-${String(m).padStart(2, '0')}-01`
-    const filas = buildFilasCrudas(asignaciones, maps, filtroEmpresaGrupo, [mes], filtroTipoProyecto, filtroEstadoOT)
+    const filas = buildFilasCrudas(
+      asignaciones, maps, filtroEmpresasGrupo, [mes],
+      filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos,
+    )
 
     resultado.push({
       mes,
@@ -323,29 +337,42 @@ export function calcularConcentracionClientes(
 
 // ── Horas trabajables por dimensión ───────────────────────────
 
-/** Calcula horas trabajables totales por mes (para personas activas que pasan los filtros) */
+/**
+ * Calcula horas trabajables totales por mes (para personas activas que pasan los filtros).
+ * Si hay filtro de departamentos, prorratea las horas según el % de tiempo de cada persona
+ * en los departamentos seleccionados.
+ */
 export function calcularHorasTrabajablesPorMes(
   personas: Persona[],
   personasDepts: PersonaDepartamento[],
   horasTrab: HorasTrabajables[],
-  filtroEmpresaGrupo: string | null,
+  filtroEmpresasGrupo: string[],
+  filtroDepartamentos: string[],
   meses: string[],
 ): Map<string, number> {
   const result = new Map<string, number>()
   const activas = personas.filter((p) => {
     if (!p.activo) return false
-    if (filtroEmpresaGrupo && p.empresa_grupo_id !== filtroEmpresaGrupo) return false
+    if (filtroEmpresasGrupo.length > 0 && !filtroEmpresasGrupo.includes(p.empresa_grupo_id)) return false
     return true
   })
 
   for (const mes of meses) {
     let totalHoras = 0
     for (const persona of activas) {
-      const deptIds = personasDepts
-        .filter((pd) => pd.persona_id === persona.id)
-        .map((pd) => pd.departamento_id)
+      const pds = personasDepts.filter((pd) => pd.persona_id === persona.id)
+      const deptIds = pds.map((pd) => pd.departamento_id)
       const h = resolverHoras(persona.id, mes, persona.empresa_grupo_id, deptIds, horasTrab)
-      totalHoras += h
+
+      if (filtroDepartamentos.length === 0) {
+        totalHoras += h
+      } else {
+        // Solo cuenta el % del tiempo de la persona dedicado a deptos filtrados
+        const pctEnFiltro = pds
+          .filter((pd) => filtroDepartamentos.includes(pd.departamento_id))
+          .reduce((s, pd) => s + pd.porcentaje_tiempo, 0)
+        totalHoras += h * (pctEnFiltro / 100)
+      }
     }
     result.set(mes, totalHoras)
   }
@@ -358,13 +385,14 @@ export function calcularHorasTrabajablesPorDepto(
   personas: Persona[],
   personasDepts: PersonaDepartamento[],
   horasTrab: HorasTrabajables[],
-  filtroEmpresaGrupo: string | null,
+  filtroEmpresasGrupo: string[],
+  filtroDepartamentos: string[],
   meses: string[],
 ): Map<string, number> {
   const result = new Map<string, number>()
   const activas = personas.filter((p) => {
     if (!p.activo) return false
-    if (filtroEmpresaGrupo && p.empresa_grupo_id !== filtroEmpresaGrupo) return false
+    if (filtroEmpresasGrupo.length > 0 && !filtroEmpresasGrupo.includes(p.empresa_grupo_id)) return false
     return true
   })
 
@@ -375,6 +403,7 @@ export function calcularHorasTrabajablesPorDepto(
       const totalHoras = resolverHoras(persona.id, mes, persona.empresa_grupo_id, deptIds, horasTrab)
 
       for (const pd of pds) {
+        if (filtroDepartamentos.length > 0 && !filtroDepartamentos.includes(pd.departamento_id)) continue
         const key = pd.departamento_id
         const horasDepto = totalHoras * (pd.porcentaje_tiempo / 100)
         result.set(key, (result.get(key) ?? 0) + horasDepto)
@@ -633,10 +662,11 @@ export function getMesesDisponibles(ordenes: OrdenTrabajo[]): string[] {
 export function calcularSparklines(
   asignaciones: Asignacion[],
   maps: LookupMaps,
-  filtroEmpresaGrupo: string | null,
+  filtroEmpresasGrupo: string[],
   mesActual: string,
-  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
-  filtroEstadoOT?: string | null,
+  filtroTiposProyecto: TipoProyectoFiltro[],
+  filtroEstadosOT: string[],
+  filtroDepartamentos: string[],
   agruparPor: 'cliente' | 'depto' = 'cliente',
 ): Map<string, number[]> {
   // Generar los últimos 6 meses (incluyendo el actual)
@@ -650,7 +680,10 @@ export function calcularSparklines(
     meses.push(`${y}-${m}-01`)
   }
 
-  const filas = buildFilasCrudas(asignaciones, maps, filtroEmpresaGrupo, meses, filtroTipoProyecto, filtroEstadoOT)
+  const filas = buildFilasCrudas(
+    asignaciones, maps, filtroEmpresasGrupo, meses,
+    filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos,
+  )
 
   // Agrupar ingresos por clave × mes — usa ingresosMejor (real con fallback)
   const datosPorClave = new Map<string, Map<string, number>>()
@@ -721,10 +754,11 @@ export function calcularHeatmapCarga(
   personasDepts: PersonaDepartamento[],
   horasTrab: HorasTrabajables[],
   departamentos: Departamento[],
-  filtroEmpresaGrupo: string | null,
+  filtroEmpresasGrupo: string[],
   anio: number,
-  filtroTipoProyecto: 'todos' | 'facturable' | 'externo' | 'interno',
-  filtroEstadoOT?: string | null,
+  filtroTiposProyecto: TipoProyectoFiltro[],
+  filtroEstadosOT: string[],
+  filtroDepartamentos: string[],
 ): FilaHeatmap[] {
   const meses = Array.from({ length: 12 }, (_, i) => {
     const m = String(i + 1).padStart(2, '0')
@@ -733,7 +767,10 @@ export function calcularHeatmapCarga(
 
   // Horas asignadas por depto × mes
   const horasAsigMap = new Map<string, number>() // key: deptoId-mes
-  const filas = buildFilasCrudas(asignaciones, maps, filtroEmpresaGrupo, meses, filtroTipoProyecto, filtroEstadoOT)
+  const filas = buildFilasCrudas(
+    asignaciones, maps, filtroEmpresasGrupo, meses,
+    filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos,
+  )
   for (const f of filas) {
     const key = `${f.departamentoId}-${f.mesAnio}`
     horasAsigMap.set(key, (horasAsigMap.get(key) ?? 0) + f.horasAsignadas)
@@ -743,7 +780,7 @@ export function calcularHeatmapCarga(
   const htPorDeptoMes = new Map<string, number>() // key: deptoId-mes
   const activas = personas.filter((p) => {
     if (!p.activo) return false
-    if (filtroEmpresaGrupo && p.empresa_grupo_id !== filtroEmpresaGrupo) return false
+    if (filtroEmpresasGrupo.length > 0 && !filtroEmpresasGrupo.includes(p.empresa_grupo_id)) return false
     return true
   })
 
@@ -754,6 +791,7 @@ export function calcularHeatmapCarga(
       const totalHoras = resolverHoras(persona.id, mes, persona.empresa_grupo_id, deptIds, horasTrab)
 
       for (const pd of pds) {
+        if (filtroDepartamentos.length > 0 && !filtroDepartamentos.includes(pd.departamento_id)) continue
         const key = `${pd.departamento_id}-${mes}`
         const horasDepto = totalHoras * (pd.porcentaje_tiempo / 100)
         htPorDeptoMes.set(key, (htPorDeptoMes.get(key) ?? 0) + horasDepto)
@@ -770,10 +808,11 @@ export function calcularHeatmapCarga(
     deptosConDatos.add(key.split('-')[0])
   }
 
-  // Filtrar por empresa grupo si aplica
+  // Filtrar por empresa grupo y departamento si aplica
   const deptosFiltrados = departamentos.filter((d) => {
     if (!deptosConDatos.has(d.id)) return false
-    if (filtroEmpresaGrupo && d.empresa_grupo_id !== filtroEmpresaGrupo) return false
+    if (filtroEmpresasGrupo.length > 0 && !filtroEmpresasGrupo.includes(d.empresa_grupo_id)) return false
+    if (filtroDepartamentos.length > 0 && !filtroDepartamentos.includes(d.id)) return false
     return true
   })
 

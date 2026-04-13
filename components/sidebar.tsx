@@ -16,6 +16,7 @@ import {
   UserSearch,
   CalendarCog,
   BarChart3,
+  Crosshair,
   Activity,
   MapPin,
   Globe2,
@@ -56,7 +57,8 @@ const allSections: NavSection[] = [
     items: [
       { name: 'Dashboard Personal', href: '/dashboard-personal', icon: Home },
       { name: 'Cargas de Trabajo', href: '/cargas-trabajo', icon: Activity },
-      { name: 'Datos', href: '/datos', icon: BarChart3 },
+      { name: 'Datos Foco', href: '/datos/foco', icon: Crosshair },
+      { name: 'Datos Tiempo', href: '/datos/tiempo', icon: BarChart3 },
       { name: 'Informes', href: '/reportes', icon: ClipboardList },
     ],
   },

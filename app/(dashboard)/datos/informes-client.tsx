@@ -8,7 +8,7 @@ import { SortableHeader } from '@/components/sortable-header'
 import { formatMoney } from '@/lib/helpers'
 import { DateRangeSelector, generateMonthRange, rangoPrevioEquivalente, defaultDateRange } from '@/components/date-range-selector'
 import type { DateRange } from '@/components/date-range-selector'
-import { FilterPills } from '@/components/filter-pills'
+import { MultiSelectFilter, type FilterOption } from '@/components/multi-select-filter'
 import {
   buildLookupMaps,
   buildFilasCrudas,
@@ -23,7 +23,7 @@ import {
   vistaMes,
   vistaDepto,
 } from '@/lib/helpers-informes'
-import type { FilaInforme, KpisInformes } from '@/lib/helpers-informes'
+import type { FilaInforme, KpisInformes, TipoProyectoFiltro } from '@/lib/helpers-informes'
 import { GraficoIngresos } from './components/grafico-ingresos'
 import { GraficoConcentracion } from './components/grafico-concentracion'
 import { HeatmapCarga } from './components/heatmap-carga'
@@ -49,9 +49,21 @@ type Props = {
 }
 
 type VistaTab = 'cliente' | 'mes' | 'depto'
-type TipoProyecto = 'todos' | 'facturable' | 'externo' | 'interno'
-type EstadoOTFilter = 'Todos' | 'Planificado' | 'Realizado' | 'Confirmado' | 'Facturado'
+type EstadoOT = 'Planificado' | 'Realizado' | 'Confirmado' | 'Facturado'
 type SortColumn = 'label' | 'ingresosReal' | 'ingresosPrev' | 'pctRealizacion' | 'horasAsignadas' | 'pctCarga' | 'euroHoraEfectivo' | 'horasNoAsignadas'
+
+const TIPO_PROYECTO_OPTIONS: FilterOption[] = [
+  { value: 'facturable', label: 'Facturable' },
+  { value: 'externo', label: 'Externo' },
+  { value: 'interno', label: 'Interno' },
+]
+
+const ESTADO_OT_OPTIONS: FilterOption[] = [
+  { value: 'Planificado', label: 'Planificado' },
+  { value: 'Realizado', label: 'Realizado' },
+  { value: 'Confirmado', label: 'Confirmado' },
+  { value: 'Facturado', label: 'Facturado' },
+]
 
 // ── Helpers de formato ────────────────────────────────────────
 
@@ -332,23 +344,58 @@ export function InformesClient({
   // Leer parámetros de la URL (con defaults)
   const desde = searchParams.get('desde') || defaultRange.desde
   const hasta = searchParams.get('hasta') || defaultRange.hasta
-  const egFilter = searchParams.get('empresa') || 'Todos'
   const vistaTab = (searchParams.get('vista') as VistaTab) || 'cliente'
-  const tipoProyecto = (searchParams.get('tipo') as TipoProyecto) || 'facturable'
-  const estadoOT = (searchParams.get('estadoOT') as EstadoOTFilter) || 'Todos'
+
+  // Filtros multi-select (array vacío = sin filtro)
+  const filtroEgs = useMemo(() => {
+    const v = searchParams.get('eg')
+    return v ? v.split(',') : []
+  }, [searchParams])
+  const filtroTipos = useMemo(() => {
+    const v = searchParams.get('tipo')
+    return v ? (v.split(',') as TipoProyectoFiltro[]) : []
+  }, [searchParams])
+  const filtroEstadosOT = useMemo(() => {
+    const v = searchParams.get('estadoOT')
+    return v ? (v.split(',') as EstadoOT[]) : []
+  }, [searchParams])
+  const filtroDeptos = useMemo(() => {
+    const v = searchParams.get('depto')
+    return v ? v.split(',') : []
+  }, [searchParams])
 
   // Estado puramente de UI (no va a la URL)
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+
+  const setArrayParam = (key: string, values: string[]) => {
+    setParams({ [key]: values.length > 0 ? values.join(',') : null })
+    setExpandedKeys(new Set())
+  }
 
   const setDateRange = (range: DateRange) => {
     const isDefault = range.desde === defaultRange.desde && range.hasta === defaultRange.hasta
     setParams({ desde: isDefault ? null : range.desde, hasta: isDefault ? null : range.hasta })
     setExpandedKeys(new Set())
   }
-  const setEgFilter = (v: string) => { setParams({ empresa: v === 'Todos' ? null : v }); setExpandedKeys(new Set()) }
   const setVistaTab = (v: VistaTab) => { setParams({ vista: v === 'cliente' ? null : v }); setExpandedKeys(new Set()) }
-  const setTipoProyecto = (v: TipoProyecto) => { setParams({ tipo: v === 'facturable' ? null : v }); setExpandedKeys(new Set()) }
-  const setEstadoOT = (v: EstadoOTFilter) => { setParams({ estadoOT: v === 'Todos' ? null : v }); setExpandedKeys(new Set()) }
+
+  const setFiltroEgs = (vals: string[]) => {
+    // Al cambiar empresas grupo, limpiar departamentos seleccionados que ya no aplican
+    const deptosValidos = vals.length === 0
+      ? filtroDeptos
+      : filtroDeptos.filter((dId) => {
+          const d = departamentos.find((x) => x.id === dId)
+          return d && vals.includes(d.empresa_grupo_id)
+        })
+    setParams({
+      eg: vals.length > 0 ? vals.join(',') : null,
+      depto: deptosValidos.length > 0 ? deptosValidos.join(',') : null,
+    })
+    setExpandedKeys(new Set())
+  }
+  const setFiltroTipos = (vals: string[]) => setArrayParam('tipo', vals)
+  const setFiltroEstadosOT = (vals: string[]) => setArrayParam('estadoOT', vals)
+  const setFiltroDeptos = (vals: string[]) => setArrayParam('depto', vals)
 
   const toggleExpand = (key: string) => {
     setExpandedKeys((prev) => {
@@ -363,8 +410,6 @@ export function InformesClient({
     const newDir = sortCol === col ? (sortDir === 'asc' ? 'desc' : 'asc') : (col === 'label' ? 'asc' : 'desc')
     setParams({ orden: col === 'ingresosReal' ? null : col, dir: newDir === 'desc' ? null : newDir })
   }
-
-  const filtroEg = egFilter === 'Todos' ? null : egFilter
 
   // Meses del rango seleccionado
   const mesesRango = useMemo(() => generateMonthRange(desde, hasta), [desde, hasta])
@@ -386,19 +431,19 @@ export function InformesClient({
 
   // Filas crudas del rango seleccionado (para todas las vistas y KPIs)
   const filasCrudasRango = useMemo(
-    () => buildFilasCrudas(asignaciones, maps, filtroEg, mesesRango, tipoProyecto, estadoOT),
-    [asignaciones, maps, filtroEg, mesesRango, tipoProyecto, estadoOT],
+    () => buildFilasCrudas(asignaciones, maps, filtroEgs, mesesRango, filtroTipos, filtroEstadosOT, filtroDeptos),
+    [asignaciones, maps, filtroEgs, mesesRango, filtroTipos, filtroEstadosOT, filtroDeptos],
   )
 
   // Horas trabajables del rango
   const horasTrabRango = useMemo(
-    () => calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango),
-    [personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango],
+    () => calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEgs, filtroDeptos, mesesRango),
+    [personas, personasDepartamentos, horasTrabajables, filtroEgs, filtroDeptos, mesesRango],
   )
 
   const horasTrabDeptoRango = useMemo(
-    () => calcularHorasTrabajablesPorDepto(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango),
-    [personas, personasDepartamentos, horasTrabajables, filtroEg, mesesRango],
+    () => calcularHorasTrabajablesPorDepto(personas, personasDepartamentos, horasTrabajables, filtroEgs, filtroDeptos, mesesRango),
+    [personas, personasDepartamentos, horasTrabajables, filtroEgs, filtroDeptos, mesesRango],
   )
 
   // KPIs — del rango seleccionado
@@ -412,21 +457,24 @@ export function InformesClient({
   const mesesPrev = useMemo(() => generateMonthRange(rangoPrev.desde, rangoPrev.hasta), [rangoPrev])
 
   const kpisPrev = useMemo(() => {
-    const filasPrev = buildFilasCrudas(asignaciones, maps, filtroEg, mesesPrev, tipoProyecto, estadoOT)
-    const htPrev = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEg, mesesPrev)
+    const filasPrev = buildFilasCrudas(asignaciones, maps, filtroEgs, mesesPrev, filtroTipos, filtroEstadosOT, filtroDeptos)
+    const htPrev = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filtroEgs, filtroDeptos, mesesPrev)
     return calcularKpis(filasPrev, htPrev)
-  }, [asignaciones, maps, filtroEg, mesesPrev, tipoProyecto, estadoOT, personas, personasDepartamentos, horasTrabajables])
+  }, [asignaciones, maps, filtroEgs, mesesPrev, filtroTipos, filtroEstadosOT, filtroDeptos, personas, personasDepartamentos, horasTrabajables])
 
   // Heatmap departamento × mes (año completo del "desde")
   const datosHeatmap = useMemo(
-    () => calcularHeatmapCarga(asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filtroEg, anio, tipoProyecto, estadoOT),
-    [asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filtroEg, anio, tipoProyecto, estadoOT],
+    () => calcularHeatmapCarga(
+      asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos,
+      filtroEgs, anio, filtroTipos, filtroEstadosOT, filtroDeptos,
+    ),
+    [asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filtroEgs, anio, filtroTipos, filtroEstadosOT, filtroDeptos],
   )
 
   // Datos para gráficos (año completo del "desde")
   const datosMensuales = useMemo(
-    () => calcularDatosMensualesBarras(asignaciones, maps, filtroEg, anio, tipoProyecto, estadoOT),
-    [asignaciones, maps, filtroEg, anio, tipoProyecto, estadoOT],
+    () => calcularDatosMensualesBarras(asignaciones, maps, filtroEgs, anio, filtroTipos, filtroEstadosOT, filtroDeptos),
+    [asignaciones, maps, filtroEgs, anio, filtroTipos, filtroEstadosOT, filtroDeptos],
   )
 
   const datosConcentracion = useMemo(
@@ -436,9 +484,25 @@ export function InformesClient({
 
   // Sparklines de tendencia por cliente (últimos 6 meses desde el final del rango)
   const sparklinesPorCliente = useMemo(
-    () => calcularSparklines(asignaciones, maps, filtroEg, hasta, tipoProyecto, estadoOT, 'cliente'),
-    [asignaciones, maps, filtroEg, hasta, tipoProyecto, estadoOT],
+    () => calcularSparklines(asignaciones, maps, filtroEgs, hasta, filtroTipos, filtroEstadosOT, filtroDeptos, 'cliente'),
+    [asignaciones, maps, filtroEgs, hasta, filtroTipos, filtroEstadosOT, filtroDeptos],
   )
+
+  // Opciones para los multi-select
+  const empresaGrupoOptions: FilterOption[] = useMemo(
+    () => empresasGrupo.map((eg) => ({ value: eg.id, label: eg.nombre })),
+    [empresasGrupo],
+  )
+
+  // Departamentos: si hay empresa_grupo seleccionada, solo los de esas empresas_grupo
+  const departamentoOptions: FilterOption[] = useMemo(() => {
+    const filtered = filtroEgs.length > 0
+      ? departamentos.filter((d) => filtroEgs.includes(d.empresa_grupo_id))
+      : departamentos
+    return filtered
+      .map((d) => ({ value: d.id, label: d.nombre }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [departamentos, filtroEgs])
 
   // Filas de la tabla según la vista — todas usan el rango seleccionado
   const filasTabla = useMemo(() => {
@@ -509,46 +573,36 @@ export function InformesClient({
       </div>
 
       {/* Filtros */}
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <select
-          value={egFilter}
-          onChange={(e) => setEgFilter(e.target.value)}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
-            egFilter !== 'Todos'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
-          }`}
-        >
-          <option value="Todos" className="bg-white text-foreground">Empresa: Todas</option>
-          {empresasGrupo.map((eg) => (
-            <option key={eg.id} value={eg.id} className="bg-white text-foreground">{eg.nombre}</option>
-          ))}
-        </select>
-
-        <FilterPills
-          options={['Todos', 'Facturable', 'Externo', 'Interno']}
-          active={tipoProyecto === 'todos' ? 'Todos' : tipoProyecto === 'facturable' ? 'Facturable' : tipoProyecto === 'externo' ? 'Externo' : 'Interno'}
-          onChange={(v) => {
-            const map: Record<string, TipoProyecto> = { Todos: 'todos', Facturable: 'facturable', Externo: 'externo', Interno: 'interno' }
-            setTipoProyecto(map[v] ?? 'facturable')
-          }}
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <MultiSelectFilter
+          label="Empresa"
+          options={empresaGrupoOptions}
+          selected={filtroEgs}
+          onChange={setFiltroEgs}
+          searchable
         />
 
-        <select
-          value={estadoOT}
-          onChange={(e) => setEstadoOT(e.target.value as EstadoOTFilter)}
-          className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
-            estadoOT !== 'Todos'
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
-          }`}
-        >
-          <option value="Todos" className="bg-white text-foreground">Estado OT: Todos</option>
-          <option value="Planificado" className="bg-white text-foreground">Planificado</option>
-          <option value="Realizado" className="bg-white text-foreground">Realizado</option>
-          <option value="Confirmado" className="bg-white text-foreground">Confirmado</option>
-          <option value="Facturado" className="bg-white text-foreground">Facturado</option>
-        </select>
+        <MultiSelectFilter
+          label="Departamento"
+          options={departamentoOptions}
+          selected={filtroDeptos}
+          onChange={setFiltroDeptos}
+          searchable
+        />
+
+        <MultiSelectFilter
+          label="Tipo proyecto"
+          options={TIPO_PROYECTO_OPTIONS}
+          selected={filtroTipos}
+          onChange={setFiltroTipos}
+        />
+
+        <MultiSelectFilter
+          label="Estado OT"
+          options={ESTADO_OT_OPTIONS}
+          selected={filtroEstadosOT}
+          onChange={setFiltroEstadosOT}
+        />
       </div>
 
       {/* KPI Cards */}
