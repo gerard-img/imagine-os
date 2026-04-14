@@ -1,31 +1,33 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { Download, BarChart3, Table2, Filter, ChevronDown, ArrowUp, ArrowDown, ChevronsUpDown } from 'lucide-react'
+import {
+  Download, Table2, Filter, ArrowUp, ArrowDown, Users, TrendingUp,
+  ChevronsUpDown, ChevronsDownUp, ChevronUp, ChevronRight, ChevronDown, X, Plus,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  DIMENSIONES,
+  TODAS_DIMENSIONES,
   METRICAS,
-  type Dimension,
+  type DimensionEje,
   type Metrica,
+  type ConfigInforme,
   type FiltrosReporte,
+  type NodoFila,
+  type NodoColumna,
+  type ResultadoJerarquico,
+  type CeldaMetricas,
+  esDimensionTiempo,
+  labelDimension,
   buildFilasCrudas,
-  generarReporte,
-  generarCSV,
+  generarReporteJerarquico,
+  generarCSVJerarquico,
   formatearValor,
-  type ResultadoReporte,
 } from '@/lib/helpers-reportes'
-import { formatMoney } from '@/lib/helpers'
+import { formatMoney, safeDivide } from '@/lib/helpers'
 import type {
-  OrdenTrabajo,
-  Asignacion,
-  Proyecto,
-  Empresa,
-  Persona,
-  CuotaPlanificacion,
-  Departamento,
-  CatalogoServicio,
-  EmpresaGrupo,
+  OrdenTrabajo, Asignacion, Proyecto, Empresa, Persona,
+  CuotaPlanificacion, Departamento, CatalogoServicio, EmpresaGrupo,
 } from '@/lib/supabase/types'
 
 type Props = {
@@ -40,139 +42,261 @@ type Props = {
   empresasGrupo: EmpresaGrupo[]
 }
 
-// ── Estado OT disponibles ────────────────────────────────────
 const ESTADOS_OT = ['Todos', 'Propuesto', 'Planificado', 'Realizado', 'Confirmado', 'Facturado'] as const
 
-// ── Plantillas predefinidas ──────────────────────────────────
-const PLANTILLAS = [
-  { label: 'Ingresos por cliente', dimension: 'cliente' as Dimension, metricas: ['ingresos_prev', 'ingresos_real', 'pct_realizacion'] as Metrica[] },
-  { label: 'Ingresos por mes', dimension: 'mes' as Dimension, metricas: ['ingresos_prev', 'ingresos_real', 'pct_realizacion'] as Metrica[] },
-  { label: 'Horas por persona', dimension: 'persona' as Dimension, metricas: ['horas_plan', 'horas_real', 'ingresos_prev', 'euro_hora'] as Metrica[] },
-  { label: 'Horas por departamento', dimension: 'departamento' as Dimension, metricas: ['horas_plan', 'horas_real', 'ingresos_prev', 'num_ots'] as Metrica[] },
-  { label: 'Rentabilidad por proyecto', dimension: 'proyecto' as Dimension, metricas: ['ingresos_prev', 'ingresos_real', 'horas_plan', 'euro_hora'] as Metrica[] },
-  { label: 'Servicios facturados', dimension: 'servicio' as Dimension, metricas: ['ingresos_real', 'horas_plan', 'num_ots', 'euro_hora'] as Metrica[] },
-  { label: 'Volumen por empresa grupo', dimension: 'empresa_grupo' as Dimension, metricas: ['ingresos_prev', 'ingresos_real', 'num_ots', 'num_asignaciones'] as Metrica[] },
-] as const
+// ── Plantillas ──────────────────────────────────────────────
+
+type Plantilla = {
+  label: string
+  filas: DimensionEje[]
+  columnas: DimensionEje[]
+  metricas: Metrica[]
+}
+
+const PLANTILLAS: Plantilla[] = [
+  { label: 'Ingresos por cliente × mes', filas: ['cliente'], columnas: ['mes'], metricas: ['ingresos_real', 'ingresos_prev'] },
+  { label: 'Cliente > proyecto × trimestre', filas: ['cliente', 'proyecto'], columnas: ['anio', 'trimestre'], metricas: ['ingresos_real'] },
+  { label: 'Horas por persona × mes', filas: ['persona'], columnas: ['mes'], metricas: ['horas_plan', 'horas_real'] },
+  { label: 'Depto > persona', filas: ['departamento', 'persona'], columnas: [], metricas: ['horas_plan', 'ingresos_prev', 'euro_hora'] },
+  { label: 'Ingresos por proyecto', filas: ['proyecto'], columnas: [], metricas: ['ingresos_prev', 'ingresos_real', 'pct_realizacion', 'euro_hora'] },
+  { label: 'Empresa grupo × año', filas: ['empresa_grupo'], columnas: ['anio', 'trimestre'], metricas: ['ingresos_real', 'num_ots'] },
+]
+
+function plantillaActiva(config: ConfigInforme): number {
+  return PLANTILLAS.findIndex((p) =>
+    arrEq(p.filas, config.filas) && arrEq(p.columnas, config.columnas) && arrEq(p.metricas, config.metricas),
+  )
+}
+
+function arrEq(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i])
+}
+
+// ── Componente principal ────────────────────────────────────
 
 export function ReportesClient({
   ordenes, asignaciones, proyectos, empresas,
   personas, cuotas, departamentos, servicios, empresasGrupo,
 }: Props) {
-  // ── Config del informe ──
-  const [dimension, setDimension] = useState<Dimension>('cliente')
-  const [metricasActivas, setMetricasActivas] = useState<Metrica[]>([
-    'ingresos_prev', 'ingresos_real', 'pct_realizacion',
-  ])
+  const [config, setConfig] = useState<ConfigInforme>({
+    filas: ['cliente'],
+    columnas: ['mes'],
+    metricas: ['ingresos_real', 'ingresos_prev'],
+  })
 
-  // ── Filtros ──
-  const ahora = new Date()
-  const anio = ahora.getFullYear()
+  const anio = new Date().getFullYear()
   const [filtros, setFiltros] = useState<FiltrosReporte>({
-    mesDesde: `${anio}-01-01`,
-    mesHasta: `${anio}-12-01`,
-    empresaGrupoId: null,
-    tipoProyecto: 'todos',
-    estadoOT: null,
-    departamentoId: null,
-    clienteId: null,
+    mesDesde: `${anio}-01-01`, mesHasta: `${anio}-12-01`,
+    empresaGrupoId: null, tipoProyecto: 'todos', estadoOT: null, departamentoId: null, clienteId: null,
   })
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
-
-  // ── Ordenación ──
   const [sortCol, setSortCol] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+  const [mostrarVariacion, setMostrarVariacion] = useState(false)
 
-  // ── Datos crudos (memorizados) ──
+  // ── Datos ──
   const filasCrudas = useMemo(() =>
-    buildFilasCrudas(
-      asignaciones, ordenes, proyectos, empresas,
-      personas, cuotas, departamentos, servicios, empresasGrupo,
-      filtros,
-    ),
+    buildFilasCrudas(asignaciones, ordenes, proyectos, empresas, personas, cuotas, departamentos, servicios, empresasGrupo, filtros),
     [asignaciones, ordenes, proyectos, empresas, personas, cuotas, departamentos, servicios, empresasGrupo, filtros],
   )
 
-  // ── Resultado agrupado ──
-  const resultado: ResultadoReporte = useMemo(
-    () => generarReporte(filasCrudas, dimension),
-    [filasCrudas, dimension],
+  const resultado = useMemo(
+    () => generarReporteJerarquico(filasCrudas, config),
+    [filasCrudas, config],
   )
 
-  // ── Ordenar filas ──
+  const tieneColumnas = config.columnas.length > 0
+  const tieneJerarquiaFilas = config.filas.length > 1
+
+  // ── Comparación mes a mes ──
+  const columnasTemporales = config.columnas.some((d) => esDimensionTiempo(d))
+  const puedeComparar = tieneColumnas && columnasTemporales && resultado.columnasHoja.length >= 2
+
+  // Mapa: colKey → colKey anterior (para calcular deltas)
+  const prevColMap = useMemo(() => {
+    const map = new Map<string, string>()
+    const hojas = resultado.columnasHoja
+    for (let i = 1; i < hojas.length; i++) {
+      map.set(hojas[i].key, hojas[i - 1].key)
+    }
+    return map
+  }, [resultado.columnasHoja])
+
+  // ── Ordenación recursiva ──
   const filasOrdenadas = useMemo(() => {
     if (!sortCol) return resultado.filas
-    const metrica = sortCol as Metrica
-    const isMetrica = METRICAS.some((m) => m.value === metrica)
-    return [...resultado.filas].sort((a, b) => {
-      const va = isMetrica ? a.valores[metrica] : a.label
-      const vb = isMetrica ? b.valores[metrica] : b.label
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return sortDir === 'asc' ? va - vb : vb - va
-      }
-      return sortDir === 'asc'
-        ? String(va).localeCompare(String(vb))
-        : String(vb).localeCompare(String(va))
-    })
+    return sortTree(resultado.filas, sortCol, sortDir)
   }, [resultado.filas, sortCol, sortDir])
 
-  // ── Handlers ──
+  // ── Dimensiones usadas (para impedir duplicados entre filas y columnas) ──
+  const dimsUsadas = useMemo(() => new Set([...config.filas, ...config.columnas]), [config.filas, config.columnas])
+
+  // ── Handlers de jerarquía ──
+  const addDimFilas = (d: DimensionEje) => {
+    setConfig((c) => ({ ...c, filas: [...c.filas, d] }))
+    setSortCol(null)
+    setExpandedKeys(new Set())
+  }
+  const removeDimFilas = (idx: number) => {
+    if (config.filas.length <= 1) return
+    setConfig((c) => ({ ...c, filas: c.filas.filter((_, i) => i !== idx) }))
+    setSortCol(null)
+    setExpandedKeys(new Set())
+  }
+  const moveDimFilas = (idx: number, dir: -1 | 1) => {
+    setConfig((c) => {
+      const arr = [...c.filas]
+      const target = idx + dir
+      if (target < 0 || target >= arr.length) return c
+      ;[arr[idx], arr[target]] = [arr[target], arr[idx]]
+      return { ...c, filas: arr }
+    })
+    setSortCol(null)
+    setExpandedKeys(new Set())
+  }
+
+  const addDimColumnas = (d: DimensionEje) => {
+    setConfig((c) => ({ ...c, columnas: [...c.columnas, d] }))
+    setSortCol(null)
+  }
+  const removeDimColumnas = (idx: number) => {
+    setConfig((c) => ({ ...c, columnas: c.columnas.filter((_, i) => i !== idx) }))
+    setSortCol(null)
+  }
+  const moveDimColumnas = (idx: number, dir: -1 | 1) => {
+    setConfig((c) => {
+      const arr = [...c.columnas]
+      const target = idx + dir
+      if (target < 0 || target >= arr.length) return c
+      ;[arr[idx], arr[target]] = [arr[target], arr[idx]]
+      return { ...c, columnas: arr }
+    })
+    setSortCol(null)
+  }
+  const clearColumnas = () => {
+    setConfig((c) => ({ ...c, columnas: [] }))
+    setSortCol(null)
+  }
+
   const toggleMetrica = (m: Metrica) => {
-    setMetricasActivas((prev) =>
-      prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m],
-    )
+    setConfig((c) => {
+      if (c.metricas.includes(m)) {
+        if (c.metricas.length <= 1) return c
+        return { ...c, metricas: c.metricas.filter((x) => x !== m) }
+      }
+      return { ...c, metricas: [...c.metricas, m] }
+    })
   }
 
   const toggleSort = (col: string) => {
-    if (sortCol === col) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortCol(col)
-      setSortDir('desc')
-    }
+    if (sortCol === col) setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('desc') }
+  }
+
+  const toggleExpand = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  const expandAll = () => {
+    const keys = new Set<string>()
+    const walk = (nodes: NodoFila[]) => { for (const n of nodes) { if (n.children.length > 0) { keys.add(n.key); walk(n.children) } } }
+    walk(resultado.filas)
+    setExpandedKeys(keys)
   }
 
   const aplicarPlantilla = (idx: number) => {
     const p = PLANTILLAS[idx]
-    setDimension(p.dimension)
-    setMetricasActivas([...p.metricas])
+    setConfig({ filas: [...p.filas], columnas: [...p.columnas], metricas: [...p.metricas] })
     setSortCol(null)
+    setExpandedKeys(new Set())
   }
 
   const exportarCSV = useCallback(() => {
-    const dimLabel = DIMENSIONES.find((d) => d.value === dimension)?.label ?? dimension
-    const csv = generarCSV(resultado, dimLabel, metricasActivas)
+    const csv = generarCSVJerarquico(resultado, config)
     const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `informe_${dimension}_${filtros.mesDesde.substring(0, 7)}_${filtros.mesHasta.substring(0, 7)}.csv`
+    a.download = `informe_${config.filas.join('-')}${config.columnas.length ? '_x_' + config.columnas.join('-') : ''}.csv`
     a.click()
     URL.revokeObjectURL(url)
-  }, [resultado, dimension, metricasActivas, filtros])
+  }, [resultado, config])
 
-  const metricasMeta = METRICAS.filter((m) => metricasActivas.includes(m.value))
-  const dimLabel = DIMENSIONES.find((d) => d.value === dimension)?.label ?? ''
+  const metricasMeta = METRICAS.filter((m) => config.metricas.includes(m.value))
+  const plantillaIdx = plantillaActiva(config)
+  const totalFilas = resultado.filas.length
 
-  // Clientes únicos para filtro
+  // Clientes para filtro
   const clientesUnicos = useMemo(() => {
-    const map = new Map<string, string>()
+    const empresaMap = new Map(empresas.map((e) => [e.id, e]))
+    const res = new Map<string, string>()
     for (const p of proyectos) {
-      if (p.empresa_id) {
-        const emp = empresas.find((e) => e.id === p.empresa_id)
-        if (emp) map.set(emp.id, emp.nombre_interno ?? emp.nombre_legal)
+      if (p.empresa_id && !res.has(p.empresa_id)) {
+        const emp = empresaMap.get(p.empresa_id)
+        if (emp) res.set(emp.id, emp.nombre_interno ?? emp.nombre_legal)
       }
     }
-    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+    return [...res.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [proyectos, empresas])
 
-  // Filtros activos count
-  const filtrosActivos = [
-    filtros.empresaGrupoId,
-    filtros.tipoProyecto !== 'todos' ? filtros.tipoProyecto : null,
-    filtros.estadoOT,
-    filtros.departamentoId,
-    filtros.clienteId,
-  ].filter(Boolean).length
+  const filtrosActivos = [filtros.empresaGrupoId, filtros.tipoProyecto !== 'todos' ? filtros.tipoProyecto : null, filtros.estadoOT, filtros.departamentoId, filtros.clienteId].filter(Boolean).length
+
+  // ── Resumen por persona (tabla fija al final) ──
+  const resumenPersonas = useMemo(() => {
+    const grupos = new Map<string, { nombre: string; ingresosPrev: number; ingresosReal: number; horasPlan: number; horasReal: number; ots: Set<string> }>()
+    for (const f of filasCrudas) {
+      let g = grupos.get(f.personaId)
+      if (!g) {
+        g = { nombre: f.personaNombre, ingresosPrev: 0, ingresosReal: 0, horasPlan: 0, horasReal: 0, ots: new Set() }
+        grupos.set(f.personaId, g)
+      }
+      g.ingresosPrev += f.ingresosPrev
+      g.ingresosReal += f.ingresosReal
+      g.horasPlan += f.horasPlan
+      g.horasReal += f.horasReal
+      g.ots.add(f.otId)
+    }
+    return [...grupos.values()]
+      .map((g) => ({
+        nombre: g.nombre,
+        ingresosPrev: g.ingresosPrev,
+        ingresosReal: g.ingresosReal,
+        horasPlan: g.horasPlan,
+        horasReal: g.horasReal,
+        euroHora: safeDivide(g.ingresosReal > 0 ? g.ingresosReal : g.ingresosPrev, g.horasPlan),
+        numOTs: g.ots.size,
+      }))
+      .sort((a, b) => b.ingresosPrev - a.ingresosPrev)
+  }, [filasCrudas])
+
+  const [sortPersonaCol, setSortPersonaCol] = useState<string | null>(null)
+  const [sortPersonaDir, setSortPersonaDir] = useState<'asc' | 'desc'>('desc')
+
+  const personasOrdenadas = useMemo(() => {
+    if (!sortPersonaCol) return resumenPersonas
+    return [...resumenPersonas].sort((a, b) => {
+      if (sortPersonaCol === 'nombre') {
+        return sortPersonaDir === 'asc' ? a.nombre.localeCompare(b.nombre) : b.nombre.localeCompare(a.nombre)
+      }
+      const va = a[sortPersonaCol as keyof typeof a] as number
+      const vb = b[sortPersonaCol as keyof typeof b] as number
+      return sortPersonaDir === 'asc' ? va - vb : vb - va
+    })
+  }, [resumenPersonas, sortPersonaCol, sortPersonaDir])
+
+  const toggleSortPersona = (col: string) => {
+    if (sortPersonaCol === col) setSortPersonaDir((d) => d === 'asc' ? 'desc' : 'asc')
+    else { setSortPersonaCol(col); setSortPersonaDir('desc') }
+  }
+
+  // Dims disponibles para añadir (no usadas todavía)
+  const dimDisponiblesFilas = TODAS_DIMENSIONES.filter((d) => !dimsUsadas.has(d.value))
+  const dimDisponiblesColumnas = TODAS_DIMENSIONES.filter((d) => !dimsUsadas.has(d.value))
 
   return (
     <div>
@@ -180,359 +304,577 @@ export function ReportesClient({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Informes</h1>
-          <p className="text-sm text-muted-foreground">
-            Cruza datos por cualquier dimensión, visualiza y exporta.
-          </p>
+          <p className="text-sm text-muted-foreground">Construye cruces de datos por cualquier dimensión y exporta.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setMostrarFiltros(!mostrarFiltros)}
-            className="gap-1.5"
-          >
+          <Button variant="outline" size="sm" onClick={() => setMostrarFiltros(!mostrarFiltros)} className="gap-1.5">
             <Filter className="h-3.5 w-3.5" />
-            Filtros{filtrosActivos > 0 && (
-              <span className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4">
-                {filtrosActivos}
-              </span>
-            )}
+            Filtros{filtrosActivos > 0 && <span className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4">{filtrosActivos}</span>}
           </Button>
-          <Button
-            size="sm"
-            onClick={exportarCSV}
-            disabled={resultado.filas.length === 0}
-            className="gap-1.5"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Exportar CSV
+          <Button size="sm" onClick={exportarCSV} disabled={totalFilas === 0} className="gap-1.5">
+            <Download className="h-3.5 w-3.5" /> Exportar CSV
           </Button>
         </div>
       </div>
 
-      {/* Plantillas rápidas */}
+      {/* Plantillas */}
       <div className="mt-4 flex items-center gap-2 flex-wrap">
         <span className="text-xs text-muted-foreground font-medium">Plantillas:</span>
         {PLANTILLAS.map((p, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => aplicarPlantilla(i)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              dimension === p.dimension && arraysEqual(metricasActivas, p.metricas)
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {p.label}
-          </button>
+          <button key={i} type="button" onClick={() => aplicarPlantilla(i)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${plantillaIdx === i ? 'bg-primary text-primary-foreground' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >{p.label}</button>
         ))}
       </div>
 
-      {/* Panel de filtros (colapsable) */}
+      {/* Filtros */}
       {mostrarFiltros && (
         <div className="mt-4 rounded-xl bg-white p-4 shadow-sm border border-border">
+          <div className="mb-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Filtros — limitan los datos del informe</span></div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-            {/* Rango de meses */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Desde</label>
-              <input
-                type="month"
-                value={filtros.mesDesde.substring(0, 7)}
-                onChange={(e) => setFiltros((f) => ({ ...f, mesDesde: e.target.value ? `${e.target.value}-01` : f.mesDesde }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              />
+              <input type="month" value={filtros.mesDesde.substring(0, 7)} onChange={(e) => setFiltros((f) => ({ ...f, mesDesde: e.target.value ? `${e.target.value}-01` : f.mesDesde }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring" />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Hasta</label>
-              <input
-                type="month"
-                value={filtros.mesHasta.substring(0, 7)}
-                onChange={(e) => setFiltros((f) => ({ ...f, mesHasta: e.target.value ? `${e.target.value}-01` : f.mesHasta }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              />
+              <input type="month" value={filtros.mesHasta.substring(0, 7)} onChange={(e) => setFiltros((f) => ({ ...f, mesHasta: e.target.value ? `${e.target.value}-01` : f.mesHasta }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring" />
             </div>
-            {/* Empresa grupo */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Empresa grupo</label>
-              <select
-                value={filtros.empresaGrupoId ?? ''}
-                onChange={(e) => setFiltros((f) => ({ ...f, empresaGrupoId: e.target.value || null }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              >
+              <select value={filtros.empresaGrupoId ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, empresaGrupoId: e.target.value || null }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todas</option>
-                {empresasGrupo.map((eg) => (
-                  <option key={eg.id} value={eg.id}>{eg.nombre}</option>
-                ))}
+                {empresasGrupo.map((eg) => <option key={eg.id} value={eg.id}>{eg.nombre}</option>)}
               </select>
             </div>
-            {/* Tipo proyecto */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Tipo proyecto</label>
-              <select
-                value={filtros.tipoProyecto}
-                onChange={(e) => setFiltros((f) => ({ ...f, tipoProyecto: e.target.value as FiltrosReporte['tipoProyecto'] }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              >
-                <option value="todos">Todos</option>
-                <option value="facturable">Facturable</option>
-                <option value="externo">Externo</option>
-                <option value="interno">Interno</option>
+              <select value={filtros.tipoProyecto} onChange={(e) => setFiltros((f) => ({ ...f, tipoProyecto: e.target.value as FiltrosReporte['tipoProyecto'] }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+                <option value="todos">Todos</option><option value="facturable">Facturable</option><option value="externo">Externo</option><option value="interno">Interno</option>
               </select>
             </div>
-            {/* Estado OT */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Estado OT</label>
-              <select
-                value={filtros.estadoOT ?? 'Todos'}
-                onChange={(e) => setFiltros((f) => ({ ...f, estadoOT: e.target.value === 'Todos' ? null : e.target.value }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              >
+              <select value={filtros.estadoOT ?? 'Todos'} onChange={(e) => setFiltros((f) => ({ ...f, estadoOT: e.target.value === 'Todos' ? null : e.target.value }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 {ESTADOS_OT.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </div>
-            {/* Departamento */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Departamento</label>
-              <select
-                value={filtros.departamentoId ?? ''}
-                onChange={(e) => setFiltros((f) => ({ ...f, departamentoId: e.target.value || null }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              >
+              <select value={filtros.departamentoId ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, departamentoId: e.target.value || null }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todos</option>
-                {departamentos.map((d) => (
-                  <option key={d.id} value={d.id}>{d.nombre}</option>
-                ))}
+                {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
               </select>
             </div>
-            {/* Cliente */}
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Cliente</label>
-              <select
-                value={filtros.clienteId ?? ''}
-                onChange={(e) => setFiltros((f) => ({ ...f, clienteId: e.target.value || null }))}
-                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
-              >
+              <select value={filtros.clienteId ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, clienteId: e.target.value || null }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todos</option>
-                {clientesUnicos.map(([id, nombre]) => (
-                  <option key={id} value={id}>{nombre}</option>
-                ))}
+                {clientesUnicos.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
               </select>
             </div>
-            {/* Limpiar */}
             <div className="flex items-end">
-              <button
-                type="button"
-                onClick={() => setFiltros({
-                  mesDesde: `${anio}-01-01`,
-                  mesHasta: `${anio}-12-01`,
-                  empresaGrupoId: null,
-                  tipoProyecto: 'todos',
-                  estadoOT: null,
-                  departamentoId: null,
-                  clienteId: null,
-                })}
-                className="text-xs text-primary hover:underline"
-              >
-                Limpiar filtros
-              </button>
+              <button type="button" onClick={() => setFiltros({ mesDesde: `${anio}-01-01`, mesHasta: `${anio}-12-01`, empresaGrupoId: null, tipoProyecto: 'todos', estadoOT: null, departamentoId: null, clienteId: null })} className="text-xs text-primary hover:underline">Limpiar filtros</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Config: Dimensión + Métricas */}
+      {/* Estructura del informe */}
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
-        <div className="flex flex-wrap items-start gap-6">
-          {/* Agrupar por */}
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Agrupar por
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {DIMENSIONES.map((d) => (
-                <button
-                  key={d.value}
-                  type="button"
-                  onClick={() => { setDimension(d.value); setSortCol(null) }}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    dimension === d.value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {d.label}
-                </button>
-              ))}
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-4">Estructura del informe</p>
+        <div className="space-y-4">
+          {/* 1. Filas */}
+          <div className="flex items-start gap-3">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[10px] font-bold mt-0.5">1</span>
+            <div className="space-y-2 flex-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Filas <span className="font-normal text-muted-foreground/70">— define la jerarquía de filas</span></label>
+              {/* Seleccionadas */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                {config.filas.map((d, i) => (
+                  <DimChip key={d} label={`${i + 1}. ${labelDimension(d)}`} color="primary"
+                    onMoveUp={i > 0 ? () => moveDimFilas(i, -1) : undefined}
+                    onRemove={config.filas.length > 1 ? () => removeDimFilas(i) : undefined}
+                  />
+                ))}
+              </div>
+              {/* Disponibles */}
+              {dimDisponiblesFilas.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {dimDisponiblesFilas.map((d) => (
+                    <button key={d.value} type="button" onClick={() => addDimFilas(d.value)}
+                      className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 border border-dashed border-gray-300 transition-colors"
+                    ><Plus className="h-2.5 w-2.5" />{d.label}</button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Métricas */}
-          <div className="space-y-1.5 flex-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Métricas
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {METRICAS.map((m) => (
-                <button
-                  key={m.value}
-                  type="button"
-                  onClick={() => toggleMetrica(m.value)}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    metricasActivas.includes(m.value)
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+          <div className="border-t border-border/50" />
+
+          {/* 2. Columnas */}
+          <div className="flex items-start gap-3">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600/10 text-blue-600 text-[10px] font-bold mt-0.5">2</span>
+            <div className="space-y-2 flex-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Columnas <span className="font-normal text-muted-foreground/70">— opcional, cruza los datos</span></label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {config.columnas.length === 0 ? (
+                  <span className="rounded-full px-3 py-1 text-xs font-medium bg-blue-600 text-white">Sin columnas</span>
+                ) : (
+                  <>
+                    {config.columnas.map((d, i) => (
+                      <DimChip key={d} label={`${i + 1}. ${labelDimension(d)}`} color="blue"
+                        onMoveUp={i > 0 ? () => moveDimColumnas(i, -1) : undefined}
+                        onRemove={() => removeDimColumnas(i)}
+                      />
+                    ))}
+                    <button type="button" onClick={clearColumnas}
+                      className="rounded-full px-2 py-0.5 text-[10px] text-gray-400 hover:text-red-500 transition-colors"
+                    >Limpiar</button>
+                  </>
+                )}
+              </div>
+              {dimDisponiblesColumnas.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {dimDisponiblesColumnas.map((d) => (
+                    <button key={d.value} type="button" onClick={() => addDimColumnas(d.value)}
+                      className="inline-flex items-center gap-0.5 rounded-full px-2.5 py-0.5 text-[11px] font-medium text-gray-500 bg-gray-50 hover:bg-gray-100 border border-dashed border-gray-300 transition-colors"
+                    ><Plus className="h-2.5 w-2.5" />{d.label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="border-t border-border/50" />
+
+          {/* 3. Métricas */}
+          <div className="flex items-start gap-3">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-600/10 text-emerald-600 text-[10px] font-bold mt-0.5">3</span>
+            <div className="space-y-1.5 flex-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Métricas <span className="font-normal text-muted-foreground/70">— valores en cada celda</span></label>
+              <div className="flex flex-wrap gap-1.5">
+                {METRICAS.map((m) => (
+                  <button key={m.value} type="button" onClick={() => toggleMetrica(m.value)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${config.metricas.includes(m.value) ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >{m.label}</button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Resumen rápido */}
+      {/* Resumen */}
       <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
-        <span>
-          <span className="font-semibold text-foreground">{resultado.filas.length}</span> filas
-        </span>
+        <span><span className="font-semibold text-foreground">{totalFilas}</span> filas</span>
         <span>·</span>
-        <span>
-          <span className="font-semibold text-foreground">{filasCrudas.length}</span> asignaciones
-        </span>
-        {resultado.totales.ingresos_real > 0 && (
+        <span><span className="font-semibold text-foreground">{filasCrudas.length}</span> asignaciones</span>
+        {resultado.totalGeneral.ingresos_real > 0 && <><span>·</span><span>Total real: <span className="font-semibold text-foreground">{formatMoney(resultado.totalGeneral.ingresos_real)}</span></span></>}
+        <span>·</span>
+        <span>Total previsto: <span className="font-semibold text-foreground">{formatMoney(resultado.totalGeneral.ingresos_prev)}</span></span>
+        {puedeComparar && (
           <>
             <span>·</span>
-            <span>
-              Total real: <span className="font-semibold text-foreground">{formatMoney(resultado.totales.ingresos_real)}</span>
-            </span>
+            <button type="button" onClick={() => setMostrarVariacion((v) => !v)}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${mostrarVariacion ? 'bg-primary text-primary-foreground' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              <TrendingUp className="h-3 w-3" /> Variación %
+            </button>
           </>
         )}
-        <span>·</span>
-        <span>
-          Total previsto: <span className="font-semibold text-foreground">{formatMoney(resultado.totales.ingresos_prev)}</span>
-        </span>
       </div>
 
-      {/* Tabla de resultados */}
-      <div className="mt-4 rounded-xl bg-white shadow-sm overflow-hidden">
-        {resultado.filas.length === 0 ? (
-          <div className="py-16 text-center">
-            <Table2 className="mx-auto h-10 w-10 text-muted-foreground/30" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              No hay datos para esta combinación de filtros y dimensión.
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Prueba a ampliar el rango de fechas o cambiar los filtros.
-            </p>
+      {/* Tabla */}
+      <div className="mt-4">
+        {/* Expand/Collapse global */}
+        {tieneJerarquiaFilas && totalFilas > 0 && (
+          <div className="flex justify-end mb-1">
+            <button onClick={() => expandedKeys.size > 0 ? setExpandedKeys(new Set()) : expandAll()}
+              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              {expandedKeys.size > 0 ? <><ChevronsDownUp className="h-3.5 w-3.5" /> Colapsar</> : <><ChevronsUpDown className="h-3.5 w-3.5" /> Expandir</>}
+            </button>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-gray-50/50">
-                  <th className="px-4 py-3 text-left">
-                    <SortButton
-                      label={dimLabel}
-                      col="_label"
-                      sortCol={sortCol}
-                      sortDir={sortDir}
-                      onToggle={toggleSort}
+        )}
+
+        <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+          {totalFilas === 0 ? (
+            <div className="py-16 text-center">
+              <Table2 className="mx-auto h-10 w-10 text-muted-foreground/30" />
+              <p className="mt-3 text-sm text-muted-foreground">No hay datos para esta combinación.</p>
+              <p className="mt-1 text-xs text-muted-foreground">Prueba a ampliar el rango de fechas o cambiar los filtros.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <TablaHead
+                  columnasArbol={resultado.columnasArbol}
+                  columnasHoja={resultado.columnasHoja}
+                  nivelesColumna={resultado.nivelesColumna}
+                  tieneColumnas={tieneColumnas}
+                  metricasMeta={metricasMeta}
+                  filaLabel={config.filas.map(labelDimension).join(' > ')}
+                  sortCol={sortCol} sortDir={sortDir} onToggleSort={toggleSort}
+                />
+                <tbody>
+                  {filasOrdenadas.map((fila) => (
+                    <FilaJerarquica key={fila.key} fila={fila}
+                      expandedKeys={expandedKeys} onToggle={toggleExpand}
+                      tieneColumnas={tieneColumnas}
+                      colHojaKeys={resultado.columnasHoja.map((c) => c.key)}
+                      metricasMeta={metricasMeta}
+                      tieneHijos={tieneJerarquiaFilas}
+                      mostrarVariacion={mostrarVariacion}
+                      prevColMap={prevColMap}
                     />
-                  </th>
-                  {metricasMeta.map((m) => (
-                    <th key={m.value} className="px-4 py-3 text-right">
-                      <SortButton
-                        label={m.label.replace(/ \(€\)/, '').replace(/ efectivo/, '')}
-                        col={m.value}
-                        sortCol={sortCol}
-                        sortDir={sortDir}
-                        onToggle={toggleSort}
-                        align="right"
-                      />
-                    </th>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filasOrdenadas.map((fila) => (
-                  <tr key={fila.key} className="border-b border-border/50 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-2.5 font-medium text-foreground">
-                      {fila.label}
-                    </td>
+                </tbody>
+                <tfoot className="sticky bottom-0 z-10 bg-white border-t-2 border-border">
+                  <tr>
+                    <td className="px-4 py-2.5 font-bold text-foreground uppercase text-xs tracking-wider">Total</td>
+                    {tieneColumnas && resultado.columnasHoja.map((col) => {
+                      const c = resultado.totalesPorColumna.get(col.key)
+                      const prevKey = prevColMap.get(col.key)
+                      const prevC = prevKey ? resultado.totalesPorColumna.get(prevKey) : undefined
+                      return metricasMeta.map((m) => (
+                        <td key={`${col.key}-${m.value}`} className="px-2 py-2.5 text-right font-bold tabular-nums text-foreground border-l border-border/10">
+                          {formatearValor(c?.[m.value] ?? 0, m.format)}
+                          {mostrarVariacion && prevC && <DeltaBadge actual={c?.[m.value] ?? 0} anterior={prevC[m.value]} />}
+                        </td>
+                      ))
+                    })}
                     {metricasMeta.map((m) => (
-                      <td key={m.value} className="px-4 py-2.5 text-right tabular-nums text-muted-foreground">
-                        <span className={
-                          m.format === 'money' && fila.valores[m.value] > 0
-                            ? 'font-medium text-foreground'
-                            : m.format === 'pct' && fila.valores[m.value] >= 100
-                              ? 'font-medium text-emerald-600'
-                              : m.format === 'pct' && fila.valores[m.value] > 0
-                                ? 'font-medium text-amber-600'
-                                : ''
-                        }>
-                          {formatearValor(fila.valores[m.value], m.format)}
-                        </span>
+                      <td key={`gt-${m.value}`} className={`px-2 py-2.5 text-right font-bold tabular-nums text-foreground ${tieneColumnas ? 'border-l-2 border-border' : ''}`}>
+                        {formatearValor(resultado.totalGeneral[m.value], m.format)}
                       </td>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-border bg-gray-50/80">
-                  <td className="px-4 py-2.5 font-bold text-foreground uppercase text-xs tracking-wider">
-                    Total
-                  </td>
-                  {metricasMeta.map((m) => (
-                    <td key={m.value} className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">
-                      {formatearValor(resultado.totales[m.value], m.format)}
-                    </td>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tabla de Personas */}
+      <div className="mt-6">
+        <div className="flex items-center gap-2 mb-2">
+          <Users className="h-4 w-4 text-primary" />
+          <h2 className="text-sm font-semibold text-foreground">Personas</h2>
+          <span className="text-xs text-muted-foreground">({resumenPersonas.length})</span>
+        </div>
+        <div className="rounded-xl bg-white shadow-sm overflow-hidden">
+          {resumenPersonas.length === 0 ? (
+            <div className="py-10 text-center">
+              <Users className="mx-auto h-8 w-8 text-muted-foreground/30" />
+              <p className="mt-2 text-sm text-muted-foreground">No hay datos de personas para los filtros seleccionados.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-muted/40 backdrop-blur-sm">
+                  <tr className="border-b border-border">
+                    <th className="px-4 py-3 text-left">
+                      <SortBtn label="Persona" col="nombre" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} />
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <SortBtn label="Ingresos prev." col="ingresosPrev" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} align="right" />
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <SortBtn label="Ingresos real" col="ingresosReal" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} align="right" />
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <SortBtn label="Horas plan" col="horasPlan" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} align="right" />
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <SortBtn label="Horas real" col="horasReal" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} align="right" />
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <SortBtn label="€/hora" col="euroHora" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} align="right" />
+                    </th>
+                    <th className="px-4 py-3 text-right">
+                      <SortBtn label="Nº OTs" col="numOTs" sortCol={sortPersonaCol} sortDir={sortPersonaDir} onToggle={toggleSortPersona} align="right" />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {personasOrdenadas.map((p) => (
+                    <tr key={p.nombre} className="border-b border-border/50 bg-white hover:bg-muted/30 transition-colors">
+                      <td className="px-4 py-2 font-medium text-foreground">{p.nombre}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        <span className={p.ingresosPrev > 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}>{formatearValor(p.ingresosPrev, 'money')}</span>
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        <span className={p.ingresosReal > 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}>{formatearValor(p.ingresosReal, 'money')}</span>
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{formatearValor(p.horasPlan, 'hours')}</td>
+                      <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{formatearValor(p.horasReal, 'hours')}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">
+                        <span className={p.euroHora > 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}>{formatearValor(p.euroHora, 'money')}</span>
+                      </td>
+                      <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">{p.numOTs}</td>
+                    </tr>
                   ))}
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Botón de ordenación para cabeceras ───────────────────────
+// ── Chip de dimensión seleccionada ──────────────────────────
 
-function SortButton({
-  label, col, sortCol, sortDir, onToggle, align = 'left',
-}: {
-  label: string
-  col: string
-  sortCol: string | null
-  sortDir: 'asc' | 'desc'
-  onToggle: (col: string) => void
-  align?: 'left' | 'right'
+function DimChip({ label, color, onMoveUp, onRemove }: {
+  label: string; color: 'primary' | 'blue'
+  onMoveUp?: () => void; onRemove?: () => void
 }) {
-  const isActive = sortCol === col
-  const Icon = isActive
-    ? sortDir === 'asc' ? ArrowUp : ArrowDown
-    : ChevronsUpDown
+  const bg = color === 'primary' ? 'bg-primary text-primary-foreground' : 'bg-blue-600 text-white'
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded-full pl-3 pr-1 py-0.5 text-xs font-medium ${bg}`}>
+      {label}
+      {onMoveUp && (
+        <button type="button" onClick={onMoveUp} className="p-0.5 rounded-full hover:bg-white/20 transition-colors" title="Subir">
+          <ChevronUp className="h-3 w-3" />
+        </button>
+      )}
+      {onRemove && (
+        <button type="button" onClick={onRemove} className="p-0.5 rounded-full hover:bg-white/20 transition-colors" title="Quitar">
+          <X className="h-3 w-3" />
+        </button>
+      )}
+    </span>
+  )
+}
+
+// ── Cabecera de tabla ───────────────────────────────────────
+
+function TablaHead({ columnasArbol, columnasHoja, nivelesColumna, tieneColumnas, metricasMeta, filaLabel, sortCol, sortDir, onToggleSort }: {
+  columnasArbol: NodoColumna[]; columnasHoja: { key: string; label: string }[]
+  nivelesColumna: number; tieneColumnas: boolean
+  metricasMeta: (typeof METRICAS)[number][]
+  filaLabel: string; sortCol: string | null; sortDir: 'asc' | 'desc'
+  onToggleSort: (col: string) => void
+}) {
+  const soloUnaMetrica = metricasMeta.length === 1
+  const totalHeaderRows = tieneColumnas ? nivelesColumna + (soloUnaMetrica ? 0 : 1) : 1
+  const numMetricas = metricasMeta.length
+
+  if (!tieneColumnas) {
+    return (
+      <thead className="sticky top-0 z-10 bg-muted/40 backdrop-blur-sm">
+        <tr className="border-b border-border">
+          <th className="px-4 py-3 text-left">
+            <SortBtn label={filaLabel} col="_label" sortCol={sortCol} sortDir={sortDir} onToggle={onToggleSort} />
+          </th>
+          {metricasMeta.map((m) => (
+            <th key={m.value} className="px-4 py-3 text-right">
+              <SortBtn label={metricaLabelCorto(m)} col={`total_${m.value}`} sortCol={sortCol} sortDir={sortDir} onToggle={onToggleSort} align="right" />
+            </th>
+          ))}
+        </tr>
+      </thead>
+    )
+  }
+
+  // Columnas jerárquicas: renderizar N filas de header
+  const headerRows: NodoColumna[][] = []
+  const collectLevel = (nodes: NodoColumna[], level: number) => {
+    if (!headerRows[level]) headerRows[level] = []
+    for (const n of nodes) {
+      headerRows[level].push(n)
+      if (n.children.length > 0) collectLevel(n.children, level + 1)
+    }
+  }
+  collectLevel(columnasArbol, 0)
 
   return (
-    <button
-      type="button"
-      onClick={() => onToggle(col)}
-      className={`inline-flex items-center gap-1 text-xs uppercase tracking-wider transition-colors cursor-pointer select-none ${
-        isActive ? 'text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'
-      } ${align === 'right' ? 'ml-auto flex-row-reverse' : ''}`}
+    <thead className="sticky top-0 z-10 bg-muted/40 backdrop-blur-sm">
+      {/* Filas de agrupación de columnas */}
+      {headerRows.map((nodes, lvl) => (
+        <tr key={lvl} className="border-b border-border/50">
+          {lvl === 0 && (
+            <th className="px-4 py-1.5 text-left" rowSpan={totalHeaderRows}>
+              <SortBtn label={filaLabel} col="_label" sortCol={sortCol} sortDir={sortDir} onToggle={onToggleSort} />
+            </th>
+          )}
+          {nodes.map((node) => {
+            const isLeaf = node.children.length === 0
+            const colSpan = node.span * numMetricas
+            const rowSpan = isLeaf && !soloUnaMetrica ? 1 : isLeaf ? (totalHeaderRows - lvl) : 1
+            return (
+              <th key={node.key} colSpan={colSpan} rowSpan={rowSpan}
+                className="px-2 py-1.5 text-center text-[11px] font-semibold uppercase tracking-wider text-muted-foreground border-l border-border/30"
+              >{node.label}</th>
+            )
+          })}
+          {lvl === 0 && (
+            <th colSpan={numMetricas} rowSpan={soloUnaMetrica ? totalHeaderRows : 1}
+              className="px-2 py-1.5 text-center text-[11px] font-bold uppercase tracking-wider text-foreground border-l-2 border-border"
+            >Total</th>
+          )}
+        </tr>
+      ))}
+      {/* Fila de métricas (solo si hay > 1 métrica) */}
+      {!soloUnaMetrica && (
+        <tr className="border-b border-border">
+          {columnasHoja.map((col) =>
+            metricasMeta.map((m) => (
+              <th key={`${col.key}-${m.value}`} className="px-2 py-1.5 text-right border-l border-border/10">
+                <SortBtn label={metricaLabelMini(m)} col={`${col.key}__${m.value}`} sortCol={sortCol} sortDir={sortDir} onToggle={onToggleSort} align="right" mini />
+              </th>
+            )),
+          )}
+          {metricasMeta.map((m) => (
+            <th key={`total-${m.value}`} className="px-2 py-1.5 text-right border-l-2 border-border">
+              <SortBtn label={metricaLabelMini(m)} col={`total_${m.value}`} sortCol={sortCol} sortDir={sortDir} onToggle={onToggleSort} align="right" mini />
+            </th>
+          ))}
+        </tr>
+      )}
+    </thead>
+  )
+}
+
+// ── Fila jerárquica recursiva ───────────────────────────────
+
+function FilaJerarquica({ fila, expandedKeys, onToggle, tieneColumnas, colHojaKeys, metricasMeta, tieneHijos, mostrarVariacion, prevColMap }: {
+  fila: NodoFila; expandedKeys: Set<string>; onToggle: (key: string) => void
+  tieneColumnas: boolean; colHojaKeys: string[]
+  metricasMeta: (typeof METRICAS)[number][]; tieneHijos: boolean
+  mostrarVariacion: boolean; prevColMap: Map<string, string>
+}) {
+  const hasChildren = fila.children.length > 0
+  const expanded = expandedKeys.has(fila.key)
+  const indent = fila.nivel * 20
+
+  const rowBg = fila.nivel === 0 ? 'bg-white hover:bg-muted/30'
+    : fila.nivel === 1 ? 'bg-gray-50/50 hover:bg-muted/20'
+    : 'bg-gray-50/30 hover:bg-muted/10'
+  const fontWeight = fila.nivel === 0 ? 'font-semibold' : fila.nivel === 1 ? 'font-medium' : 'font-normal'
+  const textSize = fila.nivel === 0 ? 'text-sm' : 'text-[13px]'
+
+  return (
+    <>
+      <tr className={`${rowBg} transition-colors border-b border-border/50`}>
+        <td className="py-2 pr-2 whitespace-nowrap" style={{ paddingLeft: `${12 + indent}px` }}>
+          <div className="flex items-center gap-1">
+            {hasChildren ? (
+              <button onClick={() => onToggle(fila.key)} className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted transition-colors">
+                {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </button>
+            ) : tieneHijos ? <span className="w-5 shrink-0" /> : null}
+            <span className={`${textSize} ${fontWeight} text-foreground truncate`}>{fila.label}</span>
+          </div>
+        </td>
+        {tieneColumnas && colHojaKeys.map((colKey) => {
+          const celda = fila.celdas.get(colKey)
+          const prevKey = prevColMap.get(colKey)
+          const prevCelda = prevKey ? fila.celdas.get(prevKey) : undefined
+          return metricasMeta.map((m) => (
+            <td key={`${colKey}-${m.value}`} className={`py-2 px-2 text-right tabular-nums ${textSize} border-l border-border/10`}>
+              <span className={valorClase(celda?.[m.value] ?? 0, m.format)}>{formatearValor(celda?.[m.value] ?? 0, m.format)}</span>
+              {mostrarVariacion && prevCelda && <DeltaBadge actual={celda?.[m.value] ?? 0} anterior={prevCelda[m.value]} />}
+            </td>
+          ))
+        })}
+        {metricasMeta.map((m) => (
+          <td key={`total-${m.value}`} className={`py-2 px-2 text-right tabular-nums ${textSize} ${fila.nivel === 0 ? 'font-semibold' : ''} ${tieneColumnas ? 'border-l-2 border-border' : ''}`}>
+            <span className={valorClase(fila.totalesFila[m.value], m.format)}>{formatearValor(fila.totalesFila[m.value], m.format)}</span>
+          </td>
+        ))}
+      </tr>
+      {expanded && fila.children.map((child) => (
+        <FilaJerarquica key={child.key} fila={child}
+          expandedKeys={expandedKeys} onToggle={onToggle}
+          tieneColumnas={tieneColumnas} colHojaKeys={colHojaKeys}
+          metricasMeta={metricasMeta} tieneHijos={tieneHijos}
+          mostrarVariacion={mostrarVariacion} prevColMap={prevColMap}
+        />
+      ))}
+    </>
+  )
+}
+
+// ── Sort recursivo del árbol ────────────────────────────────
+
+function sortTree(filas: NodoFila[], sortCol: string, sortDir: 'asc' | 'desc'): NodoFila[] {
+  const sorted = [...filas].sort((a, b) => {
+    if (sortCol === '_label') {
+      return sortDir === 'asc' ? a.label.localeCompare(b.label) : b.label.localeCompare(a.label)
+    }
+    let va = 0, vb = 0
+    if (sortCol.startsWith('total_')) {
+      const m = sortCol.replace('total_', '') as Metrica
+      va = a.totalesFila[m]; vb = b.totalesFila[m]
+    } else {
+      const parts = sortCol.split('__')
+      if (parts.length === 2) {
+        const [colKey, m] = parts
+        va = a.celdas.get(colKey)?.[m as Metrica] ?? 0
+        vb = b.celdas.get(colKey)?.[m as Metrica] ?? 0
+      }
+    }
+    return sortDir === 'asc' ? va - vb : vb - va
+  })
+  return sorted.map((f) => f.children.length > 0 ? { ...f, children: sortTree(f.children, sortCol, sortDir) } : f)
+}
+
+// ── Botón de ordenación ─────────────────────────────────────
+
+function SortBtn({ label, col, sortCol, sortDir, onToggle, align = 'left', mini = false }: {
+  label: string; col: string; sortCol: string | null; sortDir: 'asc' | 'desc'
+  onToggle: (col: string) => void; align?: 'left' | 'right'; mini?: boolean
+}) {
+  const isActive = sortCol === col
+  const Icon = isActive ? (sortDir === 'asc' ? ArrowUp : ArrowDown) : ChevronsUpDown
+  return (
+    <button type="button" onClick={() => onToggle(col)}
+      className={`inline-flex items-center gap-0.5 uppercase tracking-wider transition-colors cursor-pointer select-none ${mini ? 'text-[9px]' : 'text-xs'} ${isActive ? 'text-foreground font-semibold' : 'text-muted-foreground hover:text-foreground'} ${align === 'right' ? 'ml-auto flex-row-reverse' : ''}`}
     >
       {label}
-      <Icon className={`shrink-0 ${isActive ? 'h-3.5 w-3.5' : 'h-3 w-3 opacity-50'}`} />
+      <Icon className={`shrink-0 ${isActive ? 'h-3 w-3' : 'h-2.5 w-2.5 opacity-50'}`} />
     </button>
   )
 }
 
-// ── Utilidad ────────────────────────────────────────────────
+// ── Badge de variación % ───────────────────────────────────
 
-function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  return a.every((v, i) => v === b[i])
+function DeltaBadge({ actual, anterior }: { actual: number; anterior: number }) {
+  if (anterior === 0 && actual === 0) return null
+  if (anterior === 0) return <span className="block text-[9px] font-medium text-blue-500 mt-0.5">nuevo</span>
+
+  const pct = ((actual - anterior) / Math.abs(anterior)) * 100
+  if (Math.abs(pct) < 0.1) return null
+
+  const esPositivo = pct > 0
+  const color = esPositivo ? 'text-emerald-600' : 'text-red-500'
+  const signo = esPositivo ? '+' : ''
+
+  return (
+    <span className={`block text-[9px] font-medium ${color} mt-0.5`}>
+      {signo}{pct.toFixed(1)}%
+    </span>
+  )
+}
+
+// ── Helpers UI ──────────────────────────────────────────────
+
+function valorClase(valor: number, formato: string): string {
+  if (formato === 'money' && valor > 0) return 'font-medium text-foreground'
+  if (formato === 'pct' && valor >= 100) return 'font-medium text-emerald-600'
+  if (formato === 'pct' && valor > 0) return 'font-medium text-amber-600'
+  return 'text-muted-foreground'
+}
+
+function metricaLabelCorto(m: (typeof METRICAS)[number]): string {
+  return m.label.replace(/ \(€\)/, '').replace(/ efectivo/, '')
+}
+
+function metricaLabelMini(m: (typeof METRICAS)[number]): string {
+  return m.label.replace(/ \(€\)/, '').replace(/ efectivo/, '').replace(/ planificadas/, '').replace(/ reales/, '').replace(/Ingresos /, '')
 }

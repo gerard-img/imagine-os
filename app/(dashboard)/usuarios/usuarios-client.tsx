@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import type { Persona, EmpresaGrupo, Rol } from '@/lib/supabase/types'
+import type { Persona, EmpresaGrupo, Rol, Departamento, Division, PersonaDepartamento } from '@/lib/supabase/types'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { FilterPills } from '@/components/filter-pills'
@@ -138,19 +138,50 @@ type Props = {
   personas: Persona[]
   empresasGrupo: EmpresaGrupo[]
   roles: Rol[]
+  departamentos: Departamento[]
+  divisiones: Division[]
+  personasDepartamentos: PersonaDepartamento[]
 }
 
-export default function UsuariosClient({ personas, empresasGrupo, roles }: Props) {
+export default function UsuariosClient({ personas, empresasGrupo, roles, departamentos, divisiones, personasDepartamentos }: Props) {
   const [search, setSearch] = useState('')
   const [estadoFilter, setEstadoFilter] = useState('Todos')
   const [empresaFilter, setEmpresaFilter] = useState('Todos')
+  const [rolFilter, setRolFilter] = useState('Todos')
+  const [deptoFilter, setDeptoFilter] = useState('Todos')
+  const [divisionFilter, setDivisionFilter] = useState('Todos')
 
   const egMap = useMemo(() => new Map(empresasGrupo.map((e) => [e.id, e])), [empresasGrupo])
   const rolMap = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles])
+  const deptoMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
+  const divisionMap = useMemo(() => new Map(divisiones.map((d) => [d.id, d])), [divisiones])
+
+  // Mapa persona_id → departamento_ids (una persona puede estar en varios deptos)
+  const personaDeptos = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const pd of personasDepartamentos) {
+      const arr = map.get(pd.persona_id) ?? []
+      arr.push(pd.departamento_id)
+      map.set(pd.persona_id, arr)
+    }
+    return map
+  }, [personasDepartamentos])
 
   const empresaOptions = useMemo(
     () => ['Todos', ...empresasGrupo.map((eg) => eg.codigo)],
     [empresasGrupo]
+  )
+  const rolOptions = useMemo(
+    () => ['Todos', ...roles.map((r) => r.nombre)],
+    [roles]
+  )
+  const deptoOptions = useMemo(
+    () => ['Todos', ...departamentos.map((d) => d.nombre)],
+    [departamentos]
+  )
+  const divisionOptions = useMemo(
+    () => ['Todos', ...divisiones.map((d) => d.nombre)],
+    [divisiones]
   )
 
   const filtered = personas.filter((p) => {
@@ -158,6 +189,13 @@ export default function UsuariosClient({ personas, empresasGrupo, roles }: Props
     if (q && !p.persona.toLowerCase().includes(q) && !(p.email_corporativo ?? '').toLowerCase().includes(q)) return false
     if (estadoFilter !== 'Todos' && getEstadoAcceso(p) !== estadoFilter) return false
     if (empresaFilter !== 'Todos' && egMap.get(p.empresa_grupo_id)?.codigo !== empresaFilter) return false
+    if (rolFilter !== 'Todos' && rolMap.get(p.rol_id)?.nombre !== rolFilter) return false
+    if (divisionFilter !== 'Todos' && divisionMap.get(p.division_id)?.nombre !== divisionFilter) return false
+    if (deptoFilter !== 'Todos') {
+      const deptoIds = personaDeptos.get(p.id) ?? []
+      const match = deptoIds.some((id) => deptoMap.get(id)?.nombre === deptoFilter)
+      if (!match) return false
+    }
     return true
   })
 
@@ -189,6 +227,9 @@ export default function UsuariosClient({ personas, empresasGrupo, roles }: Props
           onChange={setEstadoFilter}
         />
         <FilterPills options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
+        <FilterPills options={rolOptions} active={rolFilter} onChange={setRolFilter} />
+        <FilterPills options={divisionOptions} active={divisionFilter} onChange={setDivisionFilter} />
+        <FilterPills options={deptoOptions} active={deptoFilter} onChange={setDeptoFilter} />
       </div>
 
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
