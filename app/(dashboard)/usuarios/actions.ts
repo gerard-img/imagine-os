@@ -7,8 +7,8 @@ import { revalidatePath } from 'next/cache'
 export type ActionResult = { success: boolean; error?: string }
 
 /**
- * Invitar usuario: crea cuenta auth directamente con contraseña temporal.
- * El usuario deberá usar "Reset password" para establecer su contraseña.
+ * Invitar usuario: crea cuenta auth y envía email de invitación.
+ * El usuario recibirá un enlace para establecer su contraseña.
  */
 export async function invitarUsuario(personaId: string): Promise<ActionResult> {
   const supabase = await createClient()
@@ -26,27 +26,27 @@ export async function invitarUsuario(personaId: string): Promise<ActionResult> {
 
   const admin = createAdminClient()
 
-  // Crear cuenta con contraseña temporal
-  const tempPassword = `Tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
-  const { data: created, error: createErr } = await admin.auth.admin.createUser({
-    email: persona.email_corporativo,
-    password: tempPassword,
-    email_confirm: true,
-    user_metadata: { persona_nombre: persona.persona },
-  })
+  // Invitar por email: Supabase crea el usuario y envía el email automáticamente
+  const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(
+    persona.email_corporativo,
+    {
+      data: { persona_nombre: persona.persona },
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback?type=invite`,
+    }
+  )
 
-  if (createErr || !created?.user) {
-    const detail = createErr ? `${createErr.message} (status: ${createErr.status}, code: ${(createErr as unknown as Record<string, unknown>).code ?? 'n/a'})` : 'Error al crear la cuenta'
+  if (inviteErr || !invited?.user) {
+    const detail = inviteErr ? `${inviteErr.message} (status: ${inviteErr.status})` : 'Error al invitar'
     return { success: false, error: detail }
   }
 
   // Vincular auth_user_id a la persona
   const { error: linkErr } = await admin
     .from('personas')
-    .update({ auth_user_id: created.user.id })
+    .update({ auth_user_id: invited.user.id })
     .eq('id', personaId)
 
-  if (linkErr) return { success: false, error: `Usuario creado pero error al vincular: ${linkErr.message}` }
+  if (linkErr) return { success: false, error: `Invitación enviada pero error al vincular: ${linkErr.message}` }
 
   revalidatePath('/usuarios')
   revalidatePath('/personas')
@@ -127,6 +127,7 @@ export async function reactivarUsuario(personaId: string): Promise<ActionResult>
 
 /**
  * Resetear contraseña: envía email de reset al email corporativo.
+ * Usa resetPasswordForEmail que sí envía el email automáticamente.
  */
 export async function resetearPassword(personaId: string): Promise<ActionResult> {
   const supabase = await createClient()
@@ -142,10 +143,12 @@ export async function resetearPassword(personaId: string): Promise<ActionResult>
   if (!persona.email_corporativo) return { success: false, error: 'La persona no tiene email corporativo' }
 
   const admin = createAdminClient()
-  const { error } = await admin.auth.admin.generateLink({
-    type: 'recovery',
-    email: persona.email_corporativo,
-  })
+  const { error } = await admin.auth.resetPasswordForEmail(
+    persona.email_corporativo,
+    {
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'}/auth/callback?type=recovery`,
+    }
+  )
 
   if (error) return { success: false, error: error.message }
 

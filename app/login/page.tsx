@@ -1,13 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { login, register } from './actions'
 
 type Mode = 'login' | 'register'
 
 export default function LoginPage() {
+  const searchParams = useSearchParams()
+  const urlError = searchParams.get('error')
   const [mode, setMode] = useState<Mode>('login')
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(
+    urlError === 'enlace-invalido'
+      ? 'El enlace ha expirado o no es válido. Solicita uno nuevo.'
+      : null
+  )
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
