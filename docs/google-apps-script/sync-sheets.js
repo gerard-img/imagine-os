@@ -455,10 +455,18 @@ function subirTabla(nombrePestana, tabla) {
   });
 
   var code = response.getResponseCode();
-  var body = JSON.parse(response.getContentText());
+  var text = response.getContentText();
 
   if (code !== 200) {
-    ui.alert('❌ Error del servidor: ' + (body.error || response.getContentText()));
+    ui.alert('❌ Error del servidor (HTTP ' + code + '):\n' + (text || '(respuesta vacía)').substring(0, 500));
+    return;
+  }
+
+  var body;
+  try {
+    body = JSON.parse(text);
+  } catch (e) {
+    ui.alert('❌ Respuesta inválida del servidor:\n' + (text || '(vacía)').substring(0, 500));
     return;
   }
 

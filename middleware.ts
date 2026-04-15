@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 const RUTAS_PERSONAL = ['/dashboard-personal']
 
 // Rutas que no requieren comprobación de nivel (login, sin-acceso, etc.)
-const RUTAS_PUBLICAS = ['/login', '/sin-acceso', '/auth/callback', '/update-password']
+const RUTAS_PUBLICAS = ['/login', '/sin-acceso', '/auth/callback', '/update-password', '/api/import']
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
