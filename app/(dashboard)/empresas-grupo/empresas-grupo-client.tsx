@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/table'
 import { KpiCard } from '@/components/kpi-card'
 import { FilterPills } from '@/components/filter-pills'
+import { FilterBar } from '@/components/filter-bar'
 
 const SECTIONS = ['Empresas', 'Servicios', 'Departamentos', 'Rangos', 'Puestos', 'Divisiones', 'Roles'] as const
 type Section = (typeof SECTIONS)[number]
@@ -57,9 +58,9 @@ export function EmpresasGrupoClient({
         <KpiCard label="Personas activas" value={totalPersonas} borderColor="border-t-emerald-500" />
       </div>
 
-      <div className="mt-5">
+      <FilterBar className="mt-5">
         <FilterPills options={[...SECTIONS]} active={section} onChange={(v) => setSection(v as Section)} />
-      </div>
+      </FilterBar>
 
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
         {section === 'Empresas' && (

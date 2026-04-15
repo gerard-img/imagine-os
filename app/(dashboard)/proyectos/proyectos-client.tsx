@@ -11,6 +11,7 @@ import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { CambiarEstadoProyecto } from '@/components/cambiar-estado-proyecto'
 import { MultiSelectFilter } from '@/components/multi-select-filter'
+import { FilterBar } from '@/components/filter-bar'
 import type { FilterOption } from '@/components/multi-select-filter'
 import { ProyectoFormSheet } from './proyecto-form-sheet'
 import { ProyectoOtAction } from './proyecto-ot-action'
@@ -556,7 +557,7 @@ function ProyectosContent({
       </div>
 
       {/* ── Barra de filtros ── */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <FilterBar className="mt-3">
         <MultiSelectFilter
           label="Estado"
           options={ESTADO_OPTIONS}
@@ -658,7 +659,7 @@ function ProyectosContent({
         )}
 
         {/* Sort + Contador de resultados */}
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           {view === 'list' && (
             <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
           )}
@@ -666,7 +667,7 @@ function ProyectosContent({
             {filtered.length} proyecto{filtered.length !== 1 ? 's' : ''}
           </span>
         </div>
-      </div>
+      </FilterBar>
 
       {/* ── VISTA LISTA ── */}
       {view === 'list' && (

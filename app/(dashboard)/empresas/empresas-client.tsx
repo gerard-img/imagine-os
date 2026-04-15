@@ -5,7 +5,8 @@ import Link from 'next/link'
 import type { Empresa } from '@/lib/supabase/types'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
-import { FilterPills } from '@/components/filter-pills'
+import { MultiSelectFilter } from '@/components/multi-select-filter'
+import { FilterBar } from '@/components/filter-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { SortControl } from '@/components/sortable-header'
 import { useTableState, sortData } from '@/hooks/use-table-state'
@@ -36,7 +37,7 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
     defaultSort: { col: 'nombre', dir: 'asc' },
   })
-  const filter = getParam('estado', 'Todos')!
+  const filterEstado = useMemo(() => { const v = getParam('estado'); return v ? v.split(',') : [] }, [getParam])
   const [search, setSearch] = useState('')
 
   const filtered = empresas.filter((e) => {
@@ -45,7 +46,7 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
       (e.nombre_interno ?? '').toLowerCase().includes(search.toLowerCase()) ||
       e.nombre_legal.toLowerCase().includes(search.toLowerCase()) ||
       (e.cif ?? '').toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = filter === 'Todos' || e.estado === filter
+    const matchesFilter = filterEstado.length === 0 || filterEstado.includes(e.estado)
     return matchesSearch && matchesFilter
   })
 
@@ -61,16 +62,17 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
   const inactivos = empresas.filter((e) => e.estado === 'Baja').length
 
   // Dynamic title based on filter
+  const singleFilter = filterEstado.length === 1 ? filterEstado[0] : null
   const pageTitle =
-    filter === 'Cliente'
+    singleFilter === 'Cliente'
       ? 'Clientes'
-      : filter === 'Prospecto'
+      : singleFilter === 'Prospecto'
         ? 'Prospectos'
         : 'Empresas'
   const pageSubtitle =
-    filter === 'Cliente'
+    singleFilter === 'Cliente'
       ? 'Empresas con estado Cliente'
-      : filter === 'Prospecto'
+      : singleFilter === 'Prospecto'
         ? 'Empresas en fase de prospección'
         : 'Gestión de empresas'
 
@@ -87,18 +89,23 @@ function EmpresasContent({ empresas }: EmpresasClientProps) {
       </div>
 
       {/* Search + Filters + Sort + Action */}
-      <div className="mt-5 flex items-center gap-3">
+      <FilterBar className="mt-5">
         <SearchBar
           placeholder="Buscar empresa..."
           value={search}
           onChange={setSearch}
         />
-        <FilterPills options={FILTER_OPTIONS} active={filter} onChange={(v) => setParams({ estado: v === 'Todos' ? null : v })} />
-        <div className="ml-auto flex items-center gap-3">
+        <MultiSelectFilter
+          label="Estado"
+          options={FILTER_OPTIONS.filter(o => o !== 'Todos').map(o => ({ value: o, label: o }))}
+          selected={filterEstado}
+          onChange={(v) => setParams({ estado: v.length > 0 ? v.join(',') : null })}
+        />
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
           <EmpresaFormSheet />
         </div>
-      </div>
+      </FilterBar>
 
       {/* Enterprise cards */}
       <div className="mt-4 space-y-2">

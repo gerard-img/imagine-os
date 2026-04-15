@@ -8,7 +8,8 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { KpiCard } from '@/components/kpi-card'
-import { FilterPills } from '@/components/filter-pills'
+import { FilterSelect } from '@/components/filter-select'
+import { FilterBar } from '@/components/filter-bar'
 import { CuotaFormSheet } from './cuota-form-sheet'
 import { eliminarCuota } from './actions'
 import { Trash2, Loader2 } from 'lucide-react'
@@ -87,9 +88,9 @@ export function CuotasClient({ cuotas, empresasGrupo }: Props) {
         <KpiCard label="Precio medio/h" value={formatMoney(precioMedio)} borderColor="border-t-indigo-500" />
       </div>
 
-      <div className="mt-5">
-        <FilterPills options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
-      </div>
+      <FilterBar className="mt-5">
+        <FilterSelect label="Empresa" options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
+      </FilterBar>
 
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
         {filtered.length === 0 ? (

@@ -17,7 +17,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { KpiCard } from '@/components/kpi-card'
-import { FilterPills } from '@/components/filter-pills'
+import { FilterSelect } from '@/components/filter-select'
+import { FilterBar } from '@/components/filter-bar'
 import { MonthNavigator } from '@/components/month-navigator'
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 
@@ -351,9 +352,9 @@ export function HorasTrabajablesClient({ horasTrabajables, empresasGrupo, depart
         <KpiCard label="Overrides departamento" value={overridesDepto} borderColor="border-t-blue-500" />
       </div>
 
-      <div className="mt-5">
-        <FilterPills options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
-      </div>
+      <FilterBar className="mt-5">
+        <FilterSelect label="Empresa" options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
+      </FilterBar>
 
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
         {filtered.length === 0 ? (

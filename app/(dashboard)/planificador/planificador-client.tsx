@@ -4,6 +4,9 @@ import { useState, useMemo, useRef, useEffect, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTableState, sortData } from '@/hooks/use-table-state'
 import { SortControl } from '@/components/sortable-header'
+import { FilterSelect } from '@/components/filter-select'
+import { MultiSelectFilter } from '@/components/multi-select-filter'
+import { FilterBar } from '@/components/filter-bar'
 import type {
   OrdenTrabajo,
   Asignacion,
@@ -159,7 +162,7 @@ function PlanificadorContent({
   })
   const month = getParam('mes', defaultMonth)!
   const egFilter = getParam('eg', 'Todos')!
-  const estadoFilter = getParam('estado', 'Todos')!
+  const estadoFilter = useMemo(() => { const v = getParam('estado'); return v ? v.split(',') : [] }, [getParam])
   const deptoFilter = getParam('depto', 'Todos')!
   const servicioFilter = getParam('servicio', 'Todos')!
   const tipoPartidaFilter = getParam('tipoPartida', 'Todos')!
@@ -194,7 +197,7 @@ function PlanificadorContent({
 
   const filterOptions = useMemo(() => {
     const egs = ['Todos', ...empresasGrupo.map((eg) => eg.nombre)]
-    const estados = ['Todos', ...new Set(ordenesTrabajo.map((o) => o.estado))]
+    const estados = [...new Set(ordenesTrabajo.map((o) => o.estado))].map(e => ({ value: e, label: e }))
 
     // Proyectos con OTs en este mes
     const proyIdsEnMes = new Set(
@@ -249,7 +252,7 @@ function PlanificadorContent({
       const clienteNombre = empresa?.nombre_interno ?? empresa?.nombre_legal ?? ''
 
       if (egFilter !== 'Todos' && egMap.get(proyecto?.empresa_grupo_id ?? '')?.nombre !== egFilter) return false
-      if (estadoFilter !== 'Todos' && ot.estado !== estadoFilter) return false
+      if (estadoFilter.length > 0 && !estadoFilter.includes(ot.estado)) return false
 
       // Filtro de departamento: basado en proyectos_departamentos del proyecto
       if (deptoFilterIds) {
@@ -566,19 +569,19 @@ function PlanificadorContent({
       </div>
 
       {/* Filters */}
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div className="w-64">
+      <FilterBar className="mt-5">
+        <div className="w-64 shrink-0">
           <SearchBar placeholder="Buscar proyecto, cliente, servicio..." value={search} onChange={setSearch} />
         </div>
-        <FilterSelect label="Empresa" value={egFilter} options={filterOptions.egs} onChange={(v) => setParams({ eg: v === 'Todos' ? null : v, depto: null })} />
-        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={(v) => setParams({ estado: v === 'Todos' ? null : v })} />
-        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={(v) => setParams({ depto: v === 'Todos' ? null : v })} />
-        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
-        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={(v) => setParams({ tipoPartida: v === 'Todos' ? null : v })} />
-        <div className="ml-auto">
+        <FilterSelect label="Empresa" options={filterOptions.egs} active={egFilter} onChange={(v) => setParams({ eg: v === 'Todos' ? null : v, depto: null })} />
+        <MultiSelectFilter label="Estado" options={filterOptions.estados} selected={estadoFilter} onChange={(v) => setParams({ estado: v.length > 0 ? v.join(',') : null })} />
+        <FilterSelect label="Departamento" options={filterOptions.deptos} active={deptoFilter} onChange={(v) => setParams({ depto: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Servicio" options={filterOptions.servicios} active={servicioFilter} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Tipo partida" options={filterOptions.tiposPartida} active={tipoPartidaFilter} onChange={(v) => setParams({ tipoPartida: v === 'Todos' ? null : v })} />
+        <div className="ml-auto shrink-0">
           <SortControl options={SORT_OPTIONS_PLANIF} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
         </div>
-      </div>
+      </FilterBar>
 
       {/* Alerta: proyectos sin OTs (solo con filtros activos) */}
       {proyectosSinOTs.length > 0 && (
@@ -958,39 +961,6 @@ function PlanificadorContent({
         )}
       </div>
     </div>
-  )
-}
-
-// ── Filter dropdown component ──
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string
-  options: string[]
-  onChange: (v: string) => void
-}) {
-  const isActive = value !== 'Todos'
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
-        isActive
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
-      }`}
-      aria-label={label}
-    >
-      {options.map((opt) => (
-        <option key={opt} value={opt} className="bg-white text-foreground">
-          {opt === 'Todos' ? `${label}: Todos` : opt}
-        </option>
-      ))}
-    </select>
   )
 }
 

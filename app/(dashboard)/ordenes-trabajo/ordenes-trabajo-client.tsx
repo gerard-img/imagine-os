@@ -36,33 +36,9 @@ import { confirmarOTsBulk } from './actions'
 import { AsignacionFormSheet } from '../asignaciones/asignacion-form-sheet'
 import { CheckCheck, X, Loader2, Users } from 'lucide-react'
 import { ServicioPill } from '@/components/servicio-pill'
-
-// ── Filter dropdown component ──
-function FilterSelect({
-  label, value, options, onChange,
-}: {
-  label: string; value: string; options: string[]; onChange: (v: string) => void
-}) {
-  const isActive = value !== 'Todos'
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`rounded-full px-3 py-1.5 text-xs font-semibold outline-none transition-colors cursor-pointer ${
-        isActive
-          ? 'bg-primary text-primary-foreground'
-          : 'bg-white text-muted-foreground hover:bg-gray-50 border border-border'
-      }`}
-      aria-label={label}
-    >
-      {options.map((opt) => (
-        <option key={opt} value={opt} className="bg-white text-foreground">
-          {opt === 'Todos' ? `${label}: Todos` : opt}
-        </option>
-      ))}
-    </select>
-  )
-}
+import { FilterSelect } from '@/components/filter-select'
+import { MultiSelectFilter } from '@/components/multi-select-filter'
+import { FilterBar } from '@/components/filter-bar'
 
 interface OrdenesTrabajoClientProps {
   ordenesTrabajo: OrdenTrabajo[]
@@ -113,7 +89,7 @@ function OrdenesTrabajoContent({
     defaultSort: { col: 'clienteNombre', dir: 'asc' },
   })
   const month = getParam('mes', availableMonths[0])!
-  const estadoFilter = getParam('estado', 'Todos')!
+  const estadoFilter = useMemo(() => { const v = getParam('estado'); return v ? v.split(',') : [] }, [getParam])
   const deptoFilter = getParam('depto', 'Todos')!
   const servicioFilter = getParam('servicio', 'Todos')!
   const tipoPartidaFilter = getParam('tipoPartida', 'Todos')!
@@ -133,7 +109,7 @@ function OrdenesTrabajoContent({
 
   // Build filter options from data
   const filterOptions = useMemo(() => {
-    const estados = ['Todos', ...new Set(ordenesTrabajo.map((o) => o.estado))]
+    const estados = [...new Set(ordenesTrabajo.map((o) => o.estado))].map(e => ({ value: e, label: e }))
     const deptos = ['Todos', ...new Set(departamentos.map((d) => d.nombre))]
     const srvs = ['Todos', ...new Set(servicios.map((s) => s.nombre))]
     const tiposPartida = ['Todos', 'Puntual', 'Recurrente']
@@ -165,7 +141,7 @@ function OrdenesTrabajoContent({
 
   const filtered = rows.filter((r) => {
     if (r.mes_anio !== month) return false
-    if (estadoFilter !== 'Todos' && r.estado !== estadoFilter) return false
+    if (estadoFilter.length > 0 && !estadoFilter.includes(r.estado)) return false
     if (deptoFilter !== 'Todos' && r.departamentoNombre !== deptoFilter) return false
     if (servicioFilter !== 'Todos' && r.servicioNombre !== servicioFilter) return false
     if (tipoPartidaFilter !== 'Todos') {
@@ -264,15 +240,15 @@ function OrdenesTrabajoContent({
       </div>
 
       {/* Search + Filters */}
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div className="w-64">
+      <FilterBar className="mt-5">
+        <div className="w-64 shrink-0">
           <SearchBar placeholder="Buscar proyecto, servicio, cliente..." value={search} onChange={handleSearchChange} />
         </div>
-        <FilterSelect label="Estado" value={estadoFilter} options={filterOptions.estados} onChange={(v) => setParams({ estado: v === 'Todos' ? null : v })} />
-        <FilterSelect label="Departamento" value={deptoFilter} options={filterOptions.deptos} onChange={(v) => setParams({ depto: v === 'Todos' ? null : v })} />
-        <FilterSelect label="Servicio" value={servicioFilter} options={filterOptions.servicios} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
-        <FilterSelect label="Tipo partida" value={tipoPartidaFilter} options={filterOptions.tiposPartida} onChange={(v) => setParams({ tipoPartida: v === 'Todos' ? null : v })} />
-      </div>
+        <MultiSelectFilter label="Estado" options={filterOptions.estados} selected={estadoFilter} onChange={(v) => setParams({ estado: v.length > 0 ? v.join(',') : null })} />
+        <FilterSelect label="Departamento" options={filterOptions.deptos} active={deptoFilter} onChange={(v) => setParams({ depto: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Servicio" options={filterOptions.servicios} active={servicioFilter} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
+        <FilterSelect label="Tipo partida" options={filterOptions.tiposPartida} active={tipoPartidaFilter} onChange={(v) => setParams({ tipoPartida: v === 'Todos' ? null : v })} />
+      </FilterBar>
 
       {/* Table */}
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">

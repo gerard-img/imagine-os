@@ -4,7 +4,9 @@ import { useState, useMemo } from 'react'
 import type { Persona, EmpresaGrupo, Rol, Departamento, Division, PersonaDepartamento } from '@/lib/supabase/types'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
-import { FilterPills } from '@/components/filter-pills'
+import { FilterSelect } from '@/components/filter-select'
+import { MultiSelectFilter } from '@/components/multi-select-filter'
+import { FilterBar } from '@/components/filter-bar'
 import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from '@/components/ui/table'
@@ -145,7 +147,7 @@ type Props = {
 
 export default function UsuariosClient({ personas, empresasGrupo, roles, departamentos, divisiones, personasDepartamentos }: Props) {
   const [search, setSearch] = useState('')
-  const [estadoFilter, setEstadoFilter] = useState('Todos')
+  const [estadoFilter, setEstadoFilter] = useState<string[]>([])
   const [empresaFilter, setEmpresaFilter] = useState('Todos')
   const [rolFilter, setRolFilter] = useState('Todos')
   const [deptoFilter, setDeptoFilter] = useState('Todos')
@@ -187,7 +189,7 @@ export default function UsuariosClient({ personas, empresasGrupo, roles, departa
   const filtered = personas.filter((p) => {
     const q = search.toLowerCase()
     if (q && !p.persona.toLowerCase().includes(q) && !(p.email_corporativo ?? '').toLowerCase().includes(q)) return false
-    if (estadoFilter !== 'Todos' && getEstadoAcceso(p) !== estadoFilter) return false
+    if (estadoFilter.length > 0 && !estadoFilter.includes(getEstadoAcceso(p))) return false
     if (empresaFilter !== 'Todos' && egMap.get(p.empresa_grupo_id)?.codigo !== empresaFilter) return false
     if (rolFilter !== 'Todos' && rolMap.get(p.rol_id)?.nombre !== rolFilter) return false
     if (divisionFilter !== 'Todos' && divisionMap.get(p.division_id)?.nombre !== divisionFilter) return false
@@ -217,20 +219,25 @@ export default function UsuariosClient({ personas, empresasGrupo, roles, departa
         <KpiCard label="Sin cuenta" value={totalSinCuenta} borderColor="border-t-amber-500" />
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <div className="w-56">
+      <FilterBar className="mt-5">
+        <div className="w-56 shrink-0">
           <SearchBar placeholder="Buscar por nombre o email..." value={search} onChange={setSearch} />
         </div>
-        <FilterPills
-          options={['Todos', 'Activo', 'Sin cuenta', 'Desactivado']}
-          active={estadoFilter}
+        <MultiSelectFilter
+          label="Estado"
+          options={[
+            { value: 'Activo', label: 'Activo' },
+            { value: 'Sin cuenta', label: 'Sin cuenta' },
+            { value: 'Desactivado', label: 'Desactivado' },
+          ]}
+          selected={estadoFilter}
           onChange={setEstadoFilter}
         />
-        <FilterPills options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
-        <FilterPills options={rolOptions} active={rolFilter} onChange={setRolFilter} />
-        <FilterPills options={divisionOptions} active={divisionFilter} onChange={setDivisionFilter} />
-        <FilterPills options={deptoOptions} active={deptoFilter} onChange={setDeptoFilter} />
-      </div>
+        <FilterSelect label="Empresa" options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
+        <FilterSelect label="Rol" options={rolOptions} active={rolFilter} onChange={setRolFilter} />
+        <FilterSelect label="División" options={divisionOptions} active={divisionFilter} onChange={setDivisionFilter} />
+        <FilterSelect label="Departamento" options={deptoOptions} active={deptoFilter} onChange={setDeptoFilter} />
+      </FilterBar>
 
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
         {filtered.length === 0 ? (

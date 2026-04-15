@@ -4,7 +4,8 @@ import { useState, useMemo, Suspense } from 'react'
 import type { ContactoEmpresa, Empresa } from '@/lib/supabase/types'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
-import { FilterPills } from '@/components/filter-pills'
+import { FilterSelect } from '@/components/filter-select'
+import { FilterBar } from '@/components/filter-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { SortControl } from '@/components/sortable-header'
 import { useTableState, sortData } from '@/hooks/use-table-state'
@@ -89,14 +90,14 @@ function ContactosContent({ contactos, empresas }: Props) {
         <KpiCard label="Decisores" value={decisores} borderColor="border-t-amber-500" />
       </div>
 
-      <div className="mt-5 flex items-center gap-3">
+      <FilterBar className="mt-5">
         <SearchBar placeholder="Buscar contacto, empresa o cargo..." value={search} onChange={setSearch} />
-        <FilterPills options={empresaOptions} active={empresaFilter} onChange={(v) => setParams({ empresa: v === 'Todos' ? null : v })} />
-        <div className="ml-auto flex items-center gap-3">
+        <FilterSelect label="Empresa" options={empresaOptions} active={empresaFilter} onChange={(v) => setParams({ empresa: v === 'Todos' ? null : v })} />
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
           <ContactoFormSheet empresas={empresas} />
         </div>
-      </div>
+      </FilterBar>
 
       <div className="mt-4 space-y-2">
         {sorted.length === 0 && (

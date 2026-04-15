@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { MultiSelectFilter, type FilterOption } from '@/components/multi-select-filter'
+import { FilterBar } from '@/components/filter-bar'
 import type { EmpresaGrupo, Departamento } from '@/lib/supabase/types'
 import type { TipoProyectoFiltro } from '@/lib/helpers-informes'
 
@@ -109,7 +110,7 @@ export function FiltrosDatosBarra({
   }, [departamentos, filtroEgs])
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <FilterBar>
       <MultiSelectFilter
         label="Empresa"
         options={empresaGrupoOptions}
@@ -136,6 +137,6 @@ export function FiltrosDatosBarra({
         selected={filtroEstadosOT}
         onChange={setFiltroEstadosOT}
       />
-    </div>
+    </FilterBar>
   )
 }

@@ -20,7 +20,8 @@ import {
 import { ServicioPill } from '@/components/servicio-pill'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
-import { FilterPills } from '@/components/filter-pills'
+import { FilterSelect } from '@/components/filter-select'
+import { FilterBar } from '@/components/filter-bar'
 import { MonthNavigator } from '@/components/month-navigator'
 
 interface AsignacionesClientProps {
@@ -136,14 +137,14 @@ function AsignacionesContent({
       </div>
 
       {/* Search + Filters */}
-      <div className="mt-5 flex items-center gap-3">
+      <FilterBar className="mt-5">
         <SearchBar
           placeholder="Buscar por proyecto, persona o servicio..."
           value={search}
           onChange={setSearch}
         />
-        <FilterPills options={servicioOptions} active={servicioFilter} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
-      </div>
+        <FilterSelect label="Servicio" options={servicioOptions} active={servicioFilter} onChange={(v) => setParams({ servicio: v === 'Todos' ? null : v })} />
+      </FilterBar>
 
       {/* Table */}
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
