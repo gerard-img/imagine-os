@@ -596,7 +596,7 @@ function PlanificadorContent({
                   <ClientePill name={clienteNombre} />
                   <span
                     className="text-sm font-bold text-foreground min-w-0 hover:text-primary hover:underline transition-colors cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); router.push(`/proyectos/${ot.proyecto_id}`) }}
+                    onClick={(e) => { e.stopPropagation(); router.push(`/proyectos/${ot.proyecto_id}?mes=${month}`) }}
                   >
                     {proyecto?.titulo ?? '—'}
                   </span>

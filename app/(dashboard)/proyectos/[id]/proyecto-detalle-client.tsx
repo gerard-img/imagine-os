@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useMemo, useState, useRef, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, ChevronRight, Pencil, Plus, Users, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -47,7 +47,15 @@ type Props = {
   contactos: ContactoEmpresa[]
 }
 
-export function ProyectoDetalleClient({
+export function ProyectoDetalleClient(props: Props) {
+  return (
+    <Suspense>
+      <ProyectoDetalleContent {...props} />
+    </Suspense>
+  )
+}
+
+function ProyectoDetalleContent({
   proyecto, proyectos, proyDepts, ordenes, ordenesPersonas,
   asignaciones, servicios, cuotas, personas,
   departamentos, empresas, empresasGrupo, contactos,
@@ -76,7 +84,15 @@ export function ProyectoDetalleClient({
     return months.length > 0 ? months : ['2026-01-01']
   }, [ordenes])
 
-  const [mes, setMes] = useState(availableMonths[availableMonths.length - 1])
+  // Mes inicial: ?mes=YYYY-MM-01 si viene en la URL (p.ej. desde Planificador),
+  // si no, el último mes con OTs.
+  const searchParams = useSearchParams()
+  const mesFromUrl = searchParams.get('mes')
+  const [mes, setMes] = useState(
+    mesFromUrl && /^\d{4}-\d{2}-01$/.test(mesFromUrl)
+      ? mesFromUrl
+      : availableMonths[availableMonths.length - 1]
+  )
 
   const deptosProyecto = useMemo(() =>
     proyDepts.map((pd) => departamentoMap.get(pd.departamento_id)).filter(Boolean),

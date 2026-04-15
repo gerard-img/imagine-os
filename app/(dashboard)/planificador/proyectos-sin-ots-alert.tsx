@@ -89,7 +89,7 @@ export function ProyectosSinOtsAlert({
                   <ClientePill name={clienteNombre} />
                   <span
                     className="text-sm font-semibold text-foreground truncate hover:text-primary hover:underline cursor-pointer"
-                    onClick={() => router.push(`/proyectos/${p.id}`)}
+                    onClick={() => router.push(`/proyectos/${p.id}?mes=${month}`)}
                   >
                     {p.titulo}
                   </span>
