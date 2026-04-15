@@ -26,12 +26,42 @@ export function MultiSelectFilter({
 }: MultiSelectFilterProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Cerrar al hacer clic fuera
+  // Al abrir: calcular posición del dropdown en coords de viewport (position: fixed).
+  // Necesario porque FilterBar tiene overflow-x-auto, que recorta verticalmente y
+  // crea stacking context. Además, bloqueamos el scroll del contenedor padre
+  // (imitando el comportamiento del <select> nativo) para que no haga falta
+  // reposicionar el dropdown al hacer scroll.
+  useEffect(() => {
+    if (!open) {
+      setPos(null)
+      return
+    }
+
+    const trigger = ref.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    setPos({ top: rect.bottom + 4, left: rect.left })
+
+    const scrollContainer = trigger.closest('main') as HTMLElement | null
+    if (!scrollContainer) return
+    const prev = scrollContainer.style.overflow
+    scrollContainer.style.overflow = 'hidden'
+    return () => {
+      scrollContainer.style.overflow = prev
+    }
+  }, [open])
+
+  // Cerrar al hacer clic fuera (trigger o dropdown)
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      const inTrigger = ref.current?.contains(target)
+      const inDropdown = dropdownRef.current?.contains(target)
+      if (!inTrigger && !inDropdown) {
         setOpen(false)
         setSearch('')
       }
@@ -95,9 +125,13 @@ export function MultiSelectFilter({
         )}
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-52 max-w-72 rounded-xl border border-border bg-white shadow-lg">
+      {/* Dropdown — fixed en viewport para escapar de overflow/stacking contexts */}
+      {open && pos && (
+        <div
+          ref={dropdownRef}
+          style={{ position: 'fixed', top: pos.top, left: pos.left }}
+          className="z-50 min-w-52 max-w-72 rounded-xl border border-border bg-white shadow-lg"
+        >
           {/* Búsqueda */}
           {searchable && (
             <div className="border-b border-border px-3 py-2">
