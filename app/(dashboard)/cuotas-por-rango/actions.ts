@@ -1,12 +1,18 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { cuotaSchema, type CuotaFormData } from '@/lib/schemas/cuota-planificacion'
 
 export type ActionResult = { success: boolean; error?: string }
 
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
+
 export async function crearCuota(data: CuotaFormData): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = cuotaSchema.safeParse(data)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
@@ -30,6 +36,9 @@ export async function crearCuota(data: CuotaFormData): Promise<ActionResult> {
 }
 
 export async function actualizarCuota(id: string, data: CuotaFormData): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = cuotaSchema.safeParse(data)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
@@ -57,6 +66,9 @@ export async function actualizarCuota(id: string, data: CuotaFormData): Promise<
 }
 
 export async function eliminarCuota(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('cuotas_planificacion')

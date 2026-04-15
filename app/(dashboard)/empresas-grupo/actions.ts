@@ -1,8 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_ADMIN } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+
+// empresas_grupo = holding superior → solo roles de nivel global
+const ERROR_SIN_PERMISO = 'No tienes permiso para gestionar empresas del grupo'
 
 const egSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio'),
@@ -21,6 +25,9 @@ const egSchema = z.object({
 export type ActionResult = { success: boolean; error?: string }
 
 export async function crearEmpresaGrupo(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = egSchema.safeParse(formData)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
@@ -50,6 +57,9 @@ export async function crearEmpresaGrupo(formData: unknown): Promise<ActionResult
 }
 
 export async function actualizarEmpresaGrupo(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (!id || !/^[0-9a-f-]{36}$/.test(id)) return { success: false, error: 'ID no válido' }
 
   const parsed = egSchema.safeParse(formData)

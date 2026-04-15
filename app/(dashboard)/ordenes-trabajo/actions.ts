@@ -1,12 +1,18 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { ordenTrabajoSchema, ESTADOS_OT } from '@/lib/schemas/orden-trabajo'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult = { success: boolean; id?: string; error?: string }
 
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
+
 export async function crearOrdenTrabajo(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = ordenTrabajoSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -49,6 +55,9 @@ export async function crearOrdenTrabajo(formData: unknown): Promise<ActionResult
 }
 
 export async function actualizarOrdenTrabajo(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = ordenTrabajoSchema.safeParse(formData)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
@@ -93,6 +102,9 @@ export async function actualizarOrdenTrabajo(id: string, formData: unknown): Pro
 }
 
 export async function confirmarOTsBulk(ids: string[]): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (ids.length === 0) return { success: false, error: 'No hay OTs seleccionadas' }
 
   const supabase = await createClient()
@@ -119,6 +131,9 @@ const SIGUIENTE_ESTADO: Record<string, string> = {
 }
 
 export async function avanzarEstadoOT(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   // Leer estado actual para determinar el siguiente
@@ -148,6 +163,9 @@ export async function avanzarEstadoOT(id: string): Promise<ActionResult> {
 }
 
 export async function asignarServicioOT(otId: string, servicioId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (!servicioId) return { success: false, error: 'Selecciona un servicio' }
 
   const supabase = await createClient()
@@ -165,6 +183,9 @@ export async function asignarServicioOT(otId: string, servicioId: string): Promi
 }
 
 export async function eliminarOrdenTrabajo(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const now = new Date().toISOString()
 
@@ -195,6 +216,9 @@ export async function eliminarOrdenTrabajo(id: string): Promise<ActionResult> {
 }
 
 export async function cambiarEstadoOT(id: string, nuevoEstado: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (!ESTADOS_OT.includes(nuevoEstado as typeof ESTADOS_OT[number])) {
     return { success: false, error: 'Estado no válido' }
   }

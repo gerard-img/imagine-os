@@ -62,14 +62,20 @@ export async function middleware(request: NextRequest) {
     let nivelAcceso = request.cookies.get('nivel_acceso')?.value
 
     if (!nivelAcceso) {
+      type PersonaConRol = {
+        roles:
+          | { nivel_acceso: string }
+          | { nivel_acceso: string }[]
+          | null
+      }
       const { data: persona } = await supabase
         .from('personas')
         .select('roles(nivel_acceso)')
         .eq('auth_user_id', user.id)
-        .single()
+        .single<PersonaConRol>()
 
-      const roles = persona?.roles as unknown as { nivel_acceso: string } | null
-      nivelAcceso = roles?.nivel_acceso ?? undefined
+      const rol = Array.isArray(persona?.roles) ? persona?.roles[0] : persona?.roles
+      nivelAcceso = rol?.nivel_acceso ?? undefined
 
       if (nivelAcceso) {
         supabaseResponse.cookies.set('nivel_acceso', nivelAcceso, {

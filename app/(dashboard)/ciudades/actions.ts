@@ -1,8 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
 // ── Schema de validación ──
 
@@ -21,6 +24,9 @@ export type ActionResult = {
 // ── Crear ciudad ──
 
 export async function crearCiudad(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = ciudadSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -45,6 +51,9 @@ export async function crearCiudad(formData: unknown): Promise<ActionResult> {
 // ── Actualizar ciudad ──
 
 export async function actualizarCiudad(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = ciudadSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }

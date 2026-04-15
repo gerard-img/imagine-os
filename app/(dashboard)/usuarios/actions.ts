@@ -2,15 +2,22 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_ADMIN } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult = { success: boolean; error?: string }
+
+// Mensaje estándar cuando falta autorización para gestionar usuarios.
+const ERROR_SIN_PERMISO = 'No tienes permiso para gestionar usuarios'
 
 /**
  * Invitar usuario: crea cuenta auth y envía email de invitación.
  * El usuario recibirá un enlace para establecer su contraseña.
  */
 export async function invitarUsuario(personaId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   // Obtener persona
@@ -57,6 +64,9 @@ export async function invitarUsuario(personaId: string): Promise<ActionResult> {
  * Desactivar usuario: pone activo=false y banea la cuenta auth.
  */
 export async function desactivarUsuario(personaId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   const { data: persona } = await supabase
@@ -94,6 +104,9 @@ export async function desactivarUsuario(personaId: string): Promise<ActionResult
  * Reactivar usuario: pone activo=true y desbanea la cuenta auth.
  */
 export async function reactivarUsuario(personaId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const admin = createAdminClient()
 
   const { data: persona } = await admin
@@ -130,6 +143,9 @@ export async function reactivarUsuario(personaId: string): Promise<ActionResult>
  * Usa resetPasswordForEmail que sí envía el email automáticamente.
  */
 export async function resetearPassword(personaId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   const { data: persona } = await supabase
@@ -161,6 +177,9 @@ export async function resetearPassword(personaId: string): Promise<ActionResult>
  * La persona se mantiene en la DB pero sin acceso.
  */
 export async function eliminarCuentaAuth(personaId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const admin = createAdminClient()
 
   const { data: persona } = await admin
@@ -193,6 +212,9 @@ export async function eliminarCuentaAuth(personaId: string): Promise<ActionResul
  * Cambiar rol de una persona.
  */
 export async function cambiarRol(personaId: string, rolId: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const admin = createAdminClient()
 
   const { error } = await admin

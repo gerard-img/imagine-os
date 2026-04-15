@@ -1,8 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
 const horasSchema = z.object({
   empresa_grupo_id: z.string().min(1, 'Selecciona una empresa'),
@@ -19,6 +22,9 @@ export type ActionResult = {
 }
 
 export async function crearHorasTrabajables(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = horasSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -46,6 +52,9 @@ export async function crearHorasTrabajables(formData: unknown): Promise<ActionRe
 }
 
 export async function actualizarHorasTrabajables(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = horasSchema.safeParse(formData)
   if (!parsed.success) {
     console.error('VALIDATION ERRORS:', JSON.stringify(parsed.error.issues, null, 2))
@@ -78,6 +87,9 @@ export async function actualizarHorasTrabajables(id: string, formData: unknown):
 }
 
 export async function eliminarHorasTrabajables(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('horas_trabajables')

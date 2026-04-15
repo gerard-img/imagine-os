@@ -1,10 +1,13 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { asignacionSchema } from '@/lib/schemas/asignacion'
 import { revalidatePath } from 'next/cache'
 
 export type ActionResult = { success: boolean; error?: string }
+
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
 function revalidateAll() {
   revalidatePath('/asignaciones')
@@ -13,6 +16,9 @@ function revalidateAll() {
 }
 
 export async function crearAsignacion(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = asignacionSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -57,6 +63,9 @@ export async function crearAsignacion(formData: unknown): Promise<ActionResult> 
 }
 
 export async function actualizarAsignacion(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = asignacionSchema.safeParse(formData)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 
@@ -99,6 +108,9 @@ export async function actualizarAsignacion(id: string, formData: unknown): Promi
 }
 
 export async function eliminarAsignacion(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   const { error } = await supabase

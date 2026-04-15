@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { empresaSchema, empresaEditSchema } from '@/lib/schemas/empresa'
 import { revalidatePath } from 'next/cache'
 
@@ -9,7 +10,12 @@ export type ActionResult = {
   error?: string
 }
 
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
+
 export async function crearEmpresa(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   // 1. Validar con zod en servidor (nunca confiar solo en el cliente)
   const parsed = empresaSchema.safeParse(formData)
   if (!parsed.success) {
@@ -59,6 +65,9 @@ export async function crearEmpresa(formData: unknown): Promise<ActionResult> {
 }
 
 export async function actualizarEmpresa(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (!id || !/^[0-9a-f-]{36}$/.test(id)) {
     return { success: false, error: 'ID de empresa no válido' }
   }

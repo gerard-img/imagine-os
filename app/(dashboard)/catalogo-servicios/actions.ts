@@ -1,8 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
 // ── Schema de validacion ──
 
@@ -23,6 +26,9 @@ export type ActionResult = {
 // ── Crear servicio ──
 
 export async function crearServicio(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = servicioSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -51,6 +57,9 @@ export async function crearServicio(formData: unknown): Promise<ActionResult> {
 // ── Actualizar servicio ──
 
 export async function actualizarServicio(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = servicioSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }

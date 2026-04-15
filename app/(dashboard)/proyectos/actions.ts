@@ -1,7 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getPersonaAutenticada } from '@/lib/supabase/auth-helpers'
+import {
+  getPersonaAutenticada,
+  getUsuarioConNivel,
+  NIVELES_GESTION,
+} from '@/lib/supabase/auth-helpers'
 import { proyectoSchema, ESTADOS_PROYECTO } from '@/lib/schemas/proyecto'
 import { revalidatePath } from 'next/cache'
 
@@ -10,6 +14,7 @@ export type ActionResult = {
   error?: string
 }
 
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 const ROLES_DIRECTOR_O_SUPERIOR = ['Director', 'Socio', 'Administrador', 'Fundador']
 
 function revalidateProyectos(id?: string) {
@@ -24,6 +29,9 @@ function revalidateProyectos(id?: string) {
 
 // ── Archivar ──
 export async function archivarProyecto(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('proyectos')
@@ -38,6 +46,9 @@ export async function archivarProyecto(id: string): Promise<ActionResult> {
 
 // ── Desarchivar ──
 export async function desarchivarProyecto(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('proyectos')
@@ -51,6 +62,9 @@ export async function desarchivarProyecto(id: string): Promise<ActionResult> {
 
 // ── Eliminar (soft delete en cascada) ──
 export async function eliminarProyecto(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const now = new Date().toISOString()
 
@@ -66,8 +80,7 @@ export async function eliminarProyecto(id: string): Promise<ActionResult> {
   if (otsFacturadas && otsFacturadas.length > 0) {
     // Solo Director o superior puede borrar proyectos con OTs facturadas
     const persona = await getPersonaAutenticada()
-    const roles = persona?.roles as unknown as { nombre: string } | null
-    const rolNombre = roles?.nombre ?? ''
+    const rolNombre = persona?.rol.nombre ?? ''
 
     if (!ROLES_DIRECTOR_O_SUPERIOR.includes(rolNombre)) {
       return {
@@ -112,6 +125,9 @@ export async function eliminarProyecto(id: string): Promise<ActionResult> {
 
 // ── Restaurar (quita deleted_at del proyecto, sus OTs y asignaciones) ──
 export async function restaurarProyecto(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   // Restaurar asignaciones de OTs del proyecto
@@ -146,6 +162,9 @@ export async function restaurarProyecto(id: string): Promise<ActionResult> {
 }
 
 export async function cambiarEstadoProyecto(id: string, nuevoEstado: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (!ESTADOS_PROYECTO.includes(nuevoEstado as typeof ESTADOS_PROYECTO[number])) {
     return { success: false, error: 'Estado no válido' }
   }
@@ -166,6 +185,9 @@ export async function cambiarEstadoProyecto(id: string, nuevoEstado: string): Pr
 }
 
 export async function crearProyecto(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = proyectoSchema.safeParse(formData)
   if (!parsed.success) {
     const firstError = parsed.error.issues[0]
@@ -230,6 +252,9 @@ export async function crearProyecto(formData: unknown): Promise<ActionResult> {
 }
 
 export async function actualizarProyecto(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = proyectoSchema.safeParse(formData)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0].message }
 

@@ -16,9 +16,7 @@ export default async function DashboardLayout({
     redirect('/sin-acceso')
   }
 
-  // Extraer nombre del rol para filtrar sidebar
-  const roles = persona.roles as unknown as { nombre: string } | null
-  const rolNombre = roles?.nombre
+  const rolNombre = persona.rol.nombre
 
   return (
     <div className="flex h-screen overflow-hidden">

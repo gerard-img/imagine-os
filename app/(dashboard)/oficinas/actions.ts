@@ -1,8 +1,11 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
 // ── Schema de validación ──
 
@@ -20,6 +23,9 @@ export type ActionResult = {
 // ── Crear oficina ──
 
 export async function crearOficina(formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = oficinaSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }
@@ -44,6 +50,9 @@ export async function crearOficina(formData: unknown): Promise<ActionResult> {
 // ── Actualizar oficina ──
 
 export async function actualizarOficina(id: string, formData: unknown): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = oficinaSchema.safeParse(formData)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message }

@@ -1,10 +1,13 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
 export type ActionResult = { success: boolean; error?: string }
+
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
 const asignacionItemSchema = z.object({
   id: z.string().optional(),
@@ -32,6 +35,9 @@ export async function guardarAsignacionesOT(
   originalIds: string[],
   rawOrdenUpdates?: unknown,
 ): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = z.array(asignacionItemSchema).safeParse(asignaciones)
   if (!parsed.success) {
     return { success: false, error: 'Datos de asignación inválidos' }
