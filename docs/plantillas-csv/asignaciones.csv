@@ -1,0 +1,2 @@
+orden_trabajo_id,persona_id,porcentaje_ppto_tm,cuota_planificacion_id,horas_reales,notas
+(UUID orden trabajo),(UUID persona),50,(UUID cuota planificacion),,

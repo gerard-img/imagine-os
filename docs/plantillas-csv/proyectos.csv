@@ -1,0 +1,2 @@
+empresa_id,empresa_grupo_id,titulo,descripcion,tipo_proyecto,tipo_partida,estado,responsable_id,ppto_estimado,fecha_activacion,fecha_cierre,tipo_facturacion,probabilidad_cierre,valor_estimado_total,notas
+(UUID de empresa cliente),10000000-0000-0000-0000-000000000002,SEO Acme Q2 2026,Campaña SEO trimestral,Facturable,Recurrente,Activo,(UUID persona responsable),15000,2026-04-01,2026-06-30,Fee mensual,100,15000,

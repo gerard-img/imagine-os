@@ -1,0 +1,2 @@
+nombre_legal,cif,nombre_interno,estado,tipo,tipo_cliente,sector,web,calle,codigo_postal,ciudad,provincia,pais,telefono,clasificacion_cuenta,fuente_captacion,notas
+ACME MARKETING SL,B12345678,Acme,Cliente,Marca,Servicio,Tecnología,https://acme.com,Calle Mayor 10,28001,Madrid,Madrid,España,+34910000000,A,Inbound,Cliente desde 2024

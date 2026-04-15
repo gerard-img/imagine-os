@@ -1,0 +1,126 @@
+TABLA,NOMBRE,CODIGO,ID
+--- EMPRESAS GRUPO ---,,,
+empresas_grupo,Digital Menta Mexico,DMM,10000000-0000-0000-0000-000000000001
+empresas_grupo,Digital Menta España,DME,10000000-0000-0000-0000-000000000002
+empresas_grupo,Imagine Group,IMG,10000000-0000-0000-0000-000000000003
+empresas_grupo,Kauai Agency,KAU,10000000-0000-0000-0000-000000000004
+empresas_grupo,BidBalance,BBD,10000000-0000-0000-0000-000000000005
+empresas_grupo,Dr Roberts,DRR,10000000-0000-0000-0000-000000000006
+empresas_grupo,Aurea People,AUR,10000000-0000-0000-0000-000000000007
+--- DIVISIONES ---,,,
+divisiones,BDEV,Business Development,60000000-0000-0000-0000-000000000001
+divisiones,TALE,Talento y personas,60000000-0000-0000-0000-000000000002
+divisiones,CONS,Consultoría,60000000-0000-0000-0000-000000000003
+divisiones,OPER,Operaciones,60000000-0000-0000-0000-000000000004
+divisiones,ADMI,Administración,60000000-0000-0000-0000-000000000005
+divisiones,DIRE,Dirección,60000000-0000-0000-0000-000000000006
+--- ROLES ---,,,
+roles,Fundador,,70000000-0000-0000-0000-000000000001
+roles,Administrador,,70000000-0000-0000-0000-000000000002
+roles,Socio,,70000000-0000-0000-0000-000000000003
+roles,Director,,70000000-0000-0000-0000-000000000004
+roles,Coordinador,,70000000-0000-0000-0000-000000000005
+roles,Responsable,,70000000-0000-0000-0000-000000000006
+roles,Miembro,,70000000-0000-0000-0000-000000000007
+roles,Intern,,70000000-0000-0000-0000-000000000008
+roles,Externo,,70000000-0000-0000-0000-000000000009
+roles,Implant,,70000000-0000-0000-0000-000000000010
+--- CIUDADES ---,,,
+ciudades,Valencia,España,80000000-0000-0000-0000-000000000001
+ciudades,Madrid,España,80000000-0000-0000-0000-000000000002
+ciudades,Barcelona,España,80000000-0000-0000-0000-000000000003
+ciudades,Guadalajara,México,80000000-0000-0000-0000-000000000004
+ciudades,Málaga,España,80000000-0000-0000-0000-000000000005
+ciudades,Puebla,México,80000000-0000-0000-0000-000000000006
+ciudades,CDMX,México,80000000-0000-0000-0000-000000000007
+--- OFICINAS ---,,,
+oficinas,Sant Valero,,81000000-0000-0000-0000-000000000001
+oficinas,Av America,,81000000-0000-0000-0000-000000000002
+oficinas,Ramon Turro,,81000000-0000-0000-0000-000000000003
+oficinas,Mendez Alvaro,,81000000-0000-0000-0000-000000000004
+oficinas,Cliente,,81000000-0000-0000-0000-000000000005
+oficinas,Teletrabajo,,81000000-0000-0000-0000-000000000006
+--- RANGOS INTERNOS (DMM) ---,,,
+rangos_internos,Socio,DMM,40000000-0000-0000-0000-000000001001
+rangos_internos,Director,DMM,40000000-0000-0000-0000-000000001002
+rangos_internos,Studio Head,DMM,40000000-0000-0000-0000-000000001003
+rangos_internos,Team Head,DMM,40000000-0000-0000-0000-000000001004
+rangos_internos,Miembro,DMM,40000000-0000-0000-0000-000000001005
+rangos_internos,Junior,DMM,40000000-0000-0000-0000-000000001006
+rangos_internos,Intern,DMM,40000000-0000-0000-0000-000000001007
+rangos_internos,Externo,DMM,40000000-0000-0000-0000-000000001008
+rangos_internos,Implant,DMM,40000000-0000-0000-0000-000000001009
+--- RANGOS INTERNOS (DME) ---,,,
+rangos_internos,Socio,DME,40000000-0000-0000-0000-000000002001
+rangos_internos,Director,DME,40000000-0000-0000-0000-000000002002
+rangos_internos,Studio Head,DME,40000000-0000-0000-0000-000000002003
+rangos_internos,Team Head,DME,40000000-0000-0000-0000-000000002004
+rangos_internos,Miembro,DME,40000000-0000-0000-0000-000000002005
+rangos_internos,Junior,DME,40000000-0000-0000-0000-000000002006
+rangos_internos,Intern,DME,40000000-0000-0000-0000-000000002007
+rangos_internos,Externo,DME,40000000-0000-0000-0000-000000002008
+rangos_internos,Implant,DME,40000000-0000-0000-0000-000000002009
+--- RANGOS INTERNOS (IMG) ---,,,
+rangos_internos,Socio,IMG,40000000-0000-0000-0000-000000003001
+rangos_internos,Director,IMG,40000000-0000-0000-0000-000000003002
+rangos_internos,Dept Head,IMG,40000000-0000-0000-0000-000000003003
+rangos_internos,Team Head,IMG,40000000-0000-0000-0000-000000003004
+rangos_internos,Miembro,IMG,40000000-0000-0000-0000-000000003005
+rangos_internos,Junior,IMG,40000000-0000-0000-0000-000000003006
+rangos_internos,Intern,IMG,40000000-0000-0000-0000-000000003007
+rangos_internos,Externo,IMG,40000000-0000-0000-0000-000000003008
+rangos_internos,Implant,IMG,40000000-0000-0000-0000-000000003009
+--- RANGOS INTERNOS (KAU) ---,,,
+rangos_internos,Socio,KAU,40000000-0000-0000-0000-000000004001
+rangos_internos,Director,KAU,40000000-0000-0000-0000-000000004002
+rangos_internos,Dept Head,KAU,40000000-0000-0000-0000-000000004003
+rangos_internos,Team Head,KAU,40000000-0000-0000-0000-000000004004
+rangos_internos,Miembro,KAU,40000000-0000-0000-0000-000000004005
+rangos_internos,Junior,KAU,40000000-0000-0000-0000-000000004006
+rangos_internos,Intern,KAU,40000000-0000-0000-0000-000000004007
+rangos_internos,Externo,KAU,40000000-0000-0000-0000-000000004008
+rangos_internos,Implant,KAU,40000000-0000-0000-0000-000000004009
+--- RANGOS INTERNOS (BBD) ---,,,
+rangos_internos,Socio,BBD,40000000-0000-0000-0000-000000005001
+rangos_internos,Director,BBD,40000000-0000-0000-0000-000000005002
+rangos_internos,Dept Head,BBD,40000000-0000-0000-0000-000000005003
+rangos_internos,Team Head,BBD,40000000-0000-0000-0000-000000005004
+rangos_internos,Miembro,BBD,40000000-0000-0000-0000-000000005005
+rangos_internos,Junior,BBD,40000000-0000-0000-0000-000000005006
+rangos_internos,Intern,BBD,40000000-0000-0000-0000-000000005007
+rangos_internos,Externo,BBD,40000000-0000-0000-0000-000000005008
+rangos_internos,Implant,BBD,40000000-0000-0000-0000-000000005009
+--- RANGOS INTERNOS (DRR) ---,,,
+rangos_internos,Socio,DRR,40000000-0000-0000-0000-000000006001
+rangos_internos,Director,DRR,40000000-0000-0000-0000-000000006002
+rangos_internos,Dept Head,DRR,40000000-0000-0000-0000-000000006003
+rangos_internos,Team Head,DRR,40000000-0000-0000-0000-000000006004
+rangos_internos,Miembro,DRR,40000000-0000-0000-0000-000000006005
+rangos_internos,Junior,DRR,40000000-0000-0000-0000-000000006006
+rangos_internos,Intern,DRR,40000000-0000-0000-0000-000000006007
+rangos_internos,Externo,DRR,40000000-0000-0000-0000-000000006008
+rangos_internos,Implant,DRR,40000000-0000-0000-0000-000000006009
+--- RANGOS INTERNOS (AUR) ---,,,
+rangos_internos,Socio,AUR,40000000-0000-0000-0000-000000007001
+rangos_internos,Director,AUR,40000000-0000-0000-0000-000000007002
+rangos_internos,Dept Head,AUR,40000000-0000-0000-0000-000000007003
+rangos_internos,Team Head,AUR,40000000-0000-0000-0000-000000007004
+rangos_internos,Miembro,AUR,40000000-0000-0000-0000-000000007005
+rangos_internos,Junior,AUR,40000000-0000-0000-0000-000000007006
+rangos_internos,Intern,AUR,40000000-0000-0000-0000-000000007007
+rangos_internos,Externo,AUR,40000000-0000-0000-0000-000000007008
+rangos_internos,Implant,AUR,40000000-0000-0000-0000-000000007009
+--- VALORES VÁLIDOS PARA CAMPOS ENUM ---,,,
+CAMPO: tipo_contrato,"Indefinido | Temporal | Prácticas | Autónomo | Becario | Sustitución",,
+CAMPO: jornada,"Completa | Parcial | Media jornada",,
+CAMPO: modalidad_trabajo,"Presencial | Híbrido | Remoto",,
+CAMPO: estado (empresas),"Conocido | Prospecto | Cliente | Baja | Otros",,
+CAMPO: tipo (empresas),"Marca | Fabricante | Fondo | Agencia | Tecnología",,
+CAMPO: tipo_proyecto,"Interno | Externo | Facturable",,
+CAMPO: tipo_partida,"Puntual | Recurrente",,
+CAMPO: estado (proyectos),"Propuesta | Confirmado | Activo | Pausado | Finalizado | Cancelado",,
+CAMPO: tipo_facturacion,"Precio fijo | Por horas | Fee mensual | Éxito",,
+CAMPO: nivel_ingles,"A1 | A2 | B1 | B2 | C1 | C2 | Nativo",,
+CAMPO: clasificacion_cuenta,"A | B | C",,
+CAMPO: fuente_captacion,"Inbound | Outbound | Referido | Evento | Red propia | Otro",,
+CAMPO: rol_influencia,"Champion | Decision Maker | Economic Buyer | Influencer | Blocker",,

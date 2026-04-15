@@ -1,0 +1,2 @@
+proyecto_id,servicio_id,departamento_id,mes_anio,porcentaje_ppto_mes,partida_prevista,partida_real,aprobador_id,estado,fecha_inicio,fecha_fin,titulo,horas_planificadas,horas_reales,notas
+(UUID proyecto),(UUID servicio o vacío),(UUID departamento),2026-04-01,100,5000,,( UUID persona aprobador),Planificado,2026-04-01,2026-04-30,SEO Acme Abril,80,,

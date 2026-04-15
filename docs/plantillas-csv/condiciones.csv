@@ -1,0 +1,2 @@
+persona_id,fecha_inicio,fecha_fin,empresa_grupo_id,departamento_id,rango_id,puesto_id,division_id,rol_id,salario_bruto_anual,tipo_contrato,jornada,horas_semana,coste_seguridad_social,salario_variable_anual,porcentaje_variable,dias_vacaciones,modalidad_trabajo,notas
+(UUID persona),2024-03-15,,10000000-0000-0000-0000-000000000002,(UUID departamento),40000000-0000-0000-0000-000000002005,(UUID puesto),60000000-0000-0000-0000-000000000004,70000000-0000-0000-0000-000000000007,28000,Indefinido,Completa,40,8400,,,,Híbrido,

@@ -1,0 +1,2 @@
+empresa_id,nombre,apellidos,email,telefono_directo,movil,cargo,departamento,es_decisor,es_contacto_principal,activo,linkedin_url,rol_influencia,notas
+(UUID empresa),Ana,Martínez Ruiz,ana@acme.com,+34910000001,+34600000001,Directora Marketing,Marketing,true,true,true,,Decision Maker,Contacto principal para campañas
