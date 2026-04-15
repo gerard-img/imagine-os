@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useRef, useEffect, Suspense } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTableState, sortData } from '@/hooks/use-table-state'
 import { SortControl } from '@/components/sortable-header'
@@ -22,6 +22,7 @@ import type {
   HorasTrabajables,
 } from '@/lib/supabase/types'
 import { safeDivide, clamp, formatMoney } from '@/lib/helpers'
+import { resolverHorasTrabajables } from '@/lib/horas-trabajables'
 import { KpiCard } from '@/components/kpi-card'
 import { MonthNavigator } from '@/components/month-navigator'
 import { SearchBar } from '@/components/search-bar'
@@ -32,10 +33,11 @@ import { DeptPill } from '@/components/dept-pill'
 import { NumberInput } from '@/components/number-input'
 import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save, AlertTriangle } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
-import { asignarServicioOT, eliminarOrdenTrabajo } from '../ordenes-trabajo/actions'
+import { eliminarOrdenTrabajo } from '../ordenes-trabajo/actions'
 import { OtFormSheet } from '../ordenes-trabajo/ot-form-sheet'
 import { GenerarOtsButton } from '../ordenes-trabajo/generar-ots-button'
 import { generarOTsProyectoMes } from '../ordenes-trabajo/generar-ots-mes'
+import { SinServicioSelector } from './sin-servicio-selector'
 
 // ── Props del servidor ──
 type PlanificadorClientProps = {
@@ -72,42 +74,6 @@ type OrdenLocal = {
   porcentaje_ppto_mes: number
   partida_prevista: number
   partida_real: number | null
-}
-
-// ── Resolver horas trabajables (misma lógica que el server, replicada en cliente) ──
-function resolverHorasTrabajables(
-  personaId: string,
-  mes: string,
-  personasMap: Map<string, Persona>,
-  persDepts: PersonaDepartamento[],
-  horasTrab: HorasTrabajables[]
-): number {
-  const persona = personasMap.get(personaId)
-  if (!persona) return 0
-
-  // 1. Override por persona
-  const overridePersona = horasTrab.find(
-    (h) => h.persona_id === personaId && h.mes_trabajo === mes
-  )
-  if (overridePersona) return overridePersona.horas
-
-  // 2. Override por departamento principal
-  const depts = persDepts
-    .filter((pd) => pd.persona_id === personaId)
-    .sort((a, b) => b.porcentaje_tiempo - a.porcentaje_tiempo)
-  if (depts.length > 0) {
-    const deptPrincipalId = depts[0].departamento_id
-    const overrideDepto = horasTrab.find(
-      (h) => h.departamento_id === deptPrincipalId && !h.persona_id && h.mes_trabajo === mes
-    )
-    if (overrideDepto) return overrideDepto.horas
-  }
-
-  // 3. General de la empresa
-  const general = horasTrab.find(
-    (h) => h.empresa_grupo_id === persona.empresa_grupo_id && !h.departamento_id && !h.persona_id && h.mes_trabajo === mes
-  )
-  return general?.horas ?? 0
 }
 
 const SORT_OPTIONS_PLANIF = [
@@ -964,71 +930,3 @@ function PlanificadorContent({
   )
 }
 
-// ── Selector inline para OTs sin servicio ──
-
-function SinServicioSelector({
-  otId,
-  servicios,
-}: {
-  otId: string
-  servicios: CatalogoServicio[]
-}) {
-  const [open, setOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [open])
-
-  async function handleSelect(servicioId: string) {
-    setSaving(true)
-    await asignarServicioOT(otId, servicioId)
-    setSaving(false)
-    setOpen(false)
-  }
-
-  if (saving) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-        Guardando…
-      </span>
-    )
-  }
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors cursor-pointer"
-      >
-        ⚠ Sin servicio
-      </button>
-
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border bg-white py-1 shadow-lg">
-          {servicios.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground">No hay servicios configurados</p>
-          ) : (
-            servicios.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => handleSelect(s.id)}
-                className="flex w-full items-center px-3 py-1.5 text-sm transition-colors hover:bg-muted/50 text-left"
-              >
-                <ServicioPill name={s.nombre} />
-              </button>
-            ))
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
