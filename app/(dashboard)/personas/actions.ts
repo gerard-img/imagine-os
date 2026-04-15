@@ -1,12 +1,18 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { personaSchema, type PersonaFormData } from '@/lib/schemas/persona'
 
 export type ActionResult = { success: boolean; error?: string }
 
+const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
+
 export async function crearPersona(data: PersonaFormData): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = personaSchema.safeParse(data)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
@@ -26,7 +32,7 @@ export async function crearPersona(data: PersonaFormData): Promise<ActionResult>
     empresa_grupo_id: d.empresa_grupo_id,
     rol_id: d.rol_id,
     division_id: d.division_id,
-    puesto_id: d.puesto_id,
+    puesto_id: d.puesto_id || null,
     rango_id: d.rango_id,
     ciudad_id: d.ciudad_id,
     oficina_id: d.oficina_id || null,
@@ -64,6 +70,9 @@ export async function crearPersona(data: PersonaFormData): Promise<ActionResult>
 }
 
 export async function actualizarPersona(id: string, data: PersonaFormData): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const parsed = personaSchema.safeParse(data)
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }
@@ -83,7 +92,7 @@ export async function actualizarPersona(id: string, data: PersonaFormData): Prom
     empresa_grupo_id: d.empresa_grupo_id,
     rol_id: d.rol_id,
     division_id: d.division_id,
-    puesto_id: d.puesto_id,
+    puesto_id: d.puesto_id || null,
     rango_id: d.rango_id,
     ciudad_id: d.ciudad_id,
     oficina_id: d.oficina_id || null,
@@ -132,6 +141,9 @@ export async function actualizarDepartamentosPersona(
   personaId: string,
   entries: { departamento_id: string; porcentaje_tiempo: number }[]
 ): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (entries.length === 0) {
     return { success: false, error: 'Debe haber al menos un departamento asignado.' }
   }
@@ -168,6 +180,9 @@ export async function actualizarDepartamentosPersona(
 }
 
 export async function archivarPersona(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('personas')
@@ -181,6 +196,9 @@ export async function archivarPersona(id: string): Promise<ActionResult> {
 }
 
 export async function restaurarPersona(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('personas')
@@ -194,6 +212,9 @@ export async function restaurarPersona(id: string): Promise<ActionResult> {
 }
 
 export async function eliminarPersona(id: string): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
 
   // Verificar que no tenga dependencias
@@ -237,6 +258,9 @@ export async function crearPuestoRapido(
   empresaGrupoId: string,
   nombre: string,
 ): Promise<{ success: boolean; id?: string; error?: string }> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   if (!nombre.trim()) return { success: false, error: 'El nombre es obligatorio' }
   if (!empresaGrupoId) return { success: false, error: 'Selecciona una empresa primero' }
 
@@ -259,6 +283,9 @@ export async function crearPuestoRapido(
 }
 
 export async function toggleInterinidad(personaId: string, valor: boolean): Promise<ActionResult> {
+  const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+  if (!autorizado) return { success: false, error: ERROR_SIN_PERMISO }
+
   const supabase = await createClient()
   const { error } = await supabase
     .from('personas')

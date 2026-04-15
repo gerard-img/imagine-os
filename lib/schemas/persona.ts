@@ -12,7 +12,7 @@ export const personaSchema = z.object({
   empresa_grupo_id: z.string().min(1, 'Selecciona una empresa grupo'),
   rol_id: z.string().min(1, 'Selecciona un rol'),
   division_id: z.string().min(1, 'Selecciona una división'),
-  puesto_id: z.string().min(1, 'Selecciona un puesto'),
+  puesto_id: z.string(),
   rango_id: z.string().min(1, 'Selecciona un rango'),
   ciudad_id: z.string().min(1, 'Selecciona una ciudad'),
   oficina_id: z.string(),

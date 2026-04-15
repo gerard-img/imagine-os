@@ -304,7 +304,7 @@ export function PersonaFormSheet({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label>Puesto *</Label>
+                <Label>Puesto</Label>
                 {egId && !creandoPuesto && (
                   <button
                     type="button"
