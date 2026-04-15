@@ -174,19 +174,49 @@ function descargarEmpresasGrupo() {
   descargarTablaSimple('empresas_grupo', 'LK Empresas Grupo', 'id,nombre,codigo,cif');
 }
 function descargarDepartamentos() {
-  descargarTablaSimple('departamentos', 'LK Departamentos', 'id,empresa_grupo_id,nombre,codigo');
+  descargarConJoins(
+    'departamentos',
+    'LK Departamentos',
+    'id,empresas_grupo(codigo),nombre,codigo',
+    ['id','empresa_grupo','nombre','codigo'],
+    { 'empresas_grupo': { col: 'empresa_grupo', field: 'codigo' } }
+  );
 }
 function descargarCatalogoServicios() {
-  descargarTablaSimple('catalogo_servicios', 'LK Servicios', 'id,empresa_grupo_id,nombre,codigo');
+  descargarConJoins(
+    'catalogo_servicios',
+    'LK Servicios',
+    'id,empresas_grupo(codigo),nombre,codigo',
+    ['id','empresa_grupo','nombre','codigo'],
+    { 'empresas_grupo': { col: 'empresa_grupo', field: 'codigo' } }
+  );
 }
 function descargarRangosInternos() {
-  descargarTablaSimple('rangos_internos', 'LK Rangos', 'id,empresa_grupo_id,nombre,codigo,orden');
+  descargarConJoins(
+    'rangos_internos',
+    'LK Rangos',
+    'id,empresas_grupo(codigo),nombre,codigo,orden',
+    ['id','empresa_grupo','nombre','codigo','orden'],
+    { 'empresas_grupo': { col: 'empresa_grupo', field: 'codigo' } }
+  );
 }
 function descargarPuestos() {
-  descargarTablaSimple('puestos', 'LK Puestos', 'id,empresa_grupo_id,nombre,codigo');
+  descargarConJoins(
+    'puestos',
+    'LK Puestos',
+    'id,empresas_grupo(codigo),nombre,codigo',
+    ['id','empresa_grupo','nombre','codigo'],
+    { 'empresas_grupo': { col: 'empresa_grupo', field: 'codigo' } }
+  );
 }
 function descargarCuotasPlanificacion() {
-  descargarTablaSimple('cuotas_planificacion', 'LK Cuotas', 'id,empresa_grupo_id,nombre,precio_hora,inicio_validez,fin_validez');
+  descargarConJoins(
+    'cuotas_planificacion',
+    'LK Cuotas',
+    'id,empresas_grupo(codigo),nombre,precio_hora,inicio_validez,fin_validez',
+    ['id','empresa_grupo','nombre','precio_hora','inicio_validez','fin_validez'],
+    { 'empresas_grupo': { col: 'empresa_grupo', field: 'codigo' } }
+  );
 }
 function descargarDivisiones() {
   descargarTablaSimple('divisiones', 'LK Divisiones', 'id,nombre,descripcion');
