@@ -21,9 +21,8 @@ import { Plus, Pencil, Loader2 } from 'lucide-react'
 // ── Schema local ──
 
 const puestoSchema = z.object({
-  empresa_grupo_id: z.string().uuid('La empresa es obligatoria'),
+  empresa_grupo_id: z.string().min(1, 'La empresa es obligatoria'),
   nombre: z.string().min(1, 'El nombre es obligatorio').max(200, 'El nombre no puede superar los 200 caracteres'),
-  codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
   descripcion: z.string().max(500).optional(),
 })
 type PuestoFormData = z.infer<typeof puestoSchema>
@@ -52,20 +51,15 @@ function PuestoSheet(props: PuestoSheetProps) {
     register,
     handleSubmit,
     reset,
-    setValue,
-    watch,
     formState: { errors },
   } = useForm<PuestoFormData>({
     resolver: zodResolver(puestoSchema),
     defaultValues: {
       empresa_grupo_id: esEdicion ? props.puesto.empresa_grupo_id : '',
       nombre: esEdicion ? props.puesto.nombre : '',
-      codigo: esEdicion ? props.puesto.codigo : '',
       descripcion: esEdicion ? (props.puesto.descripcion ?? '') : '',
     },
   })
-
-  const selectedEmpresa = watch('empresa_grupo_id')
 
   async function onSubmit(data: PuestoFormData) {
     setSubmitting(true)
@@ -112,11 +106,10 @@ function PuestoSheet(props: PuestoSheetProps) {
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
             <select
               id="empresa_grupo_id"
-              value={selectedEmpresa}
-              onChange={(e) => setValue('empresa_grupo_id', e.target.value, { shouldValidate: true })}
               disabled={esEdicion}
               aria-invalid={!!errors.empresa_grupo_id}
               className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+              {...register('empresa_grupo_id')}
             >
               <option value="">Selecciona una empresa</option>
               {props.empresas.map((eg) => (
@@ -135,17 +128,6 @@ function PuestoSheet(props: PuestoSheetProps) {
               {...register('nombre')}
             />
             <FieldError message={errors.nombre?.message} />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="codigo">Codigo *</Label>
-            <Input
-              id="codigo"
-              placeholder="Ej: P01"
-              aria-invalid={!!errors.codigo}
-              {...register('codigo')}
-            />
-            <FieldError message={errors.codigo?.message} />
           </div>
 
           <div className="space-y-1.5">
