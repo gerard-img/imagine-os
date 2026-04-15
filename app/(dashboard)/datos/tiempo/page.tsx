@@ -1,37 +1,48 @@
 import {
-  getOrdenesTrabajo,
-  getAsignaciones,
+  getOrdenesTrabajoEnRango,
+  getAsignacionesEnRango,
+  getHorasTrabajablesEnRango,
   getPersonas,
   getProyectos,
   getEmpresas,
   getCuotasPlanificacion,
-  getHorasTrabajables,
   getPersonasDepartamentos,
   getEmpresasGrupo,
   getDepartamentos,
 } from '@/lib/supabase/queries'
+import { defaultDateRange, rangoParaServidor } from '@/lib/date-range-utils'
 import { DatosTiempoClient } from './datos-tiempo-client'
 
-export default async function DatosTiempoPage() {
+export default async function DatosTiempoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ desde?: string; hasta?: string }>
+}) {
+  const { desde: desdeParam, hasta: hastaParam } = await searchParams
+  const def = defaultDateRange()
+  const desde = desdeParam || def.desde
+  const hasta = hastaParam || def.hasta
+  const rango = rangoParaServidor(desde, hasta)
+
   const [
     ordenesTrabajo,
     asignaciones,
+    horasTrabajables,
     personas,
     proyectos,
     empresas,
     cuotas,
-    horasTrabajables,
     personasDepartamentos,
     empresasGrupo,
     departamentos,
   ] = await Promise.all([
-    getOrdenesTrabajo(),
-    getAsignaciones(),
+    getOrdenesTrabajoEnRango(rango.desde, rango.hasta),
+    getAsignacionesEnRango(rango.desde, rango.hasta),
+    getHorasTrabajablesEnRango(rango.desde, rango.hasta),
     getPersonas(),
     getProyectos(),
     getEmpresas(),
     getCuotasPlanificacion(),
-    getHorasTrabajables(),
     getPersonasDepartamentos(),
     getEmpresasGrupo(),
     getDepartamentos(),

@@ -262,6 +262,26 @@ export async function getOrdenesTrabajo(): Promise<OrdenTrabajo[]> {
   })
 }
 
+/**
+ * Órdenes cuyo `mes_anio` cae dentro del rango [desde, hasta] (inclusivo).
+ * Ambos extremos en formato "YYYY-MM-01".
+ */
+export async function getOrdenesTrabajoEnRango(
+  desde: string,
+  hasta: string,
+): Promise<OrdenTrabajo[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('ordenes_trabajo')
+    .select('*')
+    .is('deleted_at', null)
+    .gte('mes_anio', desde)
+    .lte('mes_anio', hasta)
+    .order('mes_anio')
+  if (error) throw new Error(`Error consultando ordenes_trabajo: ${error.message}`)
+  return (data ?? []) as OrdenTrabajo[]
+}
+
 export async function getOrdenesTrabajoByMes(mes: string): Promise<OrdenTrabajo[]> {
   return query<OrdenTrabajo>('ordenes_trabajo', {
     filters: [
@@ -292,6 +312,26 @@ export async function getAsignaciones(): Promise<Asignacion[]> {
   return query<Asignacion>('asignaciones', {
     filters: [{ column: 'deleted_at', op: 'is', value: null }],
   })
+}
+
+/**
+ * Asignaciones cuyas órdenes caen dentro del rango [desde, hasta] (inclusivo).
+ * Hace join interno contra `ordenes_trabajo.mes_anio` para filtrar en servidor.
+ */
+export async function getAsignacionesEnRango(
+  desde: string,
+  hasta: string,
+): Promise<Asignacion[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('asignaciones')
+    .select('*, ordenes_trabajo!inner(mes_anio)')
+    .is('deleted_at', null)
+    .gte('ordenes_trabajo.mes_anio', desde)
+    .lte('ordenes_trabajo.mes_anio', hasta)
+  if (error) throw new Error(`Error consultando asignaciones: ${error.message}`)
+  // Quitar el campo embebido `ordenes_trabajo` para devolver `Asignacion` limpia.
+  return (data ?? []).map(({ ordenes_trabajo: _ot, ...rest }) => rest) as Asignacion[]
 }
 
 export async function getAsignacionesByOrden(ordenId: string): Promise<Asignacion[]> {
@@ -347,6 +387,23 @@ export async function getAsignacionesByPersona(personaId: string): Promise<Asign
 
 export async function getHorasTrabajables(): Promise<HorasTrabajables[]> {
   return query<HorasTrabajables>('horas_trabajables')
+}
+
+/**
+ * Horas trabajables cuyo `mes_trabajo` cae en [desde, hasta] (inclusivo).
+ */
+export async function getHorasTrabajablesEnRango(
+  desde: string,
+  hasta: string,
+): Promise<HorasTrabajables[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('horas_trabajables')
+    .select('*')
+    .gte('mes_trabajo', desde)
+    .lte('mes_trabajo', hasta)
+  if (error) throw new Error(`Error consultando horas_trabajables: ${error.message}`)
+  return (data ?? []) as HorasTrabajables[]
 }
 
 // ── Función compuesta: resolver horas trabajables por persona/mes ──

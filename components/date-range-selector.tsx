@@ -2,11 +2,19 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  type DateRange,
+  toMonthStr,
+  parseMonth,
+  shiftMonths,
+} from '@/lib/date-range-utils'
 
-export interface DateRange {
-  desde: string // "YYYY-MM-01"
-  hasta: string // "YYYY-MM-01"
-}
+export type { DateRange }
+export {
+  generateMonthRange,
+  rangoPrevioEquivalente,
+  defaultDateRange,
+} from '@/lib/date-range-utils'
 
 interface DateRangeSelectorProps {
   value: DateRange
@@ -19,15 +27,6 @@ const MESES = [
 ]
 
 // ── Helpers ───────────────────────────────────────────────────
-
-function toMonthStr(year: number, month: number): string {
-  return `${year}-${String(month + 1).padStart(2, '0')}-01`
-}
-
-function parseMonth(dateStr: string): { year: number; month: number } {
-  const d = new Date(dateStr + 'T00:00:00')
-  return { year: d.getFullYear(), month: d.getMonth() }
-}
 
 function formatLabel(dateStr: string): string {
   const { year, month } = parseMonth(dateStr)
@@ -42,23 +41,6 @@ function formatRangeLabel(desde: string, hasta: string): string {
     return `${MESES[d.month]} – ${MESES[h.month]} ${d.year}`
   }
   return `${MESES[d.month]} ${d.year} – ${MESES[h.month]} ${h.year}`
-}
-
-function currentMonthStr(): string {
-  const now = new Date()
-  return toMonthStr(now.getFullYear(), now.getMonth())
-}
-
-function shiftMonths(dateStr: string, delta: number): string {
-  const d = new Date(dateStr + 'T00:00:00')
-  d.setMonth(d.getMonth() + delta)
-  return toMonthStr(d.getFullYear(), d.getMonth())
-}
-
-function monthsBetween(desde: string, hasta: string): number {
-  const d = parseMonth(desde)
-  const h = parseMonth(hasta)
-  return (h.year - d.year) * 12 + (h.month - d.month)
 }
 
 // ── Presets ────────────────────────────────────────────────────
@@ -312,35 +294,3 @@ export function DateRangeSelector({ value, onChange }: DateRangeSelectorProps) {
   )
 }
 
-// ── Utilidades exportadas ─────────────────────────────────────
-
-/** Genera array de meses entre desde y hasta (inclusivos) */
-export function generateMonthRange(desde: string, hasta: string): string[] {
-  const meses: string[] = []
-  const d = parseMonth(desde)
-  const h = parseMonth(hasta)
-  let year = d.year
-  let month = d.month
-
-  while (year < h.year || (year === h.year && month <= h.month)) {
-    meses.push(toMonthStr(year, month))
-    month++
-    if (month > 11) { month = 0; year++ }
-  }
-
-  return meses
-}
-
-/** Calcula el rango "anterior equivalente" para comparación de KPIs */
-export function rangoPrevioEquivalente(desde: string, hasta: string): DateRange {
-  const nMeses = monthsBetween(desde, hasta) + 1
-  const nuevaHasta = shiftMonths(desde, -1)
-  const nuevaDesde = shiftMonths(nuevaHasta, -(nMeses - 1))
-  return { desde: nuevaDesde, hasta: nuevaHasta }
-}
-
-/** Devuelve el mes actual como rango por defecto */
-export function defaultDateRange(): DateRange {
-  const mes = currentMonthStr()
-  return { desde: mes, hasta: mes }
-}
