@@ -123,10 +123,14 @@ async function loadLookups(supabase: any): Promise<Lookups> {
     supabase.from('ordenes_trabajo').select('id, proyecto_id, proyectos(empresa_grupo_id)'),
   ])
 
-  // Mapa OT → empresa_grupo_id (para resolver cuotas en asignaciones)
+  // Mapa OT → empresa_grupo_id (para resolver cuotas en asignaciones).
+  // El join `proyectos(empresa_grupo_id)` puede venir tipado como objeto o array
+  // según la versión de los tipos generados; normalizamos a objeto.
+  type ProyectoJoin = { empresa_grupo_id: string }
   const otEmpresaGrupo = new Map<string, string>()
   for (const ot of otRes.data || []) {
-    const proy = ot.proyectos as unknown as { empresa_grupo_id: string } | null
+    const raw = ot.proyectos as ProyectoJoin | ProyectoJoin[] | null
+    const proy = Array.isArray(raw) ? raw[0] : raw
     if (proy) otEmpresaGrupo.set(ot.id, proy.empresa_grupo_id)
   }
 
