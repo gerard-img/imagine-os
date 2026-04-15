@@ -1,11 +1,13 @@
 'use client'
 
-import { Suspense, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/browser'
 import { login } from './actions'
 
 function LoginForm() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const urlError = searchParams.get('error')
   const [error, setError] = useState<string | null>(
     urlError === 'enlace-invalido'
@@ -13,6 +15,38 @@ function LoginForm() {
       : null
   )
   const [loading, setLoading] = useState(false)
+
+  // Detectar tokens de invitación/recovery en el hash fragment
+  // Supabase envía #access_token=...&type=invite cuando usa flujo implícito
+  useEffect(() => {
+    const hash = window.location.hash
+    if (!hash) return
+
+    const params = new URLSearchParams(hash.substring(1))
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+    const type = params.get('type')
+
+    if (accessToken && refreshToken) {
+      setLoading(true)
+      setError(null)
+      const supabase = createClient()
+      supabase.auth
+        .setSession({ access_token: accessToken, refresh_token: refreshToken })
+        .then(({ error: sessionError }) => {
+          if (sessionError) {
+            setError('El enlace ha expirado o no es válido. Solicita uno nuevo.')
+            setLoading(false)
+            return
+          }
+          if (type === 'recovery' || type === 'invite') {
+            router.replace('/update-password')
+          } else {
+            router.replace('/')
+          }
+        })
+    }
+  }, [router])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

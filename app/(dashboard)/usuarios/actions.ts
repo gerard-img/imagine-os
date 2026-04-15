@@ -176,10 +176,10 @@ export async function eliminarCuentaAuth(personaId: string): Promise<ActionResul
   const { error: delErr } = await admin.auth.admin.deleteUser(persona.auth_user_id)
   if (delErr) return { success: false, error: `Error al eliminar cuenta auth: ${delErr.message}` }
 
-  // 2. Desvincular auth_user_id de la persona (auth ya no existe, limpiamos la FK)
+  // 2. Desvincular y reactivar persona (para que pueda ser re-invitada)
   const { error: unlinkErr } = await admin
     .from('personas')
-    .update({ auth_user_id: null })
+    .update({ auth_user_id: null, activo: true })
     .eq('id', personaId)
 
   if (unlinkErr) return { success: false, error: `Cuenta eliminada pero error al desvincular: ${unlinkErr.message}` }
