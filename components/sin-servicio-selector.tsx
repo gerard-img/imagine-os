@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { CatalogoServicio } from '@/lib/supabase/types'
 import { ServicioPill } from '@/components/servicio-pill'
-import { asignarServicioOT } from '../ordenes-trabajo/actions'
+import { asignarServicioOT } from '@/app/(dashboard)/ordenes-trabajo/actions'
 
 type Props = {
   otId: string

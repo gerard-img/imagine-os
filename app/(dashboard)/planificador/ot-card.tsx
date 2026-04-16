@@ -19,7 +19,7 @@ import { ServicioPill } from '@/components/servicio-pill'
 import { ClientePill } from '@/components/cliente-pill'
 import { DeptPill } from '@/components/dept-pill'
 import { NumberInput } from '@/components/number-input'
-import { SinServicioSelector } from './sin-servicio-selector'
+import { SinServicioSelector } from '@/components/sin-servicio-selector'
 import type { AsignacionLocal } from './planificador-client'
 
 const ORDEN_CUOTAS = ['Senior', 'Specialist', 'Junior', 'Intern', 'Coordinador']
