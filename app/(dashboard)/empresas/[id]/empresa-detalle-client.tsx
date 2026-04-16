@@ -22,6 +22,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { MonthNavigator } from '@/components/month-navigator'
 import { ArrowLeft, Globe, Phone, Mail, ExternalLink, Crown, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { InfoRow } from '@/components/info-row'
 import { EmpresaEditSheet } from './empresa-edit-sheet'
 import { ContactoFormSheet } from '../../contactos/contacto-form-sheet'
 
@@ -38,15 +39,6 @@ type Props = {
   departamentos: Departamento[]
   puestos: Puesto[]
   empresasGrupo: EmpresaGrupo[]
-}
-
-function InfoRow({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
-  return (
-    <div className="flex justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold text-right">{children ?? value ?? '—'}</dd>
-    </div>
-  )
 }
 
 const clasificacionColors: Record<string, string> = {

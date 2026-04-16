@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Globe, Mail, Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { InfoRow } from '@/components/info-row'
 import { EGFormSheet } from '../eg-form-sheet'
 import type {
   EmpresaGrupo, CatalogoServicio, Departamento, RangoInterno, Puesto, Persona,
@@ -16,15 +17,6 @@ type Props = {
   rangos: RangoInterno[]
   puestos: Puesto[]
   personas: Persona[]
-}
-
-function InfoRow({ label, value }: { label: string; value?: string | null }) {
-  return (
-    <div className="flex justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold text-right">{value ?? '—'}</dd>
-    </div>
-  )
 }
 
 export function EGDetalleClient({ eg, servicios, departamentos, rangos, puestos, personas }: Props) {

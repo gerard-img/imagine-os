@@ -28,6 +28,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { MonthNavigator } from '@/components/month-navigator'
 import { ArrowLeft, Mail, Phone, ExternalLink, Globe, Archive, ArchiveRestore, Trash2, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { InfoRow } from '@/components/info-row'
 import { PersonaDeptSheet } from '../persona-dept-sheet'
 import { PersonaFormSheet } from '../persona-form-sheet'
 import { toggleInterinidad, archivarPersona, restaurarPersona, eliminarPersona } from '../actions'
@@ -75,15 +76,6 @@ function DeptPill({ name }: { name: string }) {
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${color}`}>
       {name}
     </span>
-  )
-}
-
-function InfoRow({ label, value, children }: { label: string; value?: string | null; children?: React.ReactNode }) {
-  return (
-    <div className="flex justify-between">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold text-right">{children ?? value ?? '—'}</dd>
-    </div>
   )
 }
 
