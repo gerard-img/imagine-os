@@ -1,26 +1,22 @@
 'use client'
 
 import { useState, useMemo, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTableState, sortData } from '@/hooks/use-table-state'
 import { SortControl } from '@/components/sortable-header'
 import type { Proyecto, Empresa, EmpresaGrupo, Departamento, ProyectoDepartamento, Persona, ServicioYDept } from '@/lib/supabase/types'
-import { formatMoney, formatDate } from '@/lib/helpers'
+import { formatMoney } from '@/lib/helpers'
 import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
-import { CambiarEstadoProyecto } from '@/components/cambiar-estado-proyecto'
 import { MultiSelectFilter } from '@/components/multi-select-filter'
 import { FilterBar } from '@/components/filter-bar'
 import type { FilterOption } from '@/components/multi-select-filter'
 import { ProyectoFormSheet } from './proyecto-form-sheet'
-import { ProyectoOtAction } from './proyecto-ot-action'
+import { ProjectCard } from './project-card'
 import { archivarProyecto, desarchivarProyecto, eliminarProyecto, restaurarProyecto } from './actions'
 import type { CatalogoServicio } from '@/lib/supabase/types'
-import { ClientePill } from '@/components/cliente-pill'
-import { DeptPill } from '@/components/dept-pill'
 import { NumberInput } from '@/components/number-input'
-import { LayoutList, LayoutGrid, X, Archive, ArchiveRestore, Trash2, RotateCcw, Loader2 } from 'lucide-react'
+import { LayoutList, LayoutGrid, X } from 'lucide-react'
 
 const ESTADO_OPTIONS: FilterOption[] = [
   { value: 'Activo', label: 'Activo' },
@@ -44,38 +40,6 @@ type Props = {
   serviciosYDepts: ServicioYDept[]
 }
 
-// Calcula el % de tiempo transcurrido entre activación y cierre
-function calcularProgresoTiempo(proyecto: Proyecto): number | null {
-  if (!proyecto.fecha_activacion || !proyecto.fecha_cierre) return null
-  const inicio = new Date(proyecto.fecha_activacion).getTime()
-  const fin = new Date(proyecto.fecha_cierre).getTime()
-  const hoy = Date.now()
-  if (fin <= inicio) return null
-  return Math.min(Math.max(((hoy - inicio) / (fin - inicio)) * 100, 0), 110)
-}
-
-function BarraTiempo({ proyecto }: { proyecto: Proyecto }) {
-  if (proyecto.tipo_partida !== 'Puntual') return null
-  const pct = calcularProgresoTiempo(proyecto)
-  if (pct === null) return null
-
-  const color = pct > 100 ? 'bg-red-500' : pct > 85 ? 'bg-amber-400' : 'bg-emerald-500'
-  const vencido = pct > 100
-
-  return (
-    <div className="flex items-center gap-2 mt-2">
-      <div className="relative h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${color}`}
-          style={{ width: `${Math.min(pct, 100)}%` }}
-        />
-      </div>
-      <span className={`text-[10px] font-semibold shrink-0 tabular-nums ${vencido ? 'text-red-600' : 'text-muted-foreground'}`}>
-        {Math.round(pct)}%{vencido ? ' ⚠' : ''}
-      </span>
-    </div>
-  )
-}
 
 const SORT_OPTIONS = [
   { value: 'titulo', label: 'Título' },
@@ -103,7 +67,6 @@ function ProyectosContent({
   servicios,
   serviciosYDepts,
 }: Props) {
-  const router = useRouter()
   const { sortCol, sortDir, toggleSort, setParams, getParam } = useTableState({
     defaultSort: { col: 'cliente', dir: 'asc' },
   })
@@ -160,12 +123,6 @@ function ProyectosContent({
     }
     return map
   }, [proyectosDepartamentos])
-
-  function getDepartamentosProyecto(proyectoId: string) {
-    return (proyectoDeptIds.get(proyectoId) ?? [])
-      .map((id) => departamentoMap.get(id))
-      .filter(Boolean)
-  }
 
   function getDepartamentoIdsProyecto(proyectoId: string) {
     return proyectoDeptIds.get(proyectoId) ?? []
@@ -350,137 +307,9 @@ function ProyectosContent({
     setActionLoading(null)
   }
 
-  function ProjectCard({ p, compact = false }: { p: Proyecto; compact?: boolean }) {
-    const cliente = getClienteNombre(p)
-    const empresaGrupo = empresaGrupoMap.get(p.empresa_grupo_id)
-    const depts = getDepartamentosProyecto(p.id)
-    const deptIds = getDepartamentoIdsProyecto(p.id)
-
-    return (
-      <div
-        onClick={() => router.push(`/proyectos/${p.id}`)}
-        className={`rounded-xl bg-white shadow-sm border border-transparent hover:border-primary/20 transition-colors cursor-pointer ${compact ? 'px-4 py-3' : 'px-5 py-4'}`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className={`flex items-center gap-2 ${compact ? '' : 'flex-wrap'}`}>
-              <ClientePill name={cliente} />
-              <p className={`font-bold text-foreground ${compact ? 'text-xs truncate' : 'text-sm'}`}>
-                {p.titulo}
-              </p>
-              {!compact && depts.map((d) => (
-                <DeptPill key={d!.id} name={d!.nombre} label={d!.codigo} />
-              ))}
-            </div>
-            {!compact && (
-              <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
-                <span>{empresaGrupo?.codigo ?? '—'}</span>
-                <span>·</span>
-                <span>{p.tipo_proyecto}</span>
-                <span>·</span>
-                <span>{p.tipo_partida}</span>
-                {p.fecha_activacion && (
-                  <>
-                    <span>·</span>
-                    <span>Desde {formatDate(p.fecha_activacion)}</span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className={`font-bold text-blue-600 ${compact ? 'text-xs' : 'text-sm'}`}>
-              {formatMoney(p.ppto_estimado)}
-            </span>
-            {!compact && <CambiarEstadoProyecto proyectoId={p.id} estadoActual={p.estado} />}
-          </div>
-        </div>
-
-        {/* Barra de tiempo para Puntuales */}
-        <BarraTiempo proyecto={p} />
-
-        {/* Acciones — solo en modo lista */}
-        {!compact && (
-          <div className="mt-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            {archivoVista === 'activos' && (
-              <>
-                <ProyectoOtAction
-                  proyecto={p}
-                  proyectos={proyectos}
-                  servicios={servicios}
-                  departamentos={departamentos}
-                  personas={personas}
-                  empresas={empresas}
-                />
-                <ProyectoFormSheet
-                  empresas={empresas}
-                  empresasGrupo={empresasGrupo}
-                  personas={personas}
-                  departamentos={departamentos}
-                  proyecto={p}
-                  proyectoDepartamentoIds={deptIds}
-                />
-                <button
-                  onClick={() => handleArchivar(p.id)}
-                  disabled={actionLoading === p.id}
-                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
-                  Archivar
-                </button>
-                <button
-                  onClick={() => handleEliminar(p.id)}
-                  disabled={actionLoading === p.id}
-                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    confirmDeleteId === p.id ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50'
-                  }`}
-                >
-                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  {confirmDeleteId === p.id ? '¿Eliminar proyecto, OTs y asignaciones?' : 'Eliminar'}
-                </button>
-              </>
-            )}
-            {archivoVista === 'archivados' && (
-              <>
-                <button
-                  onClick={() => handleDesarchivar(p.id)}
-                  disabled={actionLoading === p.id}
-                  className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
-                  Desarchivar
-                </button>
-                <button
-                  onClick={() => handleEliminar(p.id)}
-                  disabled={actionLoading === p.id}
-                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    confirmDeleteId === p.id ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50'
-                  }`}
-                >
-                  {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  {confirmDeleteId === p.id ? '¿Eliminar proyecto, OTs y asignaciones?' : 'Eliminar'}
-                </button>
-              </>
-            )}
-            {archivoVista === 'eliminados' && (
-              <button
-                onClick={() => handleRestaurar(p.id)}
-                disabled={actionLoading === p.id}
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
-              >
-                {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-                Restaurar
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-y-3">
         <div>
           <h1 className="text-xl font-bold text-foreground">Proyectos</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
@@ -539,7 +368,7 @@ function ProyectosContent({
       )}
 
       {/* KPI Cards */}
-      <div className="mt-5 grid grid-cols-3 gap-4">
+      <div className="mt-5 grid grid-cols-2 lg:grid-cols-3 gap-4">
         <KpiCard label="Activos" value={activos} borderColor="border-t-blue-500" />
         <KpiCard label="Propuestas" value={propuestas} borderColor="border-t-purple-500" />
         <KpiCard label="Ppto. activos" value={formatMoney(pptoTotal)} borderColor="border-t-amber-500" />
@@ -677,7 +506,29 @@ function ProyectosContent({
               <p className="text-sm text-muted-foreground">No se encontraron proyectos con esos filtros.</p>
             </div>
           )}
-          {sorted.map((p) => <ProjectCard key={p.id} p={p} />)}
+          {sorted.map((p) => (
+            <ProjectCard
+              key={p.id}
+              p={p}
+              archivoVista={archivoVista}
+              empresaMap={empresaMap}
+              empresaGrupoMap={empresaGrupoMap}
+              proyectoDeptIds={proyectoDeptIds}
+              departamentoMap={departamentoMap}
+              proyectos={proyectos}
+              servicios={servicios}
+              departamentos={departamentos}
+              personas={personas}
+              empresas={empresas}
+              empresasGrupo={empresasGrupo}
+              actionLoading={actionLoading}
+              confirmDeleteId={confirmDeleteId}
+              onArchivar={handleArchivar}
+              onDesarchivar={handleDesarchivar}
+              onEliminar={handleEliminar}
+              onRestaurar={handleRestaurar}
+            />
+          ))}
         </div>
       )}
 
@@ -707,7 +558,30 @@ function ProyectosContent({
                         <p className="text-xs text-muted-foreground">Sin proyectos</p>
                       </div>
                     ) : (
-                      colProyectos.map((p) => <ProjectCard key={p.id} p={p} compact />)
+                      colProyectos.map((p) => (
+                        <ProjectCard
+                          key={p.id}
+                          p={p}
+                          compact
+                          archivoVista={archivoVista}
+                          empresaMap={empresaMap}
+                          empresaGrupoMap={empresaGrupoMap}
+                          proyectoDeptIds={proyectoDeptIds}
+                          departamentoMap={departamentoMap}
+                          proyectos={proyectos}
+                          servicios={servicios}
+                          departamentos={departamentos}
+                          personas={personas}
+                          empresas={empresas}
+                          empresasGrupo={empresasGrupo}
+                          actionLoading={actionLoading}
+                          confirmDeleteId={confirmDeleteId}
+                          onArchivar={handleArchivar}
+                          onDesarchivar={handleDesarchivar}
+                          onEliminar={handleEliminar}
+                          onRestaurar={handleRestaurar}
+                        />
+                      ))
                     )}
                   </div>
                 </div>
