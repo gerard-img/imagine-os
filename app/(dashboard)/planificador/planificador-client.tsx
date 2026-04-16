@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, Suspense } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTableState, sortData } from '@/hooks/use-table-state'
 import { SortControl } from '@/components/sortable-header'
 import { FilterSelect } from '@/components/filter-select'
@@ -21,23 +20,17 @@ import type {
   PersonaDepartamento,
   HorasTrabajables,
 } from '@/lib/supabase/types'
-import { safeDivide, clamp, formatMoney } from '@/lib/helpers'
+import { safeDivide, formatMoney } from '@/lib/helpers'
 import { resolverHorasTrabajables } from '@/lib/horas-trabajables'
 import { KpiCard } from '@/components/kpi-card'
 import { MonthNavigator } from '@/components/month-navigator'
 import { SearchBar } from '@/components/search-bar'
-import { CambiarEstadoOT } from '@/components/cambiar-estado-ot'
-import { ServicioPill } from '@/components/servicio-pill'
-import { ClientePill } from '@/components/cliente-pill'
-import { DeptPill } from '@/components/dept-pill'
-import { NumberInput } from '@/components/number-input'
-import { ChevronDown, ChevronRight, Plus, Trash2, Loader2, Save } from 'lucide-react'
 import { guardarAsignacionesOT } from './actions'
 import { eliminarOrdenTrabajo } from '../ordenes-trabajo/actions'
 import { OtFormSheet } from '../ordenes-trabajo/ot-form-sheet'
 import { GenerarOtsButton } from '../ordenes-trabajo/generar-ots-button'
-import { SinServicioSelector } from './sin-servicio-selector'
 import { ProyectosSinOtsAlert } from './proyectos-sin-ots-alert'
+import { OtCard } from './ot-card'
 
 // ── Props del servidor ──
 type PlanificadorClientProps = {
@@ -61,7 +54,7 @@ type PlanificadorClientProps = {
 // Dept pill colors — centralizado en components/dept-pill.tsx
 
 // ── Types for local editing state ──
-type AsignacionLocal = {
+export type AsignacionLocal = {
   id: string
   persona_id: string
   cuota_planificacion_id: string
@@ -110,7 +103,6 @@ function PlanificadorContent({
   const proyectosMap = useMemo(() => new Map(proyectos.map((p) => [p.id, p])), [proyectos])
   const serviciosMap = useMemo(() => new Map(catalogoServicios.map((s) => [s.id, s])), [catalogoServicios])
   const deptosMap = useMemo(() => new Map(departamentos.map((d) => [d.id, d])), [departamentos])
-  const router = useRouter()
   const empresasMap = useMemo(() => new Map(empresas.map((e) => [e.id, e])), [empresas])
   const egMap = useMemo(() => new Map(empresasGrupo.map((eg) => [eg.id, eg])), [empresasGrupo])
   const personasMap = useMemo(() => new Map(personas.map((p) => [p.id, p])), [personas])
@@ -566,297 +558,48 @@ function PlanificadorContent({
             const depto = deptosMap.get(ot.departamento_id)
             const empresa = proyecto?.empresa_id ? empresasMap.get(proyecto.empresa_id) : undefined
             const clienteNombre = empresa?.nombre_interno ?? empresa?.nombre_legal ?? '—'
-            const pptoPct = getOrdenPptoPct(ot)
             const asignaciones = getAsignacionesLocal(ot.id)
-            const expanded = expandedIds.has(ot.id)
-            const totalPctAsig = asignaciones.reduce((sum, a) => sum + a.porcentaje_ppto_tm, 0)
-            const pctColor = totalPctAsig === 100 ? 'text-emerald-600' : totalPctAsig > 100 ? 'text-red-600' : 'text-amber-600'
-
             const personasDepto = personasDepartamentos
               .filter((pd) => pd.departamento_id === ot.departamento_id)
               .map((pd) => personasMap.get(pd.persona_id))
               .filter((p): p is Persona => !!p && p.activo)
 
             return (
-              <div key={ot.id} className="rounded-xl bg-white shadow-sm relative">
-                {/* ── Header ── */}
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => toggleExpand(ot.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(ot.id) } }}
-                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-muted/30 transition-colors cursor-pointer"
-                >
-                  {expanded ? (
-                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-
-                  <ClientePill name={clienteNombre} />
-                  <span
-                    className="text-sm font-bold text-foreground min-w-0 hover:text-primary hover:underline transition-colors cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); router.push(`/proyectos/${ot.proyecto_id}?mes=${month}`) }}
-                  >
-                    {proyecto?.titulo ?? '—'}
-                  </span>
-
-                  <CambiarEstadoOT otId={ot.id} estadoActual={ot.estado} />
-                  {hasLocalEdits(ot.id) && (
-                    <span className="inline-flex h-2 w-2 rounded-full bg-amber-400 shrink-0" title="Cambios sin guardar" />
-                  )}
-
-                  <span onClick={(e) => e.stopPropagation()}>
-                    {servicio ? (
-                      <ServicioPill name={servicio.nombre} />
-                    ) : (
-                      <SinServicioSelector
-                        otId={ot.id}
-                        servicios={catalogoServicios.filter((s) => s.empresa_grupo_id === proyecto?.empresa_grupo_id)}
-                      />
-                    )}
-                  </span>
-                  {depto && <DeptPill name={depto.nombre} label={depto.codigo} />}
-
-                  {/* Editable % ppto mes */}
-                  <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <NumberInput
-                      min={0}
-                      max={100}
-                      value={pptoPct}
-                      onChange={(e) => updateOrdenPpto(ot.id, clamp(Number(e.target.value), 0, 100))}
-                      className="w-14 text-foreground"
-                    />
-                    <span className="text-[10px] text-muted-foreground">% ppto</span>
-                  </span>
-
-                  <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <NumberInput
-                      min={0}
-                      step={1}
-                      value={getOrdenPartidaPrevista(ot)}
-                      onChange={(e) => updateOrdenPartidaPrevista(ot.id, Math.max(0, Number(e.target.value)))}
-                      className="w-20 text-blue-600"
-                    />
-                    <span className="text-[10px] text-muted-foreground">€</span>
-                  </span>
-
-                  {/* Editable partida real */}
-                  <span className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <NumberInput
-                      min={0}
-                      value={getOrdenPartidaReal(ot) ?? ''}
-                      onChange={(e) => updateOrdenPartidaReal(ot.id, e.target.value === '' ? null : Number(e.target.value))}
-                      className="w-20 text-emerald-600"
-                      placeholder="—"
-                    />
-                    <span className="text-[10px] text-muted-foreground">real</span>
-                  </span>
-
-                  <span className={`text-xs font-bold shrink-0 tabular-nums w-16 text-right ${pctColor}`}>
-                    {totalPctAsig}% asig.
-                  </span>
-
-                  <span className="text-[10px] text-muted-foreground shrink-0 w-16 text-right">
-                    {proyecto?.tipo_partida ?? '—'}
-                  </span>
-                </div>
-
-                {/* ── Expanded: Asignaciones ── */}
-                {expanded && (
-                  <div className="border-t border-border/50 px-5 pb-4 pt-3">
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                        Asignaciones
-                      </p>
-                      {totalPctAsig !== 100 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          (debe sumar 100%)
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Table header */}
-                    <div className="grid grid-cols-[1fr_100px_80px_100px_90px_90px_40px] gap-2 px-2 mb-1">
-                      <span className="text-[10px] font-semibold uppercase text-muted-foreground">Persona</span>
-                      <span className="text-[10px] font-semibold uppercase text-muted-foreground">Cuota</span>
-                      <span className="text-[10px] font-semibold uppercase text-muted-foreground text-right">% Asig.</span>
-                      <span className="text-[10px] font-semibold uppercase text-muted-foreground text-right">Ingresos</span>
-                      <span className="text-[10px] font-semibold uppercase text-muted-foreground text-right">Horas</span>
-                      <span className="text-[10px] font-semibold uppercase text-muted-foreground text-right">% Carga</span>
-                      <span />
-                    </div>
-
-                    {/* Rows */}
-                    {asignaciones.length === 0 ? (
-                      <p className="py-3 text-center text-xs text-muted-foreground">
-                        Sin asignaciones. Añade personas del departamento.
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {asignaciones.map((a) => {
-                          const cuota = cuotasMap.get(a.cuota_planificacion_id)
-                          const partidaPrev = getOrdenPartidaPrevista(ot)
-                          const ingresosAsignados = partidaPrev * (a.porcentaje_ppto_tm / 100)
-                          const horasADedicar = safeDivide(ingresosAsignados, cuota?.precio_hora ?? 0)
-                          const horasTrab = resolverHorasTrabajables(
-                            a.persona_id, month, personasMap, personasDepartamentos, horasTrabajables
-                          )
-                          const pctCarga = safeDivide(horasADedicar, horasTrab) * 100
-                          const cargaColor = pctCarga > 100 ? 'text-red-600' : pctCarga > 80 ? 'text-amber-600' : 'text-foreground'
-
-                          return (
-                            <div
-                              key={a.id}
-                              className="grid grid-cols-[1fr_100px_80px_100px_90px_90px_40px] gap-2 items-center rounded-lg px-2 py-1.5 hover:bg-muted/30"
-                            >
-                              {/* Persona selector */}
-                              <select
-                                value={a.persona_id}
-                                onChange={(e) => updateAsignacion(ot.id, a.id, 'persona_id', e.target.value)}
-                                className="rounded border border-border bg-white px-2 py-1 text-sm outline-none focus:border-primary truncate"
-                              >
-                                {personasDepto.map((p) => (
-                                  <option key={p.id} value={p.id}>
-                                    {p.persona}
-                                  </option>
-                                ))}
-                                {!personasDepto.find((p) => p.id === a.persona_id) && (
-                                  <option value={a.persona_id}>
-                                    {personasMap.get(a.persona_id)?.persona ?? '—'}
-                                  </option>
-                                )}
-                              </select>
-
-                              {/* Cuota selector — filtrado por empresa_grupo de la persona */}
-                              <select
-                                value={a.cuota_planificacion_id}
-                                onChange={(e) => updateAsignacion(ot.id, a.id, 'cuota_planificacion_id', e.target.value)}
-                                className="rounded border border-border bg-white px-2 py-1 text-xs outline-none focus:border-primary"
-                              >
-                                {(() => {
-                                  const ORDEN_CUOTAS = ['Senior', 'Specialist', 'Junior', 'Intern', 'Coordinador']
-                                  const pEgId = personasMap.get(a.persona_id)?.empresa_grupo_id
-                                  return cuotasVigentes
-                                    .filter((c) => c.empresa_grupo_id === pEgId)
-                                    .sort((a, b) => {
-                                      const ia = ORDEN_CUOTAS.indexOf(a.nombre)
-                                      const ib = ORDEN_CUOTAS.indexOf(b.nombre)
-                                      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
-                                    })
-                                    .map((c) => (
-                                      <option key={c.id} value={c.id}>
-                                        {c.nombre} ({c.precio_hora}€/h)
-                                      </option>
-                                    ))
-                                })()}
-                              </select>
-
-                              {/* % asignación */}
-                              <NumberInput
-                                min={0}
-                                max={100}
-                                value={a.porcentaje_ppto_tm}
-                                onChange={(e) => updateAsignacion(ot.id, a.id, 'porcentaje_ppto_tm', clamp(Number(e.target.value), 0, 100))}
-                                className="w-full px-2 py-1"
-                              />
-
-                              {/* Ingresos asignados (read-only) */}
-                              <span className="text-xs font-medium text-blue-600 text-right">
-                                {formatMoney(ingresosAsignados)}
-                              </span>
-
-                              {/* Horas a dedicar (read-only) */}
-                              <span className="text-xs font-medium text-right">
-                                {Math.round(horasADedicar)}h
-                              </span>
-
-                              {/* % Carga (read-only) */}
-                              <span className={`text-xs font-bold text-right ${cargaColor}`}>
-                                {Math.round(pctCarga)}%
-                              </span>
-
-                              {/* Delete */}
-                              <button
-                                onClick={() => deleteAsignacion(ot.id, a.id)}
-                                className="flex h-6 w-6 items-center justify-center rounded text-red-400 hover:bg-red-50 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {/* Add button */}
-                    <button
-                      onClick={() => addAsignacion(ot.id, ot.departamento_id)}
-                      className="mt-3 flex items-center gap-1.5 rounded-lg border border-dashed border-border px-3 py-2 text-xs font-medium text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Añadir persona
-                    </button>
-
-                    {/* Save / Delete OT / error */}
-                    <div className="mt-3 flex items-center gap-3">
-                      {hasLocalEdits(ot.id) && (
-                        <button
-                          onClick={() => handleGuardar(ot)}
-                          disabled={savingIds.has(ot.id)}
-                          className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                        >
-                          {savingIds.has(ot.id)
-                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Guardando...</>
-                            : <><Save className="h-3.5 w-3.5" /> Guardar cambios</>
-                          }
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteOt(ot.id)}
-                        disabled={deletingOt === ot.id}
-                        className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ml-auto ${
-                          confirmDeleteOt === ot.id
-                            ? 'bg-red-600 text-white hover:bg-red-700'
-                            : 'text-red-500 hover:bg-red-50'
-                        }`}
-                      >
-                        {deletingOt === ot.id
-                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          : <Trash2 className="h-3.5 w-3.5" />
-                        }
-                        {confirmDeleteOt === ot.id ? '¿Eliminar OT y asignaciones?' : 'Eliminar OT'}
-                      </button>
-                      {saveErrors[ot.id] && (
-                        <p className="text-xs text-destructive">{saveErrors[ot.id]}</p>
-                      )}
-                    </div>
-
-                    {/* Total row */}
-                    {asignaciones.length > 0 && (
-                      <div className="mt-3 border-t border-border pt-2 grid grid-cols-[1fr_100px_80px_100px_90px_90px_40px] gap-2 px-2">
-                        <span className="text-[10px] font-bold uppercase text-muted-foreground">TOTAL</span>
-                        <span />
-                        <span className={`text-xs font-bold text-right ${pctColor}`}>{totalPctAsig}%</span>
-                        <span className="text-xs font-bold text-blue-600 text-right">
-                          {formatMoney(asignaciones.reduce((sum, a) => sum + getOrdenPartidaPrevista(ot) * (a.porcentaje_ppto_tm / 100), 0))}
-                        </span>
-                        <span className="text-xs font-bold text-right">
-                          {Math.round(
-                            asignaciones.reduce((sum, a) => {
-                              const cuota = cuotasMap.get(a.cuota_planificacion_id)
-                              const ing = getOrdenPartidaPrevista(ot) * (a.porcentaje_ppto_tm / 100)
-                              return sum + safeDivide(ing, cuota?.precio_hora ?? 0)
-                            }, 0)
-                          )}h
-                        </span>
-                        <span />
-                        <span />
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <OtCard
+                key={ot.id}
+                ot={ot}
+                month={month}
+                expanded={expandedIds.has(ot.id)}
+                onToggleExpand={() => toggleExpand(ot.id)}
+                proyecto={proyecto}
+                clienteNombre={clienteNombre}
+                servicio={servicio}
+                serviciosEg={catalogoServicios.filter((s) => s.empresa_grupo_id === proyecto?.empresa_grupo_id)}
+                depto={depto}
+                asignaciones={asignaciones}
+                personasDepto={personasDepto}
+                personasMap={personasMap}
+                personasDepartamentos={personasDepartamentos}
+                horasTrabajables={horasTrabajables}
+                cuotasMap={cuotasMap}
+                cuotasVigentes={cuotasVigentes}
+                pptoPct={getOrdenPptoPct(ot)}
+                partidaPrevista={getOrdenPartidaPrevista(ot)}
+                partidaReal={getOrdenPartidaReal(ot)}
+                hasLocalEdits={hasLocalEdits(ot.id)}
+                isSaving={savingIds.has(ot.id)}
+                saveError={saveErrors[ot.id]}
+                confirmDelete={confirmDeleteOt === ot.id}
+                isDeletingOt={deletingOt === ot.id}
+                onUpdatePpto={(pct) => updateOrdenPpto(ot.id, pct)}
+                onUpdatePartidaPrevista={(val) => updateOrdenPartidaPrevista(ot.id, val)}
+                onUpdatePartidaReal={(val) => updateOrdenPartidaReal(ot.id, val)}
+                onUpdateAsignacion={(asigId, field, value) => updateAsignacion(ot.id, asigId, field, value)}
+                onDeleteAsignacion={(asigId) => deleteAsignacion(ot.id, asigId)}
+                onAddAsignacion={() => addAsignacion(ot.id, ot.departamento_id)}
+                onGuardar={() => handleGuardar(ot)}
+                onDeleteOt={() => handleDeleteOt(ot.id)}
+              />
             )
           })
         )}
