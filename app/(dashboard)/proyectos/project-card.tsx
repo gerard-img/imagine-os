@@ -124,20 +124,21 @@ export function ProjectCard({
               <button
                 onClick={() => onArchivar(p.id)}
                 disabled={actionLoading === p.id}
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                title="Archivar"
+                className="flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
               >
                 {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
-                Archivar
               </button>
               <button
                 onClick={() => onEliminar(p.id)}
                 disabled={actionLoading === p.id}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  confirmDeleteId === p.id ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50'
+                title="Eliminar"
+                className={`flex items-center gap-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
+                  confirmDeleteId === p.id ? 'bg-red-600 text-white px-2.5' : 'text-red-500 hover:bg-red-50 px-1.5'
                 }`}
               >
                 {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                {confirmDeleteId === p.id ? '¿Eliminar proyecto, OTs y asignaciones?' : 'Eliminar'}
+                {confirmDeleteId === p.id && '¿Eliminar proyecto, OTs y asignaciones?'}
               </button>
             </>
           )}
@@ -146,20 +147,21 @@ export function ProjectCard({
               <button
                 onClick={() => onDesarchivar(p.id)}
                 disabled={actionLoading === p.id}
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                title="Desarchivar"
+                className="flex items-center justify-center rounded-lg p-1.5 text-muted-foreground hover:bg-muted transition-colors"
               >
                 {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
-                Desarchivar
               </button>
               <button
                 onClick={() => onEliminar(p.id)}
                 disabled={actionLoading === p.id}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                  confirmDeleteId === p.id ? 'bg-red-600 text-white' : 'text-red-500 hover:bg-red-50'
+                title="Eliminar"
+                className={`flex items-center gap-1 rounded-lg py-1.5 text-xs font-medium transition-colors ${
+                  confirmDeleteId === p.id ? 'bg-red-600 text-white px-2.5' : 'text-red-500 hover:bg-red-50 px-1.5'
                 }`}
               >
                 {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                {confirmDeleteId === p.id ? '¿Eliminar proyecto, OTs y asignaciones?' : 'Eliminar'}
+                {confirmDeleteId === p.id && '¿Eliminar proyecto, OTs y asignaciones?'}
               </button>
             </>
           )}
@@ -167,10 +169,10 @@ export function ProjectCard({
             <button
               onClick={() => onRestaurar(p.id)}
               disabled={actionLoading === p.id}
-              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+              title="Restaurar"
+              className="flex items-center justify-center rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-50 transition-colors"
             >
               {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-              Restaurar
             </button>
           )}
         </div>
