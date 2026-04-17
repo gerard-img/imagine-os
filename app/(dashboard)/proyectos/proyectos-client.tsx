@@ -9,7 +9,6 @@ import { KpiCard } from '@/components/kpi-card'
 import { SearchBar } from '@/components/search-bar'
 import { StatusBadge } from '@/components/status-badge'
 import { MultiSelectFilter } from '@/components/multi-select-filter'
-import { FilterBar } from '@/components/filter-bar'
 import type { FilterOption } from '@/components/multi-select-filter'
 import { ProyectoFormSheet } from './proyecto-form-sheet'
 import { ProjectCard } from './project-card'
@@ -385,118 +384,124 @@ function ProyectosContent({
         />
       </div>
 
-      {/* ── Barra de filtros ── */}
-      <FilterBar className="mt-3">
-        <MultiSelectFilter
-          label="Estado"
-          options={ESTADO_OPTIONS}
-          selected={filterEstado}
-          onChange={(v) => setArrayParam('estado', v)}
-        />
-        <MultiSelectFilter
-          label="Empresa grupo"
-          options={empresaGrupoOptions}
-          selected={filterEmpresaGrupo}
-          onChange={(v) => setArrayParam('eg', v)}
-        />
-        <MultiSelectFilter
-          label="Empresa"
-          options={empresaOptions}
-          selected={filterEmpresa}
-          onChange={(v) => setArrayParam('empresa', v)}
-          searchable
-        />
-        <MultiSelectFilter
-          label="Departamento"
-          options={departamentoOptions}
-          selected={filterDepartamento}
-          onChange={(v) => setArrayParam('depto', v)}
-          searchable
-        />
-        <MultiSelectFilter
-          label="Servicio"
-          options={servicioOptions}
-          selected={filterServicio}
-          onChange={(v) => setArrayParam('servicio', v)}
-          searchable
-        />
-
-        {/* Rango presupuesto */}
-        <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
-          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Ppto.</span>
-          <NumberInput
-            placeholder="Min"
-            value={pptoMin}
-            onChange={(e) => setParams({ pptoMin: e.target.value || null })}
-            className="w-20 border-0 bg-transparent"
+      {/* ── Filtros (2 filas) ── */}
+      <div className="mt-3 space-y-2">
+        {/* Fila 1: Dropdowns de filtro */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <MultiSelectFilter
+            label="Estado"
+            options={ESTADO_OPTIONS}
+            selected={filterEstado}
+            onChange={(v) => setArrayParam('estado', v)}
           />
-          <span className="text-xs text-muted-foreground">–</span>
-          <NumberInput
-            placeholder="Max"
-            value={pptoMax}
-            onChange={(e) => setParams({ pptoMax: e.target.value || null })}
-            className="w-20 border-0 bg-transparent"
+          <MultiSelectFilter
+            label="Empresa grupo"
+            options={empresaGrupoOptions}
+            selected={filterEmpresaGrupo}
+            onChange={(v) => setArrayParam('eg', v)}
           />
-          {(pptoMin || pptoMax) && (
-            <button onClick={() => setParams({ pptoMin: null, pptoMax: null })} className="text-muted-foreground hover:text-foreground">
-              <X className="h-3 w-3" />
-            </button>
-          )}
+          <MultiSelectFilter
+            label="Empresa"
+            options={empresaOptions}
+            selected={filterEmpresa}
+            onChange={(v) => setArrayParam('empresa', v)}
+            searchable
+          />
+          <MultiSelectFilter
+            label="Departamento"
+            options={departamentoOptions}
+            selected={filterDepartamento}
+            onChange={(v) => setArrayParam('depto', v)}
+            searchable
+          />
+          <MultiSelectFilter
+            label="Servicio"
+            options={servicioOptions}
+            selected={filterServicio}
+            onChange={(v) => setArrayParam('servicio', v)}
+            searchable
+          />
         </div>
 
-        {/* Rango fecha activación */}
-        <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
-          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Inicio</span>
-          <input
-            type="date"
-            value={fechaDesde}
-            onChange={(e) => setParams({ desde: e.target.value || null })}
-            className="w-[120px] bg-transparent text-xs outline-none text-foreground"
-          />
-          <span className="text-xs text-muted-foreground">–</span>
-          <input
-            type="date"
-            value={fechaHasta}
-            onChange={(e) => setParams({ hasta: e.target.value || null })}
-            className="w-[120px] bg-transparent text-xs outline-none text-foreground"
-          />
-          <label className="flex items-center gap-1 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={sinFecha}
-              onChange={(e) => setParams({ sinFecha: e.target.checked ? '1' : null })}
-              className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+        {/* Fila 2: Rangos, limpiar, orden */}
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Rango presupuesto */}
+          <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
+            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Ppto.</span>
+            <NumberInput
+              placeholder="Min"
+              value={pptoMin}
+              onChange={(e) => setParams({ pptoMin: e.target.value || null })}
+              className="w-20 border-0 bg-transparent"
             />
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">Sin fecha</span>
-          </label>
-          {(fechaDesde || fechaHasta || sinFecha) && (
-            <button onClick={() => setParams({ desde: null, hasta: null, sinFecha: null })} className="text-muted-foreground hover:text-foreground">
+            <span className="text-xs text-muted-foreground">–</span>
+            <NumberInput
+              placeholder="Max"
+              value={pptoMax}
+              onChange={(e) => setParams({ pptoMax: e.target.value || null })}
+              className="w-20 border-0 bg-transparent"
+            />
+            {(pptoMin || pptoMax) && (
+              <button onClick={() => setParams({ pptoMin: null, pptoMax: null })} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Rango fecha activación */}
+          <div className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1">
+            <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Inicio</span>
+            <input
+              type="date"
+              value={fechaDesde}
+              onChange={(e) => setParams({ desde: e.target.value || null })}
+              className="w-[120px] bg-transparent text-xs outline-none text-foreground"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <input
+              type="date"
+              value={fechaHasta}
+              onChange={(e) => setParams({ hasta: e.target.value || null })}
+              className="w-[120px] bg-transparent text-xs outline-none text-foreground"
+            />
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sinFecha}
+                onChange={(e) => setParams({ sinFecha: e.target.checked ? '1' : null })}
+                className="h-3 w-3 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap">Sin fecha</span>
+            </label>
+            {(fechaDesde || fechaHasta || sinFecha) && (
+              <button onClick={() => setParams({ desde: null, hasta: null, sinFecha: null })} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Limpiar todos */}
+          {hasAnyFilter && (
+            <button
+              onClick={clearAllFilters}
+              className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+            >
               <X className="h-3 w-3" />
+              Limpiar filtros
             </button>
           )}
-        </div>
 
-        {/* Limpiar todos */}
-        {hasAnyFilter && (
-          <button
-            onClick={clearAllFilters}
-            className="flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
-          >
-            <X className="h-3 w-3" />
-            Limpiar filtros
-          </button>
-        )}
-
-        {/* Sort + Contador de resultados */}
-        <div className="ml-auto flex shrink-0 items-center gap-3">
-          {view === 'list' && (
-            <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
-          )}
-          <span className="text-xs text-muted-foreground">
-            {filtered.length} proyecto{filtered.length !== 1 ? 's' : ''}
-          </span>
+          {/* Sort + Contador de resultados */}
+          <div className="ml-auto flex shrink-0 items-center gap-3">
+            {view === 'list' && (
+              <SortControl options={SORT_OPTIONS} currentCol={sortCol} currentDir={sortDir} onSort={toggleSort} />
+            )}
+            <span className="text-xs text-muted-foreground">
+              {filtered.length} proyecto{filtered.length !== 1 ? 's' : ''}
+            </span>
+          </div>
         </div>
-      </FilterBar>
+      </div>
 
       {/* ── VISTA LISTA ── */}
       {view === 'list' && (

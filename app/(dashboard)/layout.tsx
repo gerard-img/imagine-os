@@ -23,7 +23,7 @@ export default async function DashboardLayout({
       <Suspense>
         <Sidebar rolNombre={rolNombre} />
       </Suspense>
-      <div className="ml-[220px] flex-1 flex flex-col min-h-0">
+      <div className="ml-[220px] flex-1 flex flex-col min-h-0 min-w-0">
         <Header />
         <main className="flex-1 min-h-0 bg-[#F9FAFB] p-6 overflow-auto">
           {children}
