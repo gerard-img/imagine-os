@@ -534,7 +534,7 @@ function ProyectosContent({
 
       {/* ── VISTA KANBAN ── */}
       {view === 'kanban' && (
-        <div className="mt-4 overflow-x-auto pb-4">
+        <div className="mt-4 overflow-x-auto pb-4 max-w-full">
           <div className="flex gap-4 min-w-max">
             {KANBAN_COLUMNS.map((estado) => {
               const colProyectos = filtered.filter((p) => p.estado === estado)

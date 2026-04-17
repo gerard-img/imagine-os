@@ -44,7 +44,7 @@ export function FilterBar({ children, className = '' }: FilterBarProps) {
   }
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative overflow-hidden ${className}`}>
       {/* Flecha izquierda */}
       {canScrollLeft && (
         <button
