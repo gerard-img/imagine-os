@@ -316,7 +316,7 @@ function ProyectosContent({
             Proyectos activos, propuestas y proyectos internos
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           {/* Pills archivo */}
           <div className="flex items-center gap-1 rounded-lg border border-border p-1">
             {([

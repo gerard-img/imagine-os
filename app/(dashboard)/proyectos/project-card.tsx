@@ -68,7 +68,7 @@ export function ProjectCard({
         <div className="min-w-0 flex-1">
           <div className={`flex items-center gap-2 ${compact ? '' : 'flex-wrap'}`}>
             <ClientePill name={cliente} />
-            <p className={`font-bold text-foreground ${compact ? 'text-xs truncate' : 'text-sm'}`}>
+            <p className={`font-bold text-foreground truncate ${compact ? 'text-xs' : 'text-sm'}`}>
               {p.titulo}
             </p>
             {!compact && depts.map((d) => (
@@ -102,7 +102,7 @@ export function ProjectCard({
       <BarraTiempo proyecto={p} />
 
       {!compact && (
-        <div className="mt-2 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="mt-2 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           {archivoVista === 'activos' && (
             <>
               <ProyectoOtAction
