@@ -2,14 +2,12 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/browser'
-import { useRouter } from 'next/navigation'
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const supabase = createClient()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -37,7 +35,10 @@ export default function UpdatePasswordPage() {
       return
     }
 
-    router.push('/')
+    // Forzar recarga completa para que las cookies de sesión se sincronicen
+    // correctamente con el servidor (router.push hace navegación client-side
+    // y el middleware puede no ver la sesión actualizada aún)
+    window.location.href = '/'
   }
 
   return (

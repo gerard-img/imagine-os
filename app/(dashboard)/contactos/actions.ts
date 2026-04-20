@@ -5,7 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { contactoSchema } from '@/lib/schemas/contacto'
 import { revalidatePath } from 'next/cache'
 
-export type ActionResult = { success: boolean; error?: string; id?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -49,6 +50,7 @@ export async function crearContacto(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/contactos')
   revalidatePath(`/empresas/${d.empresa_id}`)
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'contactos_empresas', registroId: nuevo.id })
   return { success: true, id: nuevo.id }
 }
 
@@ -96,5 +98,6 @@ export async function actualizarContacto(id: string, formData: unknown): Promise
 
   revalidatePath('/contactos')
   revalidatePath(`/empresas/${d.empresa_id}`)
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'contactos_empresas', registroId: id })
   return { success: true }
 }

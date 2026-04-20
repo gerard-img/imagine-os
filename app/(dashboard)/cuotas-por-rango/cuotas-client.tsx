@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
+import { useState } from 'react'
 import type { CuotaPlanificacion, EmpresaGrupo } from '@/lib/supabase/types'
 import { formatMoney, formatDate, safeDivide } from '@/lib/helpers'
+import { useTableState } from '@/hooks/use-table-state'
 import {
   Table, TableHeader, TableRow, TableHead, TableBody, TableCell,
 } from '@/components/ui/table'
@@ -50,7 +52,8 @@ type Props = {
 }
 
 export function CuotasClient({ cuotas, empresasGrupo }: Props) {
-  const [empresaFilter, setEmpresaFilter] = useState('Todos')
+  const { getParam, setParams } = useTableState()
+  const empresaFilter = getParam('empresa', 'Todos')!
 
   const egMap = useMemo(() => new Map(empresasGrupo.map((e) => [e.id, e])), [empresasGrupo])
 
@@ -89,7 +92,7 @@ export function CuotasClient({ cuotas, empresasGrupo }: Props) {
       </div>
 
       <FilterBar className="mt-5">
-        <FilterSelect label="Empresa" options={empresaOptions} active={empresaFilter} onChange={setEmpresaFilter} />
+        <FilterSelect label="Empresa" options={empresaOptions} active={empresaFilter} onChange={(v) => setParams({ empresa: v === 'Todos' ? null : v })} />
       </FilterBar>
 
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">

@@ -9,10 +9,8 @@ import {
 import { proyectoSchema, ESTADOS_PROYECTO } from '@/lib/schemas/proyecto'
 import { revalidatePath } from 'next/cache'
 
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 const ROLES_DIRECTOR_O_SUPERIOR = ['Director', 'Socio', 'Administrador', 'Fundador']
@@ -41,6 +39,7 @@ export async function archivarProyecto(id: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
   revalidateProyectos(id)
+  void registrarAuditoria({ persona: autorizado, accion: 'archivar', tabla: 'proyectos', registroId: id })
   return { success: true }
 }
 
@@ -57,6 +56,7 @@ export async function desarchivarProyecto(id: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
   revalidateProyectos(id)
+  void registrarAuditoria({ persona: autorizado, accion: 'restaurar', tabla: 'proyectos', registroId: id, datosExtra: { desde: 'archivado' } })
   return { success: true }
 }
 
@@ -120,6 +120,7 @@ export async function eliminarProyecto(id: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
   revalidateProyectos(id)
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'proyectos', registroId: id })
   return { success: true }
 }
 
@@ -158,6 +159,7 @@ export async function restaurarProyecto(id: string): Promise<ActionResult> {
 
   if (error) return { success: false, error: error.message }
   revalidateProyectos(id)
+  void registrarAuditoria({ persona: autorizado, accion: 'restaurar', tabla: 'proyectos', registroId: id, datosExtra: { desde: 'eliminado' } })
   return { success: true }
 }
 
@@ -181,6 +183,7 @@ export async function cambiarEstadoProyecto(id: string, nuevoEstado: string): Pr
   revalidatePath(`/proyectos/${id}`)
   revalidatePath('/planificador')
   revalidatePath('/ordenes-trabajo')
+  void registrarAuditoria({ persona: autorizado, accion: 'cambiar_estado', tabla: 'proyectos', registroId: id, datosExtra: { nuevoEstado } })
   return { success: true }
 }
 
@@ -248,6 +251,7 @@ export async function crearProyecto(formData: unknown): Promise<ActionResult> {
   }
 
   revalidatePath('/proyectos')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'proyectos', registroId: proyecto.id })
   return { success: true }
 }
 
@@ -298,5 +302,6 @@ export async function actualizarProyecto(id: string, formData: unknown): Promise
 
   revalidatePath('/proyectos')
   revalidatePath(`/proyectos/${id}`)
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'proyectos', registroId: id })
   return { success: true }
 }

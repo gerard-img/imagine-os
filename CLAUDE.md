@@ -378,100 +378,313 @@ Estilo visual y UI — Referencia de diseño
 Cuando construyas interfaces para Company OS, sigue estos
 patrones de diseño de forma consistente.
 
-Paleta de colores
+Sistema de colores
 
-- Fondo general: blanco puro (#FFFFFF) con cards en blanco o gris muy claro.
-- Color primario / acento principal: verde menta vibrante (aprox. #00C896 o similar),
-  usado en botones primarios, métricas destacadas, bordes superiores de cards y
-  elementos activos del menú lateral.
-- Colores de estado (usar siempre de forma consistente):
-  - Pendiente: naranja/ámbar (#F59E0B o similar)
-  - Activo / Pagado / OK: verde (#10B981)
-  - Enviado / En curso: azul (#3B82F6)
-  - Pago parcial / Alerta: naranja claro (#FB923C)
-  - Cancelado / Error: rojo (#EF4444)
-  - Recurrente: morado/violeta (#8B5CF6)
-- Texto principal: negro o gris muy oscuro (#111827).
-- Texto secundario / labels: gris medio (#6B7280).
-- Valores monetarios destacados: verde menta o azul oscuro según contexto.
+Usa clases de Tailwind CSS, no valores hex directos, salvo en gráficos (Recharts).
+
+- Fondo de página: bg-[#F9FAFB] (gris muy claro). Cards: bg-white.
+- Acento principal (verde menta): bg-[#00C896] / text-[#00C896]. Usado en botones
+  primarios, bordes superiores de cards destacadas y gráficos.
+- Colores de estado — usar SIEMPRE las mismas clases en toda la app:
+  - Pendiente:     bg-amber-50/60   text-amber-600    | hex #F59E0B
+  - Activo/OK:     bg-emerald-50/60 text-emerald-600  | hex #10B981
+  - Enviado:       bg-blue-50/60    text-blue-600     | hex #3B82F6
+  - Alerta:        bg-orange-50/60  text-orange-500   | hex #FB923C
+  - Cancelado:     bg-red-50/60     text-red-600      | hex #EF4444
+  - Recurrente:    bg-purple-50/60  text-purple-600   | hex #8B5CF6
+- Texto principal: text-gray-900 / text-foreground.
+- Texto secundario / labels: text-muted-foreground (gris medio).
+- Para gráficos (Recharts), usa los hex directamente como prop de stroke/fill:
+  #00C896, #10B981, #3B82F6, #F59E0B, #8B5CF6, #EF4444.
 
 Tipografía y jerarquía
 
-- Títulos de página: texto grande, bold, negro.
-- Subtítulo/descripción debajo del título: texto pequeño, gris, regular.
-- Labels de sección (ej: ""PENDIENTE"", ""CLIENTE""): mayúsculas, pequeño, espaciado,
-  gris o color de acento.
-- Cifras clave (KPIs, totales): tamaño grande o muy grande, bold, color de acento
-  (verde menta o color de estado).
-- Datos de tabla: tamaño normal, sin bold salvo énfasis.
+- Títulos de página: text-2xl font-bold text-gray-900.
+- Subtítulo bajo el título: text-sm text-muted-foreground.
+- Labels de sección en mayúsculas: text-xs font-semibold uppercase tracking-wide
+  text-muted-foreground.
+- Cifras KPI: text-3xl font-bold, color según estado o acento.
+- Datos de tabla: text-sm, sin bold salvo énfasis puntual.
 
 Layout general
 
-- Sidebar izquierdo fijo, fondo blanco, ancho compacto (~200px).
-  - Logo/nombre de app arriba.
-  - Secciones agrupadas con labels en mayúsculas (PRINCIPAL, ACCIONES, etc.).
-  - Ítem activo: texto en verde menta, bold, sin fondo llamativo.
-  - Íconos pequeños antes del label de cada ítem.
-- Área de contenido principal: fondo gris muy claro (#F9FAFB) o blanco, con padding
-  generoso.
-- Header de página: título a la izquierda + elementos de contexto a la derecha
-  (filtros globales, info de usuario, etc.) en una barra limpia.
+- Sidebar izquierdo fijo: w-[220px] h-full bg-white border-r border-border.
+  - Ítem activo: text-primary font-medium bg-primary/5 (sí tiene fondo sutil).
+  - Ítem inactivo: text-muted-foreground hover:bg-muted/50.
+  - Secciones agrupadas con label en uppercase text-xs text-muted-foreground.
+- Área de contenido: ml-[220px], fondo bg-[#F9FAFB], padding p-6.
+- Header de página: título a la izquierda + filtros/acciones a la derecha.
 
-Cards y widgets de KPIs
+Cards y KPIs
 
-- Cards blancas con sombra suave (shadow-sm) y border-radius medio (rounded-xl).
-- Borde superior de color (4px) para indicar estado o categoría de la card.
-- Dentro: label en mayúsculas pequeño arriba, cifra grande en el centro, detalle
-  secundario (importes secundarios, % del total) en texto pequeño debajo.
-- Grid de KPI cards: normalmente 3–4 columnas en desktop, apiladas en mobile.
+- Contenedor: rounded-xl bg-white p-5 shadow-sm.
+- Borde superior de color: border-t-4 con el color del estado/categoría.
+- Layout interno: label en uppercase arriba, cifra grande, detalle secundario abajo.
+- Grid: normalmente grid-cols-3 o grid-cols-4 en desktop.
 
 Tablas de datos
 
-- Cabecera: texto en mayúsculas, pequeño, gris, sin fondo de color.
-- Filas: separadas por línea sutil, fila activa/seleccionada con fondo verde muy
-  claro (aprox. #F0FDF4).
-- Columnas de estado: usar badges/pills con fondo de color suave y texto del color
-  de estado correspondiente (no solo texto plano).
-- Columnas de tags/servicios: pills pequeñas con texto de color por categoría,
-  fondo muy claro del mismo color.
-- Números/importes: alineados a la derecha, en verde menta si son el valor principal.
+- Cabecera: text-xs font-semibold uppercase tracking-wide text-muted-foreground.
+- Sin fondo en cabecera (fondo blanco o heredado del card).
+- Filas separadas por border-b border-border.
+- Fila hover: hover:bg-muted/50.
+- Fila seleccionada/activa: bg-[#F0FDF4] (verde muy claro).
+- Columnas de estado: siempre con badge/pill, no texto plano.
+- Números/importes: text-right, color de acento si es el valor principal.
 
 Badges y pills de estado
 
-- Siempre con border-radius completo (rounded-full).
-- Fondo: versión muy suave del color de estado (10–15% opacidad).
-- Texto: color de estado al 100%, bold o medium.
-- Ejemplos: ""PAGADO"" en verde, ""PENDIENTE"" en naranja, ""REC"" en morado, etc.
+- Patrón fijo: rounded-full px-3 py-0.5 text-xs font-semibold.
+- Fondo y texto: las clases del sistema de colores de estado (ver arriba).
+- Ejemplo: <span className="rounded-full px-3 py-0.5 text-xs font-semibold
+    bg-emerald-50/60 text-emerald-600">ACTIVO</span>
+
+Pills de entidad (cliente, departamento, servicio)
+
+- ClientePill: color asignado por hash del nombre; paleta de colores Tailwind
+  (amber, emerald, rose, cyan, etc.) en formato bg-X-200 text-X-900.
+- DeptPill y ServicioPill: mapeo estático por nombre/prefijo en formato
+  bg-X-50 text-X-700. Reutilizar los componentes existentes, no crear variantes.
 
 Panel lateral de detalle
 
-- Se abre a la derecha del contenido principal al seleccionar un registro.
+- Usa el componente Sheet de shadcn/ui (components/ui/sheet.tsx).
 - Fondo blanco, borde izquierdo sutil.
-- Layout de dos columnas: label gris a la izquierda, valor negro/bold a la derecha.
-- Acciones (editar, borrar, cerrar) como iconos pequeños en la cabecera del panel.
+- Layout interno: label text-muted-foreground a la izquierda, valor font-medium
+  a la derecha, en grid de 2 columnas.
+- Acciones (editar, cerrar) como iconos en la cabecera del panel.
 
 Barras de progreso / comparativas
 
-- Barras horizontales de color sólido (sin gradientes), con el color de categoría
-  o estado correspondiente.
-- Altura fina (~6–8px), fondo gris claro detrás.
-- Label a la izquierda, valor a la derecha, alineados.
+- Barras horizontales de color sólido (sin gradientes).
+- Altura: h-1.5 o h-2, fondo bg-gray-100 detrás.
+- Color: clases bg-X según estado o categoría.
 
 Filtros y búsqueda
 
-- Barra de búsqueda: input ancho, fondo blanco, icono de lupa a la izquierda,
-  borde gris suave.
-- Filtros de estado: botones pill en fila; el activo con fondo verde menta y texto
-  blanco, los inactivos en gris claro.
-- Filtros de fecha: inputs con borde gris, sin estilos llamativos.
+- Input de búsqueda: ancho generoso, bg-white, border border-border, icono de
+  lupa a la izquierda con pl-8.
+- Filtros de estado tipo pill: botón activo con bg-[#00C896] text-white,
+  inactivos con bg-gray-100 text-gray-600. rounded-full px-3 py-1 text-sm.
+- Filtros de fecha: inputs estándar, sin estilos llamativos.
 
 Principios generales de UX
 
-- Mucha densidad de información, pero bien organizada: no huir de las tablas densas
-  si la info lo requiere, pero siempre con buena jerarquía visual.
-- Consistencia total en colores de estado: el mismo color siempre para el mismo
-  estado en cualquier parte de la app.
-- Estados vacíos: mensaje explicativo + acción sugerida (botón o link).
-- Responsive básico: priorizar desktop (es una herramienta interna de trabajo), pero
-  que no se rompa en tablet.
-- No usar modales para flujos largos: preferir paneles laterales o páginas propias.
+- Densidad alta pero con jerarquía clara: tablas densas están bien si la info
+  lo requiere.
+- Consistencia total: mismo color siempre para el mismo estado en toda la app.
+- Estados vacíos: mensaje explicativo + botón/link de acción sugerida.
+- Priorizar desktop; que no se rompa en tablet.
+- No usar modales para flujos largos: usar Sheet (panel lateral) o página propia.
+- No crear variantes nuevas de pills/badges sin consultar; reutilizar los
+  componentes ClientePill, DeptPill, ServicioPill y StatusBadge existentes.
+
+-------------------------------------------------------------------------------
+Stack técnico — Referencia de replicación
+
+Este bloque describe EXACTAMENTE cómo está construido Company OS, para que
+puedas mantenerlo o levantar otra app con la misma arquitectura.
+
+Lenguajes y versiones
+
+- TypeScript 5 con strict: true (todas las comprobaciones activadas).
+- Next.js 16.2.1 (App Router, Server Components por defecto).
+- React 19.2.4.
+- PostgreSQL (vía Supabase) como única base de datos.
+- SQL para esquema, RLS y triggers (no ORM intermedio).
+
+Dependencias obligatorias (copiar tal cual en package.json)
+
+Core:
+- next 16.2.1
+- react 19.2.4
+- react-dom 19.2.4
+- typescript ^5
+
+Supabase:
+- @supabase/ssr ^0.9
+- @supabase/supabase-js ^2.100
+
+Formularios y validación:
+- react-hook-form ^7.72
+- @hookform/resolvers ^5.2
+- zod ^4.3
+
+UI:
+- tailwindcss ^4  + @tailwindcss/postcss ^4
+- shadcn ^4  (style: base-nova, icon-library: lucide)
+- @base-ui/react ^1.3  (usado internamente por shadcn base-nova)
+- class-variance-authority, clsx, tailwind-merge
+- lucide-react
+- tw-animate-css
+- @fontsource-variable/inter
+
+Charts: recharts ^3.8
+Server-only guard: server-only ^0.0.1
+
+Configuración
+
+- tsconfig.json: strict: true, moduleResolution: "bundler",
+  path alias @/* → raíz del proyecto.
+- postcss.config.mjs: único plugin "@tailwindcss/postcss" (Tailwind v4
+  NO usa tailwind.config.js; la config va en globals.css con @theme inline).
+- next.config.ts: configuración mínima, sin flags especiales.
+- eslint: flat config (eslint.config.mjs) con eslint-config-next
+  (core-web-vitals + typescript).
+- components.json: style "base-nova", baseColor "neutral",
+  iconLibrary "lucide", aliases @/components, @/lib, @/hooks, @/components/ui.
+
+Variables de entorno (.env.local)
+
+- NEXT_PUBLIC_SUPABASE_URL
+- NEXT_PUBLIC_SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY  (solo server, NUNCA exponer)
+- NEXT_PUBLIC_SITE_URL
+
+Estructura de carpetas
+
+app/
+  (dashboard)/              route group para rutas autenticadas
+    layout.tsx              Sidebar + Header + main con bg-[#F9FAFB]
+    [feature]/
+      page.tsx              Server Component: fetch y pasa props
+      [feature]-client.tsx  Client Component: UI interactiva
+      actions.ts            Server Actions ('use server')
+      [feature]-form-sheet.tsx  Formularios en Sheet lateral
+  api/                      Route Handlers
+  auth/callback/            OAuth callback
+  login/                    Página pública + actions.ts
+  globals.css               Variables CSS + @theme inline + @layer base
+  layout.tsx                Root layout
+
+components/
+  ui/                       shadcn (button, input, sheet, table, etc.)
+  [feature].tsx             Shared: sidebar, header, kpi-card, status-badge…
+
+lib/
+  supabase/
+    server.ts               createClient() para Server Components/Actions
+    browser.ts              createClient() para Client Components
+    types.ts                Database types + alias cortos (Persona, Empresa…)
+    auth-helpers.ts         getPersonaAutenticada(), getUsuarioConNivel()
+    queries.ts              query<T>() genérico + getX() específicos
+  schemas/                  Zod schemas por entidad
+  utils.ts                  cn() = twMerge(clsx(...))
+  helpers.ts                safeDivide, formatMoney, formatDate…
+
+hooks/                      Custom hooks (use-table-state, etc.)
+middleware.ts               Auth + autorización por nivel_acceso
+
+Convención de nombres
+
+- Archivos:   kebab-case         (cuota-form-sheet.tsx, auth-helpers.ts)
+- Componentes: PascalCase         (CuotaFormSheet, Sidebar)
+- Funciones/vars: camelCase en TS (getPersonaAutenticada, empresaGrupoId)
+- Tablas y columnas DB: snake_case en español (empresas_grupo, rol_id)
+- Tipos TS: PascalCase español    (Persona, OrdenTrabajo, Asignacion)
+- Server Actions: archivo actions.ts, funciones verbo-entidad (crearRango)
+
+Patrón: cliente Supabase server-side (lib/supabase/server.ts)
+
+  Helper async (no 'use server'). Usa createServerClient de @supabase/ssr
+  con cookies() de next/headers. try/catch en setAll para tolerar uso desde
+  Server Components (que no pueden modificar cookies).
+
+Patrón: cliente Supabase browser (lib/supabase/browser.ts)
+
+  createBrowserClient con las dos envs NEXT_PUBLIC_*.
+
+Patrón: Server Action canónico
+
+  'use server'
+  import { createClient } from '@/lib/supabase/server'
+  import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
+  import { revalidatePath } from 'next/cache'
+  import { z } from 'zod'
+
+  const schema = z.object({ ... })
+  export type ActionResult = { success: boolean; error?: string }
+
+  export async function crearX(formData: unknown): Promise<ActionResult> {
+    const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
+    if (!autorizado) return { success: false, error: 'No tienes permiso' }
+
+    const parsed = schema.safeParse(formData)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0].message }
+    }
+
+    const supabase = await createClient()
+    const { error } = await supabase.from('tabla').insert(parsed.data)
+    if (error) {
+      if (error.code === '23505') return { success: false, error: 'Duplicado' }
+      return { success: false, error: error.message }
+    }
+
+    revalidatePath('/ruta')
+    return { success: true }
+  }
+
+Patrón: Server Component que lista datos
+
+  export default async function Page() {
+    const [a, b, c] = await Promise.all([getA(), getB(), getC()])
+    return <PageClient a={a} b={b} c={c} />
+  }
+
+  - Fetch con Promise.all en el server (nunca useEffect para data inicial).
+  - Pasar props al Client Component hijo para interactividad.
+
+Patrón: formulario con react-hook-form + Zod + Server Action
+
+  'use client'
+  const { register, handleSubmit, formState: { errors } } =
+    useForm<FormData>({ resolver: zodResolver(schema), defaultValues: ... })
+
+  async function onSubmit(data: FormData) {
+    const result = isEdit ? await actualizarX(id, data) : await crearX(data)
+    if (!result.success) setServerError(result.error ?? 'Error')
+    else { reset(); setOpen(false) }
+  }
+
+Middleware (middleware.ts) — responsabilidades
+
+1. Redirigir a /login si no hay user en ruta no pública.
+2. Redirigir a / si hay user y entra en /login.
+3. Cache de nivel_acceso en cookie httpOnly (24h) para evitar consulta en cada
+   request.
+4. Usuarios con nivel 'personal' solo ven rutas del prefijo /dashboard-personal.
+5. matcher excluye _next/static, _next/image, favicon y assets.
+
+Auth helpers (lib/supabase/auth-helpers.ts)
+
+- import 'server-only' al inicio del archivo para evitar uso en cliente.
+- getPersonaAutenticada(): busca por auth_user_id, si no existe vincula
+  automáticamente por email_corporativo vía RPC vincular_persona_por_email.
+- getUsuarioConNivel(niveles): valida rol y devuelve persona o null.
+- Constantes: NIVELES_ADMIN = ['global'], NIVELES_GESTION = ['global','empresa'].
+
+Estilos — Tailwind v4 (app/globals.css)
+
+- @import "tailwindcss"; + @import "tw-animate-css"; + @import "shadcn/tailwind.css";
+- @theme inline para mapear variables CSS a tokens Tailwind.
+- Paleta base en oklch() (light + dark mode con .dark).
+- Variables de estado en hex (--status-activo, --status-pendiente, etc.).
+- @layer base para border-border por defecto y font-sans en html.
+
+Helper de clases (lib/utils.ts)
+
+  export function cn(...inputs: ClassValue[]) {
+    return twMerge(clsx(inputs))
+  }
+
+  Usarlo SIEMPRE para combinar clases condicionales.
+
+Reglas de seguridad imprescindibles
+
+- NUNCA usar SUPABASE_SERVICE_ROLE_KEY en Client Components ni exponerlo.
+- Validación Zod DOBLE: en cliente (rhf + zodResolver) y en servidor
+  (schema.safeParse en Server Action). El cliente se puede saltar.
+- Toda tabla de negocio: organization_id (o empresa_grupo_id) + RLS activado.
+- Auth helpers con 'server-only' al inicio para que el bundler falle si se
+  importan desde un Client Component.

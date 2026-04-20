@@ -5,7 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { asignacionSchema } from '@/lib/schemas/asignacion'
 import { revalidatePath } from 'next/cache'
 
-export type ActionResult = { success: boolean; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -59,6 +60,7 @@ export async function crearAsignacion(formData: unknown): Promise<ActionResult> 
   }
 
   revalidateAll()
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'asignaciones' })
   return { success: true }
 }
 
@@ -104,6 +106,7 @@ export async function actualizarAsignacion(id: string, formData: unknown): Promi
   if (error) return { success: false, error: `Error al actualizar: ${error.message}` }
 
   revalidateAll()
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'asignaciones', registroId: id })
   return { success: true }
 }
 
@@ -122,5 +125,6 @@ export async function eliminarAsignacion(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: `Error al eliminar: ${error.message}` }
 
   revalidateAll()
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'asignaciones', registroId: id })
   return { success: true }
 }

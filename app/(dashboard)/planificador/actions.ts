@@ -5,7 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 
-export type ActionResult = { success: boolean; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -119,5 +120,6 @@ export async function guardarAsignacionesOT(
   revalidatePath('/planificador')
   revalidatePath('/asignaciones')
   revalidatePath('/ordenes-trabajo')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'asignaciones', registroId: ordenId })
   return { success: true }
 }

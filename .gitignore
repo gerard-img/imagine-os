@@ -39,6 +39,9 @@ yarn-error.log*
 # supabase local
 supabase/.temp/
 
+# supabase generated (intermediate file, final output is types.ts)
+lib/supabase/types.generated.ts
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

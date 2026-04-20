@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -15,13 +17,6 @@ const departamentoSchema = z.object({
   codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
   descripcion: z.string().max(500, 'La descripcion no puede superar los 500 caracteres').optional(),
 })
-
-// -- Tipo de respuesta --
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // -- Crear departamento --
 
@@ -53,7 +48,7 @@ export async function crearDepartamento(formData: unknown): Promise<ActionResult
 
   revalidatePath('/departamentos-config')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'departamentos' })
   return { success: true }
 }
 
@@ -91,6 +86,6 @@ export async function actualizarDepartamento(id: string, formData: unknown): Pro
 
   revalidatePath('/departamentos-config')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'departamentos', registroId: id })
   return { success: true }
 }

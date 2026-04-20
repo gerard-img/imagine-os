@@ -3,9 +3,10 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_ADMIN } from '@/lib/supabase/auth-helpers'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 import { revalidatePath } from 'next/cache'
 
-export type ActionResult = { success: boolean; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
 
 // Mensaje estándar cuando falta autorización para gestionar usuarios.
 const ERROR_SIN_PERMISO = 'No tienes permiso para gestionar usuarios'
@@ -57,6 +58,7 @@ export async function invitarUsuario(personaId: string): Promise<ActionResult> {
 
   revalidatePath('/usuarios')
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'usuarios', registroId: personaId })
   return { success: true }
 }
 
@@ -97,6 +99,7 @@ export async function desactivarUsuario(personaId: string): Promise<ActionResult
 
   revalidatePath('/usuarios')
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'cambiar_estado', tabla: 'personas', registroId: personaId, datosExtra: { accion: 'desactivar' } })
   return { success: true }
 }
 
@@ -135,6 +138,7 @@ export async function reactivarUsuario(personaId: string): Promise<ActionResult>
 
   revalidatePath('/usuarios')
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'cambiar_estado', tabla: 'personas', registroId: personaId, datosExtra: { accion: 'reactivar' } })
   return { success: true }
 }
 
@@ -169,6 +173,7 @@ export async function resetearPassword(personaId: string): Promise<ActionResult>
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/usuarios')
+  void registrarAuditoria({ persona: autorizado, accion: 'otro', tabla: 'usuarios', registroId: personaId, datosExtra: { accion: 'reset_password' } })
   return { success: true }
 }
 
@@ -205,6 +210,7 @@ export async function eliminarCuentaAuth(personaId: string): Promise<ActionResul
 
   revalidatePath('/usuarios')
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'usuarios', registroId: personaId })
   return { success: true }
 }
 
@@ -226,5 +232,6 @@ export async function cambiarRol(personaId: string, rolId: string): Promise<Acti
 
   revalidatePath('/usuarios')
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'personas', registroId: personaId, datosExtra: { nuevoRolId: rolId } })
   return { success: true }
 }

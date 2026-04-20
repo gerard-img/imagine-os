@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_ADMIN } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para gestionar roles del sistema'
 
@@ -13,13 +15,6 @@ const rolSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio').max(100, 'El nombre no puede superar los 100 caracteres'),
   descripcion: z.string().max(500, 'La descripción no puede superar los 500 caracteres').optional(),
 })
-
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // ── Crear rol ──
 
@@ -47,7 +42,7 @@ export async function crearRol(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/roles-sistema')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'roles' })
   return { success: true }
 }
 
@@ -81,6 +76,6 @@ export async function actualizarRol(id: string, formData: unknown): Promise<Acti
 
   revalidatePath('/roles-sistema')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'roles', registroId: id })
   return { success: true }
 }

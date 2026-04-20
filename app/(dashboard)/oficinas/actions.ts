@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -12,13 +14,6 @@ const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 const oficinaSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio').max(100, 'El nombre no puede superar los 100 caracteres'),
 })
-
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // ── Crear oficina ──
 
@@ -43,7 +38,7 @@ export async function crearOficina(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/oficinas')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'oficinas' })
   return { success: true }
 }
 
@@ -73,6 +68,6 @@ export async function actualizarOficina(id: string, formData: unknown): Promise<
 
   revalidatePath('/oficinas')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'oficinas', registroId: id })
   return { success: true }
 }

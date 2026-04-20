@@ -22,7 +22,8 @@ const egSchema = z.object({
   color_marca: z.string(),
 })
 
-export type ActionResult = { success: boolean; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 export async function crearEmpresaGrupo(formData: unknown): Promise<ActionResult> {
   const autorizado = await getUsuarioConNivel(NIVELES_ADMIN)
@@ -53,6 +54,7 @@ export async function crearEmpresaGrupo(formData: unknown): Promise<ActionResult
   }
 
   revalidatePath('/empresas-grupo')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'empresas_grupo' })
   return { success: true }
 }
 
@@ -88,5 +90,6 @@ export async function actualizarEmpresaGrupo(id: string, formData: unknown): Pro
 
   revalidatePath('/empresas-grupo')
   revalidatePath(`/empresas-grupo/${id}`)
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'empresas_grupo', registroId: id })
   return { success: true }
 }

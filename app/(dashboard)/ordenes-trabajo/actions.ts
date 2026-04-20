@@ -5,7 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { ordenTrabajoSchema, ESTADOS_OT } from '@/lib/schemas/orden-trabajo'
 import { revalidatePath } from 'next/cache'
 
-export type ActionResult = { success: boolean; id?: string; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -51,6 +52,7 @@ export async function crearOrdenTrabajo(formData: unknown): Promise<ActionResult
 
   revalidatePath('/ordenes-trabajo')
   revalidatePath('/planificador')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'ordenes_trabajo', registroId: nueva.id })
   return { success: true, id: nueva.id }
 }
 
@@ -98,6 +100,7 @@ export async function actualizarOrdenTrabajo(id: string, formData: unknown): Pro
   revalidatePath('/ordenes-trabajo')
   revalidatePath('/planificador')
   revalidatePath('/proyectos')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'ordenes_trabajo', registroId: id })
   return { success: true }
 }
 
@@ -120,6 +123,7 @@ export async function confirmarOTsBulk(ids: string[]): Promise<ActionResult> {
   revalidatePath('/ordenes-trabajo')
   revalidatePath('/planificador')
   revalidatePath('/proyectos')
+  void registrarAuditoria({ persona: autorizado, accion: 'cambiar_estado', tabla: 'ordenes_trabajo', datosExtra: { ids, nuevoEstado: 'Confirmado' } })
   return { success: true }
 }
 
@@ -159,6 +163,7 @@ export async function avanzarEstadoOT(id: string): Promise<ActionResult> {
   revalidatePath('/planificador')
   revalidatePath('/proyectos')
   revalidatePath('/cargas-trabajo')
+  void registrarAuditoria({ persona: autorizado, accion: 'cambiar_estado', tabla: 'ordenes_trabajo', registroId: id })
   return { success: true }
 }
 
@@ -179,6 +184,7 @@ export async function asignarServicioOT(otId: string, servicioId: string): Promi
   revalidatePath('/ordenes-trabajo')
   revalidatePath('/planificador')
   revalidatePath('/proyectos')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'ordenes_trabajo', registroId: otId, datosExtra: { servicioId } })
   return { success: true }
 }
 
@@ -212,6 +218,7 @@ export async function eliminarOrdenTrabajo(id: string): Promise<ActionResult> {
   revalidatePath('/asignaciones')
   revalidatePath('/cargas-trabajo')
   revalidatePath('/proyectos')
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'ordenes_trabajo', registroId: id })
   return { success: true }
 }
 
@@ -249,5 +256,6 @@ export async function cambiarEstadoOT(id: string, nuevoEstado: string): Promise<
   revalidatePath('/planificador')
   revalidatePath('/proyectos')
   revalidatePath('/cargas-trabajo')
+  void registrarAuditoria({ persona: autorizado, accion: 'cambiar_estado', tabla: 'ordenes_trabajo', registroId: id, datosExtra: { nuevoEstado } })
   return { success: true }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import { useTableState } from '@/hooks/use-table-state'
 import {
   Download, Table2, Filter, Users, TrendingUp,
   ChevronsUpDown, ChevronsDownUp, Plus,
@@ -76,6 +77,8 @@ export function ReportesClient({
   ordenes, asignaciones, proyectos, empresas,
   personas, cuotas, departamentos, servicios, empresasGrupo,
 }: Props) {
+  const { getParam, setParams } = useTableState()
+
   const [config, setConfig] = useState<ConfigInforme>({
     filas: ['cliente'],
     columnas: ['mes'],
@@ -83,13 +86,24 @@ export function ReportesClient({
   })
 
   const anio = new Date().getFullYear()
-  const [filtros, setFiltros] = useState<FiltrosReporte>({
-    mesDesde: `${anio}-01-01`, mesHasta: `${anio}-12-01`,
-    empresaGrupoId: null, tipoProyecto: 'todos', estadoOT: null, departamentoId: null, clienteId: null,
-  })
+
+  // Filtros desde URL params (bookmarkeable y compartible)
+  const filtros = useMemo<FiltrosReporte>(() => ({
+    mesDesde: getParam('desde', `${anio}-01-01`)!,
+    mesHasta: getParam('hasta', `${anio}-12-01`)!,
+    empresaGrupoId: getParam('eg') ?? null,
+    tipoProyecto: (getParam('tipo', 'todos') as FiltrosReporte['tipoProyecto']),
+    estadoOT: getParam('estadoOT') ?? null,
+    departamentoId: getParam('depto') ?? null,
+    clienteId: getParam('cliente') ?? null,
+  }), [getParam, anio])
+
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
-  const [sortCol, setSortCol] = useState<string | null>(null)
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Sort del informe principal desde URL
+  const sortCol = getParam('sortCol') ?? null
+  const sortDir = (getParam('sortDir', 'desc') as 'asc' | 'desc')
+
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const [mostrarVariacion, setMostrarVariacion] = useState(false)
 
@@ -131,15 +145,17 @@ export function ReportesClient({
   const dimsUsadas = useMemo(() => new Set([...config.filas, ...config.columnas]), [config.filas, config.columnas])
 
   // ── Handlers de jerarquía ──
+  const clearSort = () => setParams({ sortCol: null, sortDir: null })
+
   const addDimFilas = (d: DimensionEje) => {
     setConfig((c) => ({ ...c, filas: [...c.filas, d] }))
-    setSortCol(null)
+    clearSort()
     setExpandedKeys(new Set())
   }
   const removeDimFilas = (idx: number) => {
     if (config.filas.length <= 1) return
     setConfig((c) => ({ ...c, filas: c.filas.filter((_, i) => i !== idx) }))
-    setSortCol(null)
+    clearSort()
     setExpandedKeys(new Set())
   }
   const moveDimFilas = (idx: number, dir: -1 | 1) => {
@@ -150,17 +166,17 @@ export function ReportesClient({
       ;[arr[idx], arr[target]] = [arr[target], arr[idx]]
       return { ...c, filas: arr }
     })
-    setSortCol(null)
+    clearSort()
     setExpandedKeys(new Set())
   }
 
   const addDimColumnas = (d: DimensionEje) => {
     setConfig((c) => ({ ...c, columnas: [...c.columnas, d] }))
-    setSortCol(null)
+    clearSort()
   }
   const removeDimColumnas = (idx: number) => {
     setConfig((c) => ({ ...c, columnas: c.columnas.filter((_, i) => i !== idx) }))
-    setSortCol(null)
+    clearSort()
   }
   const moveDimColumnas = (idx: number, dir: -1 | 1) => {
     setConfig((c) => {
@@ -170,11 +186,11 @@ export function ReportesClient({
       ;[arr[idx], arr[target]] = [arr[target], arr[idx]]
       return { ...c, columnas: arr }
     })
-    setSortCol(null)
+    clearSort()
   }
   const clearColumnas = () => {
     setConfig((c) => ({ ...c, columnas: [] }))
-    setSortCol(null)
+    clearSort()
   }
 
   const toggleMetrica = (m: Metrica) => {
@@ -188,8 +204,8 @@ export function ReportesClient({
   }
 
   const toggleSort = (col: string) => {
-    if (sortCol === col) setSortDir((d) => d === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir('desc') }
+    const newDir = sortCol === col ? (sortDir === 'asc' ? 'desc' : 'asc') : 'desc'
+    setParams({ sortCol: col, sortDir: newDir })
   }
 
   const toggleExpand = (key: string) => {
@@ -210,7 +226,7 @@ export function ReportesClient({
   const aplicarPlantilla = (idx: number) => {
     const p = PLANTILLAS[idx]
     setConfig({ filas: [...p.filas], columnas: [...p.columnas], metricas: [...p.metricas] })
-    setSortCol(null)
+    clearSort()
     setExpandedKeys(new Set())
   }
 
@@ -272,8 +288,8 @@ export function ReportesClient({
       .sort((a, b) => b.ingresosPrev - a.ingresosPrev)
   }, [filasCrudas])
 
-  const [sortPersonaCol, setSortPersonaCol] = useState<string | null>(null)
-  const [sortPersonaDir, setSortPersonaDir] = useState<'asc' | 'desc'>('desc')
+  const sortPersonaCol = getParam('sortPer') ?? null
+  const sortPersonaDir = (getParam('dirPer', 'desc') as 'asc' | 'desc')
 
   const personasOrdenadas = useMemo(() => {
     if (!sortPersonaCol) return resumenPersonas
@@ -288,8 +304,8 @@ export function ReportesClient({
   }, [resumenPersonas, sortPersonaCol, sortPersonaDir])
 
   const toggleSortPersona = (col: string) => {
-    if (sortPersonaCol === col) setSortPersonaDir((d) => d === 'asc' ? 'desc' : 'asc')
-    else { setSortPersonaCol(col); setSortPersonaDir('desc') }
+    const newDir = sortPersonaCol === col ? (sortPersonaDir === 'asc' ? 'desc' : 'asc') : 'desc'
+    setParams({ sortPer: col, dirPer: newDir })
   }
 
   // Dims disponibles para añadir (no usadas todavía)
@@ -332,47 +348,47 @@ export function ReportesClient({
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Desde</label>
-              <input type="month" value={filtros.mesDesde.substring(0, 7)} onChange={(e) => setFiltros((f) => ({ ...f, mesDesde: e.target.value ? `${e.target.value}-01` : f.mesDesde }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring" />
+              <input type="month" value={filtros.mesDesde.substring(0, 7)} onChange={(e) => { if (e.target.value) setParams({ desde: `${e.target.value}-01` }) }} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring" />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Hasta</label>
-              <input type="month" value={filtros.mesHasta.substring(0, 7)} onChange={(e) => setFiltros((f) => ({ ...f, mesHasta: e.target.value ? `${e.target.value}-01` : f.mesHasta }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring" />
+              <input type="month" value={filtros.mesHasta.substring(0, 7)} onChange={(e) => { if (e.target.value) setParams({ hasta: `${e.target.value}-01` }) }} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring" />
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Empresa grupo</label>
-              <select value={filtros.empresaGrupoId ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, empresaGrupoId: e.target.value || null }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+              <select value={filtros.empresaGrupoId ?? ''} onChange={(e) => setParams({ eg: e.target.value || null })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todas</option>
                 {empresasGrupo.map((eg) => <option key={eg.id} value={eg.id}>{eg.nombre}</option>)}
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Tipo proyecto</label>
-              <select value={filtros.tipoProyecto} onChange={(e) => setFiltros((f) => ({ ...f, tipoProyecto: e.target.value as FiltrosReporte['tipoProyecto'] }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+              <select value={filtros.tipoProyecto} onChange={(e) => setParams({ tipo: e.target.value === 'todos' ? null : e.target.value })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="todos">Todos</option><option value="facturable">Facturable</option><option value="externo">Externo</option><option value="interno">Interno</option>
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Estado OT</label>
-              <select value={filtros.estadoOT ?? 'Todos'} onChange={(e) => setFiltros((f) => ({ ...f, estadoOT: e.target.value === 'Todos' ? null : e.target.value }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+              <select value={filtros.estadoOT ?? 'Todos'} onChange={(e) => setParams({ estadoOT: e.target.value === 'Todos' ? null : e.target.value })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 {ESTADOS_OT.map((e) => <option key={e} value={e}>{e}</option>)}
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Departamento</label>
-              <select value={filtros.departamentoId ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, departamentoId: e.target.value || null }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+              <select value={filtros.departamentoId ?? ''} onChange={(e) => setParams({ depto: e.target.value || null })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todos</option>
                 {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
               </select>
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Cliente</label>
-              <select value={filtros.clienteId ?? ''} onChange={(e) => setFiltros((f) => ({ ...f, clienteId: e.target.value || null }))} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+              <select value={filtros.clienteId ?? ''} onChange={(e) => setParams({ cliente: e.target.value || null })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todos</option>
                 {clientesUnicos.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
               </select>
             </div>
             <div className="flex items-end">
-              <button type="button" onClick={() => setFiltros({ mesDesde: `${anio}-01-01`, mesHasta: `${anio}-12-01`, empresaGrupoId: null, tipoProyecto: 'todos', estadoOT: null, departamentoId: null, clienteId: null })} className="text-xs text-primary hover:underline">Limpiar filtros</button>
+              <button type="button" onClick={() => setParams({ desde: null, hasta: null, eg: null, tipo: null, estadoOT: null, depto: null, cliente: null })} className="text-xs text-primary hover:underline">Limpiar filtros</button>
             </div>
           </div>
         </div>

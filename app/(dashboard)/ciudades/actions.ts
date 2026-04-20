@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -13,13 +15,6 @@ const ciudadSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio').max(100, 'El nombre no puede superar los 100 caracteres'),
   pais: z.string().min(1, 'El país es obligatorio').max(100, 'El país no puede superar los 100 caracteres'),
 })
-
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // ── Crear ciudad ──
 
@@ -44,7 +39,7 @@ export async function crearCiudad(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/ciudades')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'ciudades' })
   return { success: true }
 }
 
@@ -74,6 +69,6 @@ export async function actualizarCiudad(id: string, formData: unknown): Promise<A
 
   revalidatePath('/ciudades')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'ciudades', registroId: id })
   return { success: true }
 }

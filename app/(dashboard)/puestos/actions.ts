@@ -36,12 +36,8 @@ async function generarCodigoPuesto(
   return 'P' + String(siguiente).padStart(2, '0')
 }
 
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 // ── Crear puesto ──
 
@@ -70,7 +66,7 @@ export async function crearPuesto(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/puestos')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'puestos' })
   return { success: true }
 }
 
@@ -101,6 +97,6 @@ export async function actualizarPuesto(id: string, formData: unknown): Promise<A
 
   revalidatePath('/puestos')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'puestos', registroId: id })
   return { success: true }
 }

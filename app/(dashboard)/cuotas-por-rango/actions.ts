@@ -5,7 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { revalidatePath } from 'next/cache'
 import { cuotaSchema, type CuotaFormData } from '@/lib/schemas/cuota-planificacion'
 
-export type ActionResult = { success: boolean; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -32,6 +33,7 @@ export async function crearCuota(data: CuotaFormData): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/cuotas-por-rango')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'cuotas_planificacion' })
   return { success: true }
 }
 
@@ -62,6 +64,7 @@ export async function actualizarCuota(id: string, data: CuotaFormData): Promise<
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/cuotas-por-rango')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'cuotas_planificacion', registroId: id })
   return { success: true }
 }
 
@@ -78,5 +81,6 @@ export async function eliminarCuota(id: string): Promise<ActionResult> {
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/cuotas-por-rango')
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'cuotas_planificacion', registroId: id })
   return { success: true }
 }

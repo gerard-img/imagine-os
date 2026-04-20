@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -13,13 +15,6 @@ const divisionSchema = z.object({
   nombre: z.string().min(1, 'El nombre es obligatorio').max(100, 'El nombre no puede superar los 100 caracteres'),
   descripcion: z.string().max(500, 'La descripcion no puede superar los 500 caracteres').optional().or(z.literal('')),
 })
-
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // ── Crear division ──
 
@@ -47,7 +42,7 @@ export async function crearDivision(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/divisiones')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'divisiones' })
   return { success: true }
 }
 
@@ -81,6 +76,6 @@ export async function actualizarDivision(id: string, formData: unknown): Promise
 
   revalidatePath('/divisiones')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'divisiones', registroId: id })
   return { success: true }
 }

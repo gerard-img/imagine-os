@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -15,13 +17,6 @@ const rangoSchema = z.object({
   codigo: z.string().min(1, 'El código es obligatorio').max(20, 'El código no puede superar los 20 caracteres'),
   orden: z.coerce.number().min(1, 'El orden debe ser al menos 1'),
 })
-
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // ── Crear rango ──
 
@@ -51,7 +46,7 @@ export async function crearRango(formData: unknown): Promise<ActionResult> {
 
   revalidatePath('/rangos')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'rangos_internos' })
   return { success: true }
 }
 
@@ -86,6 +81,6 @@ export async function actualizarRango(id: string, formData: unknown): Promise<Ac
 
   revalidatePath('/rangos')
   revalidatePath('/personas')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'rangos_internos', registroId: id })
   return { success: true }
 }

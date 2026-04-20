@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -15,13 +17,6 @@ const servicioSchema = z.object({
   codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
   descripcion: z.string().max(500, 'La descripcion no puede superar los 500 caracteres').optional().or(z.literal('')),
 })
-
-// ── Tipo de respuesta ──
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 // ── Crear servicio ──
 
@@ -50,7 +45,7 @@ export async function crearServicio(formData: unknown): Promise<ActionResult> {
   }
 
   revalidatePath('/catalogo-servicios')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'catalogo_servicios' })
   return { success: true }
 }
 
@@ -84,6 +79,6 @@ export async function actualizarServicio(id: string, formData: unknown): Promise
   }
 
   revalidatePath('/catalogo-servicios')
-
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'catalogo_servicios', registroId: id })
   return { success: true }
 }

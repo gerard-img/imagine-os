@@ -110,7 +110,7 @@ export function EmpresaDetalleClient({
         .filter((pd) => pd.persona_id === persona.id)
         .sort((a, b) => b.porcentaje_tiempo - a.porcentaje_tiempo)
       const dept = depts.length > 0 ? deptMap.get(depts[0].departamento_id) : null
-      const puesto = puestoMap.get(persona.puesto_id)
+      const puesto = persona.puesto_id ? puestoMap.get(persona.puesto_id) : undefined
 
       let horas = 0
       if (orden && cuota && cuota.precio_hora > 0) {

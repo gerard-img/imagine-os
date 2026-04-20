@@ -5,7 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { revalidatePath } from 'next/cache'
 import { personaSchema, type PersonaFormData } from '@/lib/schemas/persona'
 
-export type ActionResult = { success: boolean; error?: string }
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -66,6 +67,7 @@ export async function crearPersona(data: PersonaFormData): Promise<ActionResult>
   }
 
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'personas', registroId: nueva.id })
   return { success: true }
 }
 
@@ -134,6 +136,7 @@ export async function actualizarPersona(id: string, data: PersonaFormData): Prom
   revalidatePath('/personas')
   revalidatePath('/cargas-trabajo')
   revalidatePath('/planificador')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'personas', registroId: id })
   return { success: true }
 }
 
@@ -176,6 +179,7 @@ export async function actualizarDepartamentosPersona(
   revalidatePath('/personas')
   revalidatePath('/cargas-trabajo')
   revalidatePath('/planificador')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'personas_departamentos', registroId: personaId })
   return { success: true }
 }
 
@@ -192,6 +196,7 @@ export async function archivarPersona(id: string): Promise<ActionResult> {
   revalidatePath('/personas')
   revalidatePath('/planificador')
   revalidatePath('/cargas-trabajo')
+  void registrarAuditoria({ persona: autorizado, accion: 'archivar', tabla: 'personas', registroId: id })
   return { success: true }
 }
 
@@ -208,6 +213,7 @@ export async function restaurarPersona(id: string): Promise<ActionResult> {
   revalidatePath('/personas')
   revalidatePath('/planificador')
   revalidatePath('/cargas-trabajo')
+  void registrarAuditoria({ persona: autorizado, accion: 'restaurar', tabla: 'personas', registroId: id })
   return { success: true }
 }
 
@@ -251,6 +257,7 @@ export async function eliminarPersona(id: string): Promise<ActionResult> {
   }
 
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'personas', registroId: id })
   return { success: true }
 }
 
@@ -279,6 +286,7 @@ export async function crearPuestoRapido(
 
   revalidatePath('/personas')
   revalidatePath('/puestos')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'puestos', registroId: data.id })
   return { success: true, id: data.id }
 }
 
@@ -294,5 +302,6 @@ export async function toggleInterinidad(personaId: string, valor: boolean): Prom
   if (error) return { success: false, error: error.message }
   revalidatePath(`/personas/${personaId}`)
   revalidatePath('/personas')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'personas', registroId: personaId, datosExtra: { rango_es_interino: valor } })
   return { success: true }
 }

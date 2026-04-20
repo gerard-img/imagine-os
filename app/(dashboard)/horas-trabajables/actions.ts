@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -15,11 +17,6 @@ const horasSchema = z.object({
   persona_id: z.string().optional(),
   comentarios: z.string().optional(),
 })
-
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
 
 export async function crearHorasTrabajables(formData: unknown): Promise<ActionResult> {
   const autorizado = await getUsuarioConNivel(NIVELES_GESTION)
@@ -48,6 +45,7 @@ export async function crearHorasTrabajables(formData: unknown): Promise<ActionRe
   }
 
   revalidatePath('/horas-trabajables')
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'horas_trabajables' })
   return { success: true }
 }
 
@@ -83,6 +81,7 @@ export async function actualizarHorasTrabajables(id: string, formData: unknown):
   }
 
   revalidatePath('/horas-trabajables')
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'horas_trabajables', registroId: id })
   return { success: true }
 }
 
@@ -99,5 +98,6 @@ export async function eliminarHorasTrabajables(id: string): Promise<ActionResult
   if (error) return { success: false, error: `Error al eliminar: ${error.message}` }
 
   revalidatePath('/horas-trabajables')
+  void registrarAuditoria({ persona: autorizado, accion: 'eliminar', tabla: 'horas_trabajables', registroId: id })
   return { success: true }
 }

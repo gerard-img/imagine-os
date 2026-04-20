@@ -361,7 +361,7 @@ function PersonasContent({
         )}
         {sorted.map((p) => {
           const depts = getDepartamentosPersona(p.id)
-          const puesto = puestosMap.get(p.puesto_id)
+          const puesto = p.puesto_id ? puestosMap.get(p.puesto_id) : undefined
           const clientes = getClientesAsignados(p.id)
           const horas = getHorasTotales(p.id)
           const isLoading = actionLoading === p.id

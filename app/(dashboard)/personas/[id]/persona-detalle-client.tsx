@@ -165,8 +165,8 @@ export function PersonaDetalleClient({
   }, [asignaciones, otMap, proyectoMap, empresaMap, servicioMap, cuotaMap, mes])
 
   const empresaGrupo = egMap.get(persona.empresa_grupo_id)
-  const rango = rangoMap.get(persona.rango_id)
-  const puesto = puestoMap.get(persona.puesto_id)
+  const rango = persona.rango_id ? rangoMap.get(persona.rango_id) : undefined
+  const puesto = persona.puesto_id ? puestoMap.get(persona.puesto_id) : undefined
   const division = divisionMap.get(persona.division_id)
   const rol = rolMap.get(persona.rol_id)
   const ciudad = ciudadMap.get(persona.ciudad_id)
@@ -384,7 +384,7 @@ export function PersonaDetalleClient({
           <dl className="space-y-2.5 text-sm">
             <InfoRow label="Ciudad" value={ciudad?.nombre} />
             <InfoRow label="Oficina" value={oficina?.nombre} />
-            <InfoRow label="Incorporación" value={formatDate(persona.fecha_incorporacion)} />
+            <InfoRow label="Incorporación" value={formatDate(persona.fecha_incorporacion ?? '')} />
             {persona.fecha_baja && (
               <InfoRow label="Fecha baja">
                 <span className="font-semibold text-red-500">{formatDate(persona.fecha_baja)}</span>

@@ -5,10 +5,8 @@ import { getUsuarioConNivel, NIVELES_GESTION } from '@/lib/supabase/auth-helpers
 import { empresaSchema, empresaEditSchema } from '@/lib/schemas/empresa'
 import { revalidatePath } from 'next/cache'
 
-export type ActionResult = {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/lib/types/action-result'
+import { registrarAuditoria } from '@/lib/supabase/audit'
 
 const ERROR_SIN_PERMISO = 'No tienes permiso para esta acción'
 
@@ -61,6 +59,7 @@ export async function crearEmpresa(formData: unknown): Promise<ActionResult> {
   // 4. Revalidar para que la lista se actualice
   revalidatePath('/empresas')
 
+  void registrarAuditoria({ persona: autorizado, accion: 'crear', tabla: 'empresas' })
   return { success: true }
 }
 
@@ -122,5 +121,6 @@ export async function actualizarEmpresa(id: string, formData: unknown): Promise<
   revalidatePath(`/empresas/${id}`)
   revalidatePath('/empresas')
 
+  void registrarAuditoria({ persona: autorizado, accion: 'actualizar', tabla: 'empresas', registroId: id })
   return { success: true }
 }
