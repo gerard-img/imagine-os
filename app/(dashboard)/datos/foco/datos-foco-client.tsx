@@ -18,7 +18,7 @@ import type { FilaInforme } from '@/lib/helpers-informes'
 import type {
   OrdenTrabajo, Asignacion, Persona, Proyecto, Empresa,
   CuotaPlanificacion, HorasTrabajables, PersonaDepartamento,
-  EmpresaGrupo, Departamento,
+  EmpresaGrupo, Departamento, CatalogoServicio,
 } from '@/lib/supabase/types'
 import { formatHoras, formatEuroHora, realizacionColor, cargaColor, hhiColor } from '../components/helpers-ui'
 import { KpiDelta } from '../components/kpi-delta'
@@ -39,6 +39,7 @@ type Props = {
   personasDepartamentos: PersonaDepartamento[]
   empresasGrupo: EmpresaGrupo[]
   departamentos: Departamento[]
+  catalogoServicios: CatalogoServicio[]
 }
 
 type VistaTab = 'cliente' | 'depto'
@@ -46,6 +47,7 @@ type VistaTab = 'cliente' | 'depto'
 export function DatosFocoClient({
   ordenesTrabajo, asignaciones, personas, proyectos, empresas,
   cuotas, horasTrabajables, personasDepartamentos, empresasGrupo, departamentos,
+  catalogoServicios,
 }: Props) {
   const maps = useMemo(
     () => buildLookupMaps(ordenesTrabajo, proyectos, empresas, cuotas, departamentos, empresasGrupo),
@@ -61,7 +63,7 @@ export function DatosFocoClient({
   const hasta = searchParams.get('hasta') || defaultRange.hasta
   const vistaTab = (searchParams.get('vista') as VistaTab) || 'cliente'
 
-  const filters = useFiltersDatos({ searchParams, setParams, departamentos })
+  const filters = useFiltersDatos({ searchParams, setParams, departamentos, catalogoServicios })
 
   const setDateRange = (range: DateRange) => {
     const isDefault = range.desde === defaultRange.desde && range.hasta === defaultRange.hasta
@@ -75,8 +77,8 @@ export function DatosFocoClient({
   const esRangoUnico = mesesRango.length === 1
 
   const filasCrudasRango = useMemo(
-    () => buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesRango, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos),
-    [asignaciones, maps, filters.filtroEgs, mesesRango, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos],
+    () => buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesRango, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios),
+    [asignaciones, maps, filters.filtroEgs, mesesRango, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios],
   )
 
   const horasTrabRango = useMemo(
@@ -99,10 +101,10 @@ export function DatosFocoClient({
   const mesesPrev = useMemo(() => generateMonthRange(rangoPrev.desde, rangoPrev.hasta), [rangoPrev])
 
   const kpisPrev = useMemo(() => {
-    const filasPrev = buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesPrev, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos)
+    const filasPrev = buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesPrev, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios)
     const htPrev = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filters.filtroEgs, filters.filtroDeptos, mesesPrev)
     return calcularKpis(filasPrev, htPrev)
-  }, [asignaciones, maps, filters.filtroEgs, mesesPrev, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, personas, personasDepartamentos, horasTrabajables])
+  }, [asignaciones, maps, filters.filtroEgs, mesesPrev, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios, personas, personasDepartamentos, horasTrabajables])
 
   // Donut
   const datosConcentracion = useMemo(
@@ -226,6 +228,7 @@ export function DatosFocoClient({
         <FiltrosDatosBarra
           empresasGrupo={empresasGrupo}
           departamentos={departamentos}
+          catalogoServicios={catalogoServicios}
           {...filters}
         />
         <DateRangeSelector value={{ desde, hasta }} onChange={setDateRange} />

@@ -96,6 +96,7 @@ export function ReportesClient({
     estadoOT: getParam('estadoOT') ?? null,
     departamentoId: getParam('depto') ?? null,
     clienteId: getParam('cliente') ?? null,
+    servicioId: getParam('servicio') ?? null,
   }), [getParam, anio])
 
   const [mostrarFiltros, setMostrarFiltros] = useState(false)
@@ -258,7 +259,15 @@ export function ReportesClient({
     return [...res.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [proyectos, empresas])
 
-  const filtrosActivos = [filtros.empresaGrupoId, filtros.tipoProyecto !== 'todos' ? filtros.tipoProyecto : null, filtros.estadoOT, filtros.departamentoId, filtros.clienteId].filter(Boolean).length
+  // Servicios para filtro: si hay empresa grupo seleccionada, solo los de esa EG
+  const serviciosFiltrados = useMemo(() => {
+    const base = filtros.empresaGrupoId
+      ? servicios.filter((s) => s.empresa_grupo_id === filtros.empresaGrupoId)
+      : servicios
+    return [...base].sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }, [servicios, filtros.empresaGrupoId])
+
+  const filtrosActivos = [filtros.empresaGrupoId, filtros.tipoProyecto !== 'todos' ? filtros.tipoProyecto : null, filtros.estadoOT, filtros.departamentoId, filtros.clienteId, filtros.servicioId].filter(Boolean).length
 
   // ── Resumen por persona (tabla fija al final) ──
   const resumenPersonas = useMemo(() => {
@@ -321,29 +330,37 @@ export function ReportesClient({
           <p className="text-sm text-muted-foreground">Construye cruces de datos por cualquier dimensión y exporta.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setMostrarFiltros(!mostrarFiltros)} className="gap-1.5">
-            <Filter className="h-3.5 w-3.5" />
-            Filtros{filtrosActivos > 0 && <span className="inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-bold h-4 w-4">{filtrosActivos}</span>}
-          </Button>
           <Button size="sm" onClick={exportarCSV} disabled={totalFilas === 0} className="gap-1.5">
             <Download className="h-3.5 w-3.5" /> Exportar CSV
           </Button>
         </div>
       </div>
 
-      {/* Plantillas */}
-      <div className="mt-4 flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-muted-foreground font-medium">Plantillas:</span>
-        {PLANTILLAS.map((p, i) => (
-          <button key={i} type="button" onClick={() => aplicarPlantilla(i)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${plantillaIdx === i ? 'bg-primary text-primary-foreground' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-          >{p.label}</button>
-        ))}
+      {/* Filtros (pastilla desplegable) */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => setMostrarFiltros(!mostrarFiltros)}
+          aria-expanded={mostrarFiltros}
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+            mostrarFiltros || filtrosActivos > 0
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          <Filter className="h-3.5 w-3.5" />
+          Filtros
+          {filtrosActivos > 0 && (
+            <span className="inline-flex items-center justify-center rounded-full bg-white/20 text-[10px] font-bold h-4 w-4">
+              {filtrosActivos}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Filtros */}
       {mostrarFiltros && (
-        <div className="mt-4 rounded-xl bg-white p-4 shadow-sm border border-border">
+        <div className="mt-2 rounded-xl bg-white p-4 shadow-sm border border-border">
           <div className="mb-2"><span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Filtros — limitan los datos del informe</span></div>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="space-y-1">
@@ -356,7 +373,19 @@ export function ReportesClient({
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Empresa grupo</label>
-              <select value={filtros.empresaGrupoId ?? ''} onChange={(e) => setParams({ eg: e.target.value || null })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+              <select
+                value={filtros.empresaGrupoId ?? ''}
+                onChange={(e) => {
+                  const newEg = e.target.value || null
+                  // Si el servicio actual no pertenece a la nueva EG, limpiarlo
+                  const servicioActual = filtros.servicioId
+                    ? servicios.find((s) => s.id === filtros.servicioId)
+                    : null
+                  const hayQueLimpiarServicio = newEg && servicioActual && servicioActual.empresa_grupo_id !== newEg
+                  setParams(hayQueLimpiarServicio ? { eg: newEg, servicio: null } : { eg: newEg })
+                }}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+              >
                 <option value="">Todas</option>
                 {empresasGrupo.map((eg) => <option key={eg.id} value={eg.id}>{eg.nombre}</option>)}
               </select>
@@ -387,12 +416,29 @@ export function ReportesClient({
                 {clientesUnicos.map(([id, nombre]) => <option key={id} value={id}>{nombre}</option>)}
               </select>
             </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase text-muted-foreground">Servicio</label>
+              <select value={filtros.servicioId ?? ''} onChange={(e) => setParams({ servicio: e.target.value || null })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
+                <option value="">Todos</option>
+                {serviciosFiltrados.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
+            </div>
             <div className="flex items-end">
-              <button type="button" onClick={() => setParams({ desde: null, hasta: null, eg: null, tipo: null, estadoOT: null, depto: null, cliente: null })} className="text-xs text-primary hover:underline">Limpiar filtros</button>
+              <button type="button" onClick={() => setParams({ desde: null, hasta: null, eg: null, tipo: null, estadoOT: null, depto: null, cliente: null, servicio: null })} className="text-xs text-primary hover:underline">Limpiar filtros</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Plantillas */}
+      <div className="mt-4 flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-muted-foreground font-medium">Plantillas:</span>
+        {PLANTILLAS.map((p, i) => (
+          <button key={i} type="button" onClick={() => aplicarPlantilla(i)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${plantillaIdx === i ? 'bg-primary text-primary-foreground' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+          >{p.label}</button>
+        ))}
+      </div>
 
       {/* Estructura del informe */}
       <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">

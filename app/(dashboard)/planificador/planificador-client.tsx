@@ -184,7 +184,12 @@ function PlanificadorContent({
     )
     const deptos = ['Todos', ...Array.from(deptoNombres).sort()]
 
-    const servicios = ['Todos', ...new Set(catalogoServicios.map((s) => s.nombre))]
+    // Cascada EG para servicios: si hay empresa_grupo seleccionada,
+    // solo servicios de esa EG
+    const serviciosFiltrados = egFilterId
+      ? catalogoServicios.filter((s) => s.empresa_grupo_id === egFilterId)
+      : catalogoServicios
+    const servicios = ['Todos', ...Array.from(new Set(serviciosFiltrados.map((s) => s.nombre))).sort()]
     const tiposPartida = ['Todos', 'Puntual', 'Recurrente']
     return { egs, estados, deptos, servicios, tiposPartida }
   }, [ordenesTrabajo, month, egFilter, catalogoServicios, empresasGrupo, proyDeptoMap, deptosMap, proyectosMap])
@@ -314,13 +319,31 @@ function PlanificadorContent({
 
   function addAsignacion(ordenId: string, departamentoId: string) {
     const current = getAsignacionesLocal(ordenId)
+
+    // 1º intento: personas activas vinculadas al departamento de la OT
     const personasDepto = personasDepartamentos
       .filter((pd) => pd.departamento_id === departamentoId)
       .map((pd) => personasMap.get(pd.persona_id))
       .filter((p): p is Persona => !!p && p.activo)
 
-    const firstPersona = personasDepto[0]
-    if (!firstPersona) return
+    // 2º fallback: cualquier persona activa de la empresa grupo de la OT
+    // (vía proyecto). Útil cuando el depto aún no tiene personas asignadas
+    // en personas_departamentos.
+    const ot = ordenesTrabajo.find((o) => o.id === ordenId)
+    const proyecto = ot ? proyectosMap.get(ot.proyecto_id) : undefined
+    const egId = proyecto?.empresa_grupo_id
+
+    const firstPersona = personasDepto[0] ?? (egId
+      ? personas.find((p) => p.activo && p.empresa_grupo_id === egId)
+      : undefined)
+
+    if (!firstPersona) {
+      setSaveErrors((prev) => ({
+        ...prev,
+        [ordenId]: 'No hay personas activas disponibles para esta OT. Asigna personas al departamento o a la empresa grupo.',
+      }))
+      return
+    }
 
     const defaultCuota = cuotasPlanificacion.find(
       (c) => c.empresa_grupo_id === firstPersona.empresa_grupo_id && !c.fin_validez

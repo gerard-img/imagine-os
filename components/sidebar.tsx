@@ -138,6 +138,12 @@ const limitedSections: NavSection[] = [
 // Roles que solo ven el dashboard personal (nivel 'personal')
 const ROLES_LIMITADOS = ['Miembro', 'Intern', 'Externo', 'Implant']
 
+// Roles 'empresa' con acceso reducido: no ven Talento ni App
+const ROLES_EMPRESA_REDUCIDOS = ['Coordinador', 'Responsable']
+
+// Nombres (sub-sección dentro de CONFIG) que se ocultan para roles reducidos
+const SUBSECCIONES_OCULTAS_REDUCIDO = new Set(['Talento', 'App'])
+
 type SidebarProps = {
   rolNombre?: string
 }
@@ -147,9 +153,18 @@ export function Sidebar({ rolNombre }: SidebarProps) {
   const searchParams = useSearchParams()
   const fullUrl = searchParams.toString() ? `${pathname}?${searchParams.toString()}` : pathname
 
-  const navSections = rolNombre && ROLES_LIMITADOS.includes(rolNombre)
-    ? limitedSections
-    : allSections
+  const navSections = (() => {
+    if (rolNombre && ROLES_LIMITADOS.includes(rolNombre)) return limitedSections
+    if (rolNombre && ROLES_EMPRESA_REDUCIDOS.includes(rolNombre)) {
+      return allSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !SUBSECCIONES_OCULTAS_REDUCIDO.has(item.name)),
+        }))
+        .filter((section) => section.items.length > 0)
+    }
+    return allSections
+  })()
 
   function isActive(href: string) {
     if (href.includes('?')) return fullUrl === href

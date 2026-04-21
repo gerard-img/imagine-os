@@ -102,6 +102,7 @@ export type FiltrosReporte = {
   estadoOT: string | null
   departamentoId: string | null
   clienteId: string | null
+  servicioId: string | null
 }
 
 // ── Datos crudos ────────────────────────────────────────────
@@ -174,6 +175,7 @@ export function buildFilasCrudas(
     if (filtros.tipoProyecto === 'interno' && proyecto.tipo_proyecto !== 'Interno') continue
     if (filtros.departamentoId && orden.departamento_id !== filtros.departamentoId) continue
     if (filtros.clienteId && proyecto.empresa_id !== filtros.clienteId) continue
+    if (filtros.servicioId && orden.servicio_id !== filtros.servicioId) continue
     const cuota = cuotaMap.get(a.cuota_planificacion_id)
     if (!cuota) continue
 

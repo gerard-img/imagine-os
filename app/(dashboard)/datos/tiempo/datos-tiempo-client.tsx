@@ -17,7 +17,7 @@ import type { FilaInforme } from '@/lib/helpers-informes'
 import type {
   OrdenTrabajo, Asignacion, Persona, Proyecto, Empresa,
   CuotaPlanificacion, HorasTrabajables, PersonaDepartamento,
-  EmpresaGrupo, Departamento,
+  EmpresaGrupo, Departamento, CatalogoServicio,
 } from '@/lib/supabase/types'
 import { formatHoras, formatEuroHora } from '../components/helpers-ui'
 import { KpiDelta } from '../components/kpi-delta'
@@ -39,6 +39,7 @@ type Props = {
   personasDepartamentos: PersonaDepartamento[]
   empresasGrupo: EmpresaGrupo[]
   departamentos: Departamento[]
+  catalogoServicios: CatalogoServicio[]
 }
 
 const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
@@ -46,6 +47,7 @@ const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'S
 export function DatosTiempoClient({
   ordenesTrabajo, asignaciones, personas, proyectos, empresas,
   cuotas, horasTrabajables, personasDepartamentos, empresasGrupo, departamentos,
+  catalogoServicios,
 }: Props) {
   const maps = useMemo(
     () => buildLookupMaps(ordenesTrabajo, proyectos, empresas, cuotas, departamentos, empresasGrupo),
@@ -60,7 +62,7 @@ export function DatosTiempoClient({
   const anio = Number(searchParams.get('anio')) || new Date().getFullYear()
   const setAnio = (a: number) => setParams({ anio: a === new Date().getFullYear() ? null : String(a) })
 
-  const filters = useFiltersDatos({ searchParams, setParams, departamentos })
+  const filters = useFiltersDatos({ searchParams, setParams, departamentos, catalogoServicios })
 
   // Meses del año y del año anterior (para comparar)
   const mesActual = useMemo(() => {
@@ -87,8 +89,8 @@ export function DatosTiempoClient({
   // ── Datos año actual ──
 
   const filasCrudasAnio = useMemo(
-    () => buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesAnio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos),
-    [asignaciones, maps, filters.filtroEgs, mesesAnio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos],
+    () => buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesAnio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios),
+    [asignaciones, maps, filters.filtroEgs, mesesAnio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios],
   )
 
   const horasTrabAnio = useMemo(
@@ -109,30 +111,30 @@ export function DatosTiempoClient({
   // ── Datos año anterior (para comparar) ──
 
   const kpisAnioAnterior = useMemo(() => {
-    const filasPrev = buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesAnioAnterior, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos)
+    const filasPrev = buildFilasCrudas(asignaciones, maps, filters.filtroEgs, mesesAnioAnterior, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios)
     const htPrev = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filters.filtroEgs, filters.filtroDeptos, mesesAnioAnterior)
     return calcularKpis(filasPrev, htPrev)
-  }, [asignaciones, maps, filters.filtroEgs, mesesAnioAnterior, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, personas, personasDepartamentos, horasTrabajables])
+  }, [asignaciones, maps, filters.filtroEgs, mesesAnioAnterior, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios, personas, personasDepartamentos, horasTrabajables])
 
   // ── Gráfico de barras ──
   const datosMensuales = useMemo(
-    () => calcularDatosMensualesBarras(asignaciones, maps, filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos),
-    [asignaciones, maps, filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos],
+    () => calcularDatosMensualesBarras(asignaciones, maps, filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios),
+    [asignaciones, maps, filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios],
   )
 
   // ── Heatmap ──
   const datosHeatmap = useMemo(
     () => calcularHeatmapCarga(
       asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos,
-      filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos,
+      filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios,
     ),
-    [asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos],
+    [asignaciones, maps, personas, personasDepartamentos, horasTrabajables, departamentos, filters.filtroEgs, anio, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios],
   )
 
   // ── Líneas de tendencia (KPIs mes a mes) ──
   const datosTendencia: DatoTendenciaMes[] = useMemo(() => {
     return mesesAnio.map((mes, i) => {
-      const filasMes = buildFilasCrudas(asignaciones, maps, filters.filtroEgs, [mes], filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos)
+      const filasMes = buildFilasCrudas(asignaciones, maps, filters.filtroEgs, [mes], filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios)
       const htMes = calcularHorasTrabajablesPorMes(personas, personasDepartamentos, horasTrabajables, filters.filtroEgs, filters.filtroDeptos, [mes])
       const kpisMes = calcularKpis(filasMes, htMes)
       return {
@@ -142,7 +144,7 @@ export function DatosTiempoClient({
         euroHora: kpisMes.euroHoraEfectivo,
       }
     })
-  }, [asignaciones, maps, filters.filtroEgs, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, personas, personasDepartamentos, horasTrabajables, mesesAnio])
+  }, [asignaciones, maps, filters.filtroEgs, filters.filtroTipos, filters.filtroEstadosOT, filters.filtroDeptos, filters.filtroServicios, personas, personasDepartamentos, horasTrabajables, mesesAnio])
 
   // ── Sparklines por cliente (año completo) ──
   const sparklineClientes: ClienteSparklineData[] = useMemo(() => {
@@ -206,6 +208,7 @@ export function DatosTiempoClient({
         <FiltrosDatosBarra
           empresasGrupo={empresasGrupo}
           departamentos={departamentos}
+          catalogoServicios={catalogoServicios}
           {...filters}
         />
 

@@ -9,6 +9,7 @@ import {
   getPersonasDepartamentos,
   getEmpresasGrupo,
   getDepartamentos,
+  getCatalogoServicios,
 } from '@/lib/supabase/queries'
 import { defaultDateRange, rangoParaServidor } from '@/lib/date-range-utils'
 import { DatosTiempoClient } from './datos-tiempo-client'
@@ -35,6 +36,7 @@ export default async function DatosTiempoPage({
     personasDepartamentos,
     empresasGrupo,
     departamentos,
+    catalogoServicios,
   ] = await Promise.all([
     getOrdenesTrabajoEnRango(rango.desde, rango.hasta),
     getAsignacionesEnRango(rango.desde, rango.hasta),
@@ -46,6 +48,7 @@ export default async function DatosTiempoPage({
     getPersonasDepartamentos(),
     getEmpresasGrupo(),
     getDepartamentos(),
+    getCatalogoServicios(),
   ])
 
   return (
@@ -60,6 +63,7 @@ export default async function DatosTiempoPage({
       personasDepartamentos={personasDepartamentos}
       empresasGrupo={empresasGrupo}
       departamentos={departamentos}
+      catalogoServicios={catalogoServicios}
     />
   )
 }

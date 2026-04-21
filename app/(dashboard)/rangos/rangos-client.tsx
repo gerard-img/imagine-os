@@ -106,18 +106,31 @@ function RangoSheet(props: RangoSheetProps) {
           {/* Empresa */}
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
-            <select
-              id="empresa_grupo_id"
-              disabled={esEdicion}
-              aria-invalid={!!errors.empresa_grupo_id}
-              {...register('empresa_grupo_id')}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
-            >
-              <option value="">Selecciona una empresa</option>
-              {props.empresas.map((e) => (
-                <option key={e.id} value={e.id}>{e.codigo} — {e.nombre}</option>
-              ))}
-            </select>
+            {esEdicion ? (
+              <>
+                {/* En edición, la empresa no se puede cambiar. Los <select disabled>
+                    de RHF se envían como undefined y rompen la validación. */}
+                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                  {(() => {
+                    const e = props.empresas.find((x) => x.id === props.rango.empresa_grupo_id)
+                    return e ? `${e.codigo} — ${e.nombre}` : '—'
+                  })()}
+                </p>
+                <input type="hidden" {...register('empresa_grupo_id')} />
+              </>
+            ) : (
+              <select
+                id="empresa_grupo_id"
+                aria-invalid={!!errors.empresa_grupo_id}
+                {...register('empresa_grupo_id')}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+              >
+                <option value="">Selecciona una empresa</option>
+                {props.empresas.map((e) => (
+                  <option key={e.id} value={e.id}>{e.codigo} — {e.nombre}</option>
+                ))}
+              </select>
+            )}
             <FieldError message={errors.empresa_grupo_id?.message} />
           </div>
 

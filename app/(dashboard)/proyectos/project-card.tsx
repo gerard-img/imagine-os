@@ -124,7 +124,7 @@ export function ProjectCard({
               <button
                 onClick={() => onArchivar(p.id)}
                 disabled={actionLoading === p.id}
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                className="ml-auto flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
               >
                 {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
                 Archivar
@@ -146,7 +146,7 @@ export function ProjectCard({
               <button
                 onClick={() => onDesarchivar(p.id)}
                 disabled={actionLoading === p.id}
-                className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
+                className="ml-auto flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition-colors"
               >
                 {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArchiveRestore className="h-3.5 w-3.5" />}
                 Desarchivar
@@ -167,7 +167,7 @@ export function ProjectCard({
             <button
               onClick={() => onRestaurar(p.id)}
               disabled={actionLoading === p.id}
-              className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
+              className="ml-auto flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-emerald-600 hover:bg-emerald-50 transition-colors"
             >
               {actionLoading === p.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
               Restaurar

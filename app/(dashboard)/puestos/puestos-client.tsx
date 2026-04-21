@@ -104,18 +104,31 @@ function PuestoSheet(props: PuestoSheetProps) {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 px-6 py-4">
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
-            <select
-              id="empresa_grupo_id"
-              disabled={esEdicion}
-              aria-invalid={!!errors.empresa_grupo_id}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50 disabled:cursor-not-allowed aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
-              {...register('empresa_grupo_id')}
-            >
-              <option value="">Selecciona una empresa</option>
-              {props.empresas.map((eg) => (
-                <option key={eg.id} value={eg.id}>{eg.nombre} ({eg.codigo})</option>
-              ))}
-            </select>
+            {esEdicion ? (
+              <>
+                {/* En edición, la empresa no se puede cambiar. Los <select disabled>
+                    de RHF se envían como undefined y rompen la validación. */}
+                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                  {(() => {
+                    const eg = props.empresas.find((x) => x.id === props.puesto.empresa_grupo_id)
+                    return eg ? `${eg.nombre} (${eg.codigo})` : '—'
+                  })()}
+                </p>
+                <input type="hidden" {...register('empresa_grupo_id')} />
+              </>
+            ) : (
+              <select
+                id="empresa_grupo_id"
+                aria-invalid={!!errors.empresa_grupo_id}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20"
+                {...register('empresa_grupo_id')}
+              >
+                <option value="">Selecciona una empresa</option>
+                {props.empresas.map((eg) => (
+                  <option key={eg.id} value={eg.id}>{eg.nombre} ({eg.codigo})</option>
+                ))}
+              </select>
+            )}
             <FieldError message={errors.empresa_grupo_id?.message} />
           </div>
 

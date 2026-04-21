@@ -75,6 +75,7 @@ export type LookupMaps = {
     id: string
     proyectoId: string
     departamentoId: string
+    servicioId: string | null
     mesAnio: string
     partidaPrevista: number
     partidaReal: number | null
@@ -108,6 +109,7 @@ export function buildLookupMaps(
           id: o.id,
           proyectoId: o.proyecto_id,
           departamentoId: o.departamento_id,
+          servicioId: o.servicio_id,
           mesAnio: o.mes_anio,
           partidaPrevista: o.partida_prevista,
           partidaReal: o.partida_real,
@@ -176,6 +178,7 @@ export function buildFilasCrudas(
   filtroTiposProyecto: TipoProyectoFiltro[],
   filtroEstadosOT: string[],
   filtroDepartamentos: string[],
+  filtroServicios: string[] = [],
 ): FilaCruda[] {
   const filas: FilaCruda[] = []
 
@@ -189,6 +192,11 @@ export function buildFilasCrudas(
 
     // Filtro departamento
     if (filtroDepartamentos.length > 0 && !filtroDepartamentos.includes(orden.departamentoId)) continue
+
+    // Filtro servicio (OTs sin servicio no pasan si hay filtro activo)
+    if (filtroServicios.length > 0) {
+      if (!orden.servicioId || !filtroServicios.includes(orden.servicioId)) continue
+    }
 
     const proyecto = maps.proyectoMap.get(orden.proyectoId)
     if (!proyecto) continue
@@ -262,6 +270,7 @@ export function calcularDatosMensualesBarras(
   filtroTiposProyecto: TipoProyectoFiltro[],
   filtroEstadosOT: string[],
   filtroDepartamentos: string[],
+  filtroServicios: string[] = [],
 ): DatoMensualBarras[] {
   const resultado: DatoMensualBarras[] = []
 
@@ -269,7 +278,7 @@ export function calcularDatosMensualesBarras(
     const mes = `${anio}-${String(m).padStart(2, '0')}-01`
     const filas = buildFilasCrudas(
       asignaciones, maps, filtroEmpresasGrupo, [mes],
-      filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos,
+      filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos, filtroServicios,
     )
 
     resultado.push({
@@ -668,6 +677,7 @@ export function calcularSparklines(
   filtroEstadosOT: string[],
   filtroDepartamentos: string[],
   agruparPor: 'cliente' | 'depto' = 'cliente',
+  filtroServicios: string[] = [],
 ): Map<string, number[]> {
   // Generar los últimos 6 meses (incluyendo el actual)
   const meses: string[] = []
@@ -682,7 +692,7 @@ export function calcularSparklines(
 
   const filas = buildFilasCrudas(
     asignaciones, maps, filtroEmpresasGrupo, meses,
-    filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos,
+    filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos, filtroServicios,
   )
 
   // Agrupar ingresos por clave × mes — usa ingresosMejor (real con fallback)
@@ -759,6 +769,7 @@ export function calcularHeatmapCarga(
   filtroTiposProyecto: TipoProyectoFiltro[],
   filtroEstadosOT: string[],
   filtroDepartamentos: string[],
+  filtroServicios: string[] = [],
 ): FilaHeatmap[] {
   const meses = Array.from({ length: 12 }, (_, i) => {
     const m = String(i + 1).padStart(2, '0')
@@ -769,7 +780,7 @@ export function calcularHeatmapCarga(
   const horasAsigMap = new Map<string, number>() // key: deptoId-mes
   const filas = buildFilasCrudas(
     asignaciones, maps, filtroEmpresasGrupo, meses,
-    filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos,
+    filtroTiposProyecto, filtroEstadosOT, filtroDepartamentos, filtroServicios,
   )
   for (const f of filas) {
     const key = `${f.departamentoId}-${f.mesAnio}`

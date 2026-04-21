@@ -107,18 +107,29 @@ function DepartamentoSheet(props: DepartamentoSheetProps) {
           {/* Empresa */}
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
-            <select
-              id="empresa_grupo_id"
-              disabled={esEdicion}
-              aria-invalid={!!errors.empresa_grupo_id}
-              className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring disabled:cursor-not-allowed disabled:opacity-50"
-              {...register('empresa_grupo_id')}
-            >
-              <option value="">Selecciona una empresa</option>
-              {props.empresas.map((e) => (
-                <option key={e.id} value={e.id}>{e.nombre}</option>
-              ))}
-            </select>
+            {esEdicion ? (
+              <>
+                {/* En edición, la empresa no se puede cambiar. Se muestra como texto
+                    y se mantiene el valor en un input hidden (los <select disabled> de
+                    RHF se envían como undefined y rompen la validación). */}
+                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                  {props.empresas.find((e) => e.id === props.departamento.empresa_grupo_id)?.nombre ?? '—'}
+                </p>
+                <input type="hidden" {...register('empresa_grupo_id')} />
+              </>
+            ) : (
+              <select
+                id="empresa_grupo_id"
+                aria-invalid={!!errors.empresa_grupo_id}
+                className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
+                {...register('empresa_grupo_id')}
+              >
+                <option value="">Selecciona una empresa</option>
+                {props.empresas.map((e) => (
+                  <option key={e.id} value={e.id}>{e.nombre}</option>
+                ))}
+              </select>
+            )}
             <FieldError message={errors.empresa_grupo_id?.message} />
           </div>
 
