@@ -20,8 +20,12 @@ import { Plus, Pencil, Loader2 } from 'lucide-react'
 
 // -- Schema local --
 
+// Nota: empresa_grupo_id es permisivo a nivel cliente porque en edición se
+// inyecta desde props en onSubmit (RHF tiene quirks con hidden inputs +
+// conditional rendering que pueden dejar el valor vacío). El servidor sigue
+// validando con z.string().uuid() estricto.
 const departamentoSchema = z.object({
-  empresa_grupo_id: z.string().uuid('Selecciona una empresa'),
+  empresa_grupo_id: z.string(),
   nombre: z.string().min(1, 'El nombre es obligatorio').max(100, 'El nombre no puede superar los 100 caracteres'),
   codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
   descripcion: z.string().max(500, 'La descripcion no puede superar los 500 caracteres').optional(),
@@ -52,6 +56,7 @@ function DepartamentoSheet(props: DepartamentoSheetProps) {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<DepartamentoFormData>({
     resolver: zodResolver(departamentoSchema),
@@ -67,9 +72,22 @@ function DepartamentoSheet(props: DepartamentoSheetProps) {
     setSubmitting(true)
     setServerError('')
 
+    // En creación validamos manualmente empresa_grupo_id (schema es permisivo).
+    // En edición lo inyectamos desde props para evitar el quirk de RHF con
+    // hidden inputs + conditional rendering.
+    if (!esEdicion && !data.empresa_grupo_id) {
+      setError('empresa_grupo_id', { message: 'Selecciona una empresa' })
+      setSubmitting(false)
+      return
+    }
+
+    const finalData = esEdicion
+      ? { ...data, empresa_grupo_id: props.departamento.empresa_grupo_id }
+      : data
+
     const result = esEdicion
-      ? await actualizarDepartamento(props.departamento.id, data)
-      : await crearDepartamento(data)
+      ? await actualizarDepartamento(props.departamento.id, finalData)
+      : await crearDepartamento(finalData)
 
     if (result.success) {
       if (!esEdicion) reset()
@@ -108,19 +126,9 @@ function DepartamentoSheet(props: DepartamentoSheetProps) {
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
             {esEdicion ? (
-              <>
-                {/* En edición, la empresa no se puede cambiar. Se muestra como texto
-                    y se mantiene el valor en un input hidden (los <select disabled> de
-                    RHF se envían como undefined y rompen la validación). */}
-                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
-                  {props.empresas.find((e) => e.id === props.departamento.empresa_grupo_id)?.nombre ?? '—'}
-                </p>
-                <input
-                  type="hidden"
-                  defaultValue={props.departamento.empresa_grupo_id}
-                  {...register('empresa_grupo_id')}
-                />
-              </>
+              <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                {props.empresas.find((e) => e.id === props.departamento.empresa_grupo_id)?.nombre ?? '—'}
+              </p>
             ) : (
               <select
                 id="empresa_grupo_id"

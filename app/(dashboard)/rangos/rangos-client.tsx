@@ -19,8 +19,10 @@ import { Plus, Pencil, Loader2 } from 'lucide-react'
 
 // ── Schema local ──
 
+// Nota: empresa_grupo_id es permisivo a nivel cliente porque en edición se
+// inyecta desde props en onSubmit. El servidor sigue validando con .uuid() estricto.
 const rangoSchema = z.object({
-  empresa_grupo_id: z.string().uuid('Selecciona una empresa'),
+  empresa_grupo_id: z.string(),
   nombre: z.string().min(1, 'El nombre es obligatorio').max(100, 'El nombre no puede superar los 100 caracteres'),
   codigo: z.string().min(1, 'El código es obligatorio').max(20, 'El código no puede superar los 20 caracteres'),
   orden: z.number().min(1, 'El orden debe ser al menos 1'),
@@ -51,6 +53,7 @@ function RangoSheet(props: RangoSheetProps) {
     register,
     handleSubmit,
     reset,
+    setError,
     formState: { errors },
   } = useForm<RangoFormData>({
     resolver: zodResolver(rangoSchema),
@@ -66,9 +69,19 @@ function RangoSheet(props: RangoSheetProps) {
     setSubmitting(true)
     setServerError('')
 
+    if (!esEdicion && !data.empresa_grupo_id) {
+      setError('empresa_grupo_id', { message: 'Selecciona una empresa' })
+      setSubmitting(false)
+      return
+    }
+
+    const finalData = esEdicion
+      ? { ...data, empresa_grupo_id: props.rango.empresa_grupo_id }
+      : data
+
     const result = esEdicion
-      ? await actualizarRango(props.rango.id, data)
-      : await crearRango(data)
+      ? await actualizarRango(props.rango.id, finalData)
+      : await crearRango(finalData)
 
     if (result.success) {
       if (!esEdicion) reset()
@@ -107,21 +120,12 @@ function RangoSheet(props: RangoSheetProps) {
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
             {esEdicion ? (
-              <>
-                {/* En edición, la empresa no se puede cambiar. Los <select disabled>
-                    de RHF se envían como undefined y rompen la validación. */}
-                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
-                  {(() => {
-                    const e = props.empresas.find((x) => x.id === props.rango.empresa_grupo_id)
-                    return e ? `${e.codigo} — ${e.nombre}` : '—'
-                  })()}
-                </p>
-                <input
-                  type="hidden"
-                  defaultValue={props.rango.empresa_grupo_id}
-                  {...register('empresa_grupo_id')}
-                />
-              </>
+              <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                {(() => {
+                  const e = props.empresas.find((x) => x.id === props.rango.empresa_grupo_id)
+                  return e ? `${e.codigo} — ${e.nombre}` : '—'
+                })()}
+              </p>
             ) : (
               <select
                 id="empresa_grupo_id"

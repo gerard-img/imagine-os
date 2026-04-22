@@ -20,8 +20,10 @@ import { Plus, Pencil, Loader2 } from 'lucide-react'
 
 // ── Schema local ──
 
+// Nota: empresa_grupo_id es permisivo a nivel cliente porque en edición se
+// inyecta desde props en onSubmit. El servidor sigue validando con .uuid() estricto.
 const servicioSchema = z.object({
-  empresa_grupo_id: z.string().uuid('La empresa es obligatoria'),
+  empresa_grupo_id: z.string(),
   nombre: z.string().min(1, 'El nombre es obligatorio').max(200, 'El nombre no puede superar los 200 caracteres'),
   codigo: z.string().min(1, 'El codigo es obligatorio').max(20, 'El codigo no puede superar los 20 caracteres'),
   descripcion: z.string().max(500, 'La descripcion no puede superar los 500 caracteres').optional().or(z.literal('')),
@@ -53,6 +55,7 @@ function ServicioSheet(props: ServicioSheetProps) {
     handleSubmit,
     reset,
     setValue,
+    setError,
     watch,
     formState: { errors },
   } = useForm<ServicioFormData>({
@@ -71,9 +74,19 @@ function ServicioSheet(props: ServicioSheetProps) {
     setSubmitting(true)
     setServerError('')
 
+    if (!esEdicion && !data.empresa_grupo_id) {
+      setError('empresa_grupo_id', { message: 'La empresa es obligatoria' })
+      setSubmitting(false)
+      return
+    }
+
+    const finalData = esEdicion
+      ? { ...data, empresa_grupo_id: props.servicio.empresa_grupo_id }
+      : data
+
     const result = esEdicion
-      ? await actualizarServicio(props.servicio.id, data)
-      : await crearServicio(data)
+      ? await actualizarServicio(props.servicio.id, finalData)
+      : await crearServicio(finalData)
 
     if (result.success) {
       if (!esEdicion) reset()
@@ -111,19 +124,12 @@ function ServicioSheet(props: ServicioSheetProps) {
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
             {esEdicion ? (
-              <>
-                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
-                  {(() => {
-                    const eg = props.empresas.find((x) => x.id === props.servicio.empresa_grupo_id)
-                    return eg ? `${eg.nombre} (${eg.codigo})` : '—'
-                  })()}
-                </p>
-                <input
-                  type="hidden"
-                  defaultValue={props.servicio.empresa_grupo_id}
-                  {...register('empresa_grupo_id')}
-                />
-              </>
+              <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                {(() => {
+                  const eg = props.empresas.find((x) => x.id === props.servicio.empresa_grupo_id)
+                  return eg ? `${eg.nombre} (${eg.codigo})` : '—'
+                })()}
+              </p>
             ) : (
               <select
                 id="empresa_grupo_id"
