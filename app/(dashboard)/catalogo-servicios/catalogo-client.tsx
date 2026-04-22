@@ -111,12 +111,19 @@ function ServicioSheet(props: ServicioSheetProps) {
           <div className="space-y-1.5">
             <Label htmlFor="empresa_grupo_id">Empresa *</Label>
             {esEdicion ? (
-              <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
-                {(() => {
-                  const eg = props.empresas.find((x) => x.id === props.servicio.empresa_grupo_id)
-                  return eg ? `${eg.nombre} (${eg.codigo})` : '—'
-                })()}
-              </p>
+              <>
+                <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
+                  {(() => {
+                    const eg = props.empresas.find((x) => x.id === props.servicio.empresa_grupo_id)
+                    return eg ? `${eg.nombre} (${eg.codigo})` : '—'
+                  })()}
+                </p>
+                <input
+                  type="hidden"
+                  defaultValue={props.servicio.empresa_grupo_id}
+                  {...register('empresa_grupo_id')}
+                />
+              </>
             ) : (
               <select
                 id="empresa_grupo_id"

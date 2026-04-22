@@ -116,7 +116,11 @@ function RangoSheet(props: RangoSheetProps) {
                     return e ? `${e.codigo} — ${e.nombre}` : '—'
                   })()}
                 </p>
-                <input type="hidden" {...register('empresa_grupo_id')} />
+                <input
+                  type="hidden"
+                  defaultValue={props.rango.empresa_grupo_id}
+                  {...register('empresa_grupo_id')}
+                />
               </>
             ) : (
               <select

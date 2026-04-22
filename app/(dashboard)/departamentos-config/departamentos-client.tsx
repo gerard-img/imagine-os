@@ -115,7 +115,11 @@ function DepartamentoSheet(props: DepartamentoSheetProps) {
                 <p className="flex h-8 items-center rounded-lg border border-input bg-muted/30 px-2.5 text-sm text-muted-foreground">
                   {props.empresas.find((e) => e.id === props.departamento.empresa_grupo_id)?.nombre ?? '—'}
                 </p>
-                <input type="hidden" {...register('empresa_grupo_id')} />
+                <input
+                  type="hidden"
+                  defaultValue={props.departamento.empresa_grupo_id}
+                  {...register('empresa_grupo_id')}
+                />
               </>
             ) : (
               <select

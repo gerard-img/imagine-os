@@ -267,6 +267,14 @@ export function ReportesClient({
     return [...base].sort((a, b) => a.nombre.localeCompare(b.nombre))
   }, [servicios, filtros.empresaGrupoId])
 
+  // Departamentos para filtro: cascada por empresa grupo
+  const departamentosFiltrados = useMemo(() => {
+    const base = filtros.empresaGrupoId
+      ? departamentos.filter((d) => d.empresa_grupo_id === filtros.empresaGrupoId)
+      : departamentos
+    return [...base].sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }, [departamentos, filtros.empresaGrupoId])
+
   const filtrosActivos = [filtros.empresaGrupoId, filtros.tipoProyecto !== 'todos' ? filtros.tipoProyecto : null, filtros.estadoOT, filtros.departamentoId, filtros.clienteId, filtros.servicioId].filter(Boolean).length
 
   // ── Resumen por persona (tabla fija al final) ──
@@ -377,12 +385,19 @@ export function ReportesClient({
                 value={filtros.empresaGrupoId ?? ''}
                 onChange={(e) => {
                   const newEg = e.target.value || null
-                  // Si el servicio actual no pertenece a la nueva EG, limpiarlo
+                  // Si el servicio o el departamento actuales no pertenecen a la nueva EG, limpiarlos
                   const servicioActual = filtros.servicioId
                     ? servicios.find((s) => s.id === filtros.servicioId)
                     : null
+                  const deptoActual = filtros.departamentoId
+                    ? departamentos.find((d) => d.id === filtros.departamentoId)
+                    : null
                   const hayQueLimpiarServicio = newEg && servicioActual && servicioActual.empresa_grupo_id !== newEg
-                  setParams(hayQueLimpiarServicio ? { eg: newEg, servicio: null } : { eg: newEg })
+                  const hayQueLimpiarDepto = newEg && deptoActual && deptoActual.empresa_grupo_id !== newEg
+                  const updates: Record<string, string | null> = { eg: newEg }
+                  if (hayQueLimpiarServicio) updates.servicio = null
+                  if (hayQueLimpiarDepto) updates.depto = null
+                  setParams(updates)
                 }}
                 className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring"
               >
@@ -406,7 +421,7 @@ export function ReportesClient({
               <label className="text-[11px] font-semibold uppercase text-muted-foreground">Departamento</label>
               <select value={filtros.departamentoId ?? ''} onChange={(e) => setParams({ depto: e.target.value || null })} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm outline-none focus-visible:border-ring">
                 <option value="">Todos</option>
-                {departamentos.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                {departamentosFiltrados.map((d) => <option key={d.id} value={d.id}>{d.nombre}</option>)}
               </select>
             </div>
             <div className="space-y-1">
